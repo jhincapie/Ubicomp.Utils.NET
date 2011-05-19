@@ -1,0 +1,32 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MulticastSocket", "MulticastSocket\MulticastSocket.csproj", "{A9C5CD09-AC34-47EB-811F-99F8CF31C3E0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MulticastTransportFramework", "MulticastTransportFramework\MulticastTransportFramework.csproj", "{4AF95A28-12C7-4D59-8F84-17EF1A60C9A6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestApp", "TestApp\TestApp.csproj", "{A9FB1D68-88B7-4787-85FA-FD1FFFA4DC62}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A9C5CD09-AC34-47EB-811F-99F8CF31C3E0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A9C5CD09-AC34-47EB-811F-99F8CF31C3E0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A9C5CD09-AC34-47EB-811F-99F8CF31C3E0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A9C5CD09-AC34-47EB-811F-99F8CF31C3E0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4AF95A28-12C7-4D59-8F84-17EF1A60C9A6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4AF95A28-12C7-4D59-8F84-17EF1A60C9A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4AF95A28-12C7-4D59-8F84-17EF1A60C9A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4AF95A28-12C7-4D59-8F84-17EF1A60C9A6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A9FB1D68-88B7-4787-85FA-FD1FFFA4DC62}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A9FB1D68-88B7-4787-85FA-FD1FFFA4DC62}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A9FB1D68-88B7-4787-85FA-FD1FFFA4DC62}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A9FB1D68-88B7-4787-85FA-FD1FFFA4DC62}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
