@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 
-namespace CAF.ContextService
+namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
 {
 
   public abstract class ContextServiceContainer

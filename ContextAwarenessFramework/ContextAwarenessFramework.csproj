@@ -8,8 +8,8 @@
     <ProjectGuid>{8EAA1C78-0574-4F6F-A996-75277BE82665}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>CAF</RootNamespace>
-    <AssemblyName>ContextAwarenessFramework</AssemblyName>
+    <RootNamespace>Ubicomp.Utils.NET.ContextAwarenessFramework</RootNamespace>
+    <AssemblyName>Ubicomp.Utils.NET.ContextAwarenessFramework</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <FileUpgradeFlags>
@@ -52,9 +52,8 @@
     <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="log4net, Version=1.2.10.0, Culture=neutral, PublicKeyToken=1b44e1d426115821, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\log4net-1.2.10\bin\net\2.0\release\log4net.dll</HintPath>
+    <Reference Include="log4net">
+      <HintPath>..\Libs\log4net.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core">

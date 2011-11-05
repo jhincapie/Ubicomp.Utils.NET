@@ -2,12 +2,11 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using CAF.DataModel;
 using System.Threading;
 using System.Windows.Threading;
-using CAF.ContextAdapter;
+using Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter;
 
-namespace CAF.ContextService
+namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
 {
 
   public enum ContextServicePersistenceType { None, Periodic, OnRequest, Combined };

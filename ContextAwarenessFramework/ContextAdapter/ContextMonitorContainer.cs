@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 
-namespace CAF.ContextAdapter
+namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
 {
 
   public abstract class ContextMonitorContainer

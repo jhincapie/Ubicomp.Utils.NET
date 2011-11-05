@@ -2,10 +2,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Multicast.NET.MTF;
 using System.Net;
+using Ubicomp.Utils.NET.MulticastTransportFramework;
 
-namespace Multicast.NET.TestApp
+namespace Ubicomp.Utils.NET.Muticast.TestApp
 {
   class Program : ITransportListener
   {

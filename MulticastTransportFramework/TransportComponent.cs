@@ -6,11 +6,10 @@ using System.Net;
 using Jayrock.Json.Conversion;
 using Jayrock.Json;
 using System.IO;
-using Multicast;
 using System.Threading;
-using Multicast.NET.Sockets;
+using Ubicomp.Utils.NET.Sockets;
 
-namespace Multicast.NET.MTF
+namespace Ubicomp.Utils.NET.MulticastTransportFramework
 {
 
   public class TransportComponent : ITransportListener

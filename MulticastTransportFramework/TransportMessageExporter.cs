@@ -5,7 +5,7 @@ using System.Text;
 using Jayrock.Json;
 using Jayrock.Json.Conversion;
 
-namespace Multicast.NET.MTF
+namespace Ubicomp.Utils.NET.MulticastTransportFramework
 {
   public class TransportMessageExporter : IExporter
   {

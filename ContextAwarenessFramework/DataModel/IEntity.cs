@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.ComponentModel;
 
-namespace CAF.DataModel
+namespace Ubicomp.Utils.NET.ContextAwarenessFramework.DataModel
 {
 
   public interface IEntity : INotifyPropertyChanged

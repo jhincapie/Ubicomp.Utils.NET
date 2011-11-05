@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace Multicast.NET.MTF
+namespace Ubicomp.Utils.NET.MulticastTransportFramework
 {
   public interface ITransportMessageContent
   {

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Multicast.NET.Sockets
+namespace Ubicomp.Utils.NET.Sockets
 {
   public interface IMulticastSocketListener
   {

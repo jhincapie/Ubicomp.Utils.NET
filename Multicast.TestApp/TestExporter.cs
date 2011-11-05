@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using Jayrock.Json.Conversion;
 
-namespace Multicast.NET.TestApp
+namespace Ubicomp.Utils.NET.Muticast.TestApp
 {
   class TestExporter : IExporter
   {

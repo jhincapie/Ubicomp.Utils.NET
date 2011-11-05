@@ -5,7 +5,7 @@ using System.Net.Sockets;
 using System.Net;
 using System.Threading;
 
-namespace Multicast.NET.Sockets
+namespace Ubicomp.Utils.NET.Sockets
 {
 
   /// <summary>

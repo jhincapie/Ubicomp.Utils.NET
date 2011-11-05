@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace CAF.ContextAdapter
+namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
 {
 
   public interface IContextMonitorListener

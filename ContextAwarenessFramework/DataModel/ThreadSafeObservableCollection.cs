@@ -7,7 +7,7 @@ using System.Threading;
 
 // Taken from http://khason.net/blog/thread-safe-observable-collection/
 
-namespace CAF.DataModel
+namespace Ubicomp.Utils.NET.ContextAwarenessFramework.DataModel
 {
 
   //public class ThreadSafeObservableCollection<T> : ObservableCollection<T>
