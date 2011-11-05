@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<MiniGrid>
+  <GeneralInfo>
+    <TotalProjecta></TotalProjecta>
+    <TotalJobs></TotalJobs>
+    <TotalTasks></TotalTasks>
+    <TotalUsers></TotalUsers>
+    <ActiveProjects></ActiveProjects>
+    <ActiveJobs></ActiveJobs>
+    <ActiveTasks></ActiveTasks>
+    <ActiveUsers></ActiveUsers>
+  </GeneralInfo>
+  <Project Name="" FriendlyName="">
+    <FirstSeen></FirstSeen>
+    <LastSeen></LastSeen>
+    <Tweets>
+      <Tweet SubmitionDate="" User=""></Tweet>
+      <Tweet SubmitionDate="" User=""></Tweet>
+      <Tweet SubmitionDate="" User=""></Tweet>
+    </Tweets>
+    <Jobs FinishedJobs="" ActiveJobs="">
+      <Job JobID="" Owner="" CompletedTasks="" ActiveTasks="" >
+        <Task SubmitionDate="" UserExecuter="" Status="Completed" TimeElapsed=""/>
+        <Task SubmitionDate="" UserExecuter="" Status="Active"/>
+      </Job>
+    </Jobs>
+  </Project>
+  <Users>
+  </Users>
+</MiniGrid>
