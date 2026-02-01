@@ -26,6 +26,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
     private MulticastSocket socket = null!;
     private IPAddress address = null!;
+    private IPAddress? localAddress;
     private int port;
     private int udpTTL;
 
@@ -39,6 +40,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     {
       get { return address; }
       set { address = value; }
+    }
+
+    public IPAddress? LocalIPAddress
+    {
+      get { return localAddress; }
+      set { localAddress = value; }
     }
 
     public int Port
@@ -68,7 +75,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
       if (port == 0)
         throw new ApplicationException("Multicast group port not specified.");
 
-      socket = new MulticastSocket(address.ToString(), port, udpTTL);
+      socket = new MulticastSocket(address.ToString(), port, udpTTL, localAddress?.ToString());
       socket.OnNotifyMulticastSocketListener += new NotifyMulticastSocketListener(socket_OnNotifyMulticastSocketListener);
 
       currentMessageCons = 1;
@@ -76,6 +83,23 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
       Logger.LogInformation("Multicast Sockect Started to Listen for Traffic.");
       Logger.LogInformation("TransportComponent Initialized.");
+    }
+
+    public bool VerifyNetworking()
+    {
+        Logger.LogInformation("Performing Network Diagnostics...");
+        NetworkDiagnostics.LogFirewallStatus(port, Logger);
+        
+        bool success = NetworkDiagnostics.PerformLoopbackTest(this);
+        if (success)
+        {
+            Logger.LogInformation("Network Diagnostics Passed: Multicast Loopback Successful.");
+        }
+        else
+        {
+            Logger.LogWarning("Network Diagnostics Failed: Multicast Loopback NOT received. Check firewall settings and interface configuration.");
+        }
+        return success;
     }
 
     public string Send(TransportMessage message)

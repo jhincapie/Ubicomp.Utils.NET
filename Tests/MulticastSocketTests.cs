@@ -42,16 +42,22 @@ namespace Ubicomp.Utils.NET.Tests
             string receivedMessage = null;
             ManualResetEvent receivedEvent = new ManualResetEvent(false);
 
-            MulticastSocket socket = new MulticastSocket(ip, port, ttl);
+            // Use 127.0.0.1 for loopback tests on Linux/multi-homed systems
+            MulticastSocket socket = new MulticastSocket(ip, port, ttl, "127.0.0.1");
 
             socket.OnNotifyMulticastSocketListener += (sender, e) =>
             {
+                Console.WriteLine($"Test Event: {e.Type}");
                 if (e.Type == MulticastSocketMessageType.MessageReceived)
                 {
                     byte[] receivedBytes = (byte[])e.NewObject;
                     // Decoding using UTF8 as per our fix
                     receivedMessage = Encoding.UTF8.GetString(receivedBytes).Trim('\0');
                     receivedEvent.Set();
+                }
+                else if (e.Type == MulticastSocketMessageType.ReceiveException || e.Type == MulticastSocketMessageType.SendException)
+                {
+                    Console.WriteLine($"Socket Exception in test: {e.NewObject}");
                 }
             };
 
@@ -81,7 +87,8 @@ namespace Ubicomp.Utils.NET.Tests
             int port = 5002;
             int ttl = 1;
             
-            MulticastSocket socket = new MulticastSocket(ip, port, ttl);
+            // Use 127.0.0.1 for loopback tests on Linux/multi-homed systems
+            MulticastSocket socket = new MulticastSocket(ip, port, ttl, "127.0.0.1");
 
             // Capture Console.Error
             StringWriter stringWriter = new StringWriter();
