@@ -189,7 +189,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
       int length = Array.IndexOf<byte>(receivedMsgB, (byte)'\0');
       if (length == -1)
         length = receivedMsgB.Length;
-      System.Text.ASCIIEncoding enc = new System.Text.ASCIIEncoding();
+      System.Text.UTF8Encoding enc = new System.Text.UTF8Encoding();
       return enc.GetString(receivedMsgB, 0, length);
     }
 
