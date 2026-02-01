@@ -10,6 +10,7 @@ The **MulticastSocket** library provides an easy-to-use interface for joining mu
 
 ## Features
 - **Simplified Setup**: Configures TTL, Loopback, and Bind options automatically.
+- **Cross-Platform**: Handles platform-specific socket options gracefully (e.g., skips `NoDelay` on Linux/UDP where unsupported).
 - **Asynchronous I/O**: Uses `BeginReceiveFrom` and `BeginSendTo` for non-blocking operations.
 - **Threaded Events**: Dispatches events (`OnNotifyMulticastSocketListener`) on the `ThreadPool` to avoid blocking the network thread.
 - **Error Handling**: Captures and reports socket exceptions via events.

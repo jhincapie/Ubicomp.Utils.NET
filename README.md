@@ -13,7 +13,7 @@ Created By: Juan David Hincapie-Ramos - http://blog.jhincapie.com
 *   [**ContextAwarenessFramework**](ContextAwarenessFramework/README.md): Framework for context sensing and data management.
 
 ## Modernization Status
-This project has been modernized to target .NET Standard 2.0 and .NET 10.0.
+This project has been modernized to target .NET Standard 2.0 and .NET 8.0.
 *   **Serialization**: Migrated from `Jayrock` to `Newtonsoft.Json`.
 *   **Logging**: Migrated from `log4net` to `Microsoft.Extensions.Logging`.
 *   **Dependencies**: All dependencies are now managed via NuGet; the legacy `Libs` folder has been removed.
@@ -22,7 +22,7 @@ This project has been modernized to target .NET Standard 2.0 and .NET 10.0.
 
 ### Linux (using .NET CLI)
 
-1.  **Install .NET SDK**: Ensure you have the .NET SDK installed (version 8.0 or 10.0 recommended).
+1.  **Install .NET SDK**: Ensure you have the .NET SDK installed (version 8.0 recommended).
 2.  **Clone the repository**:
     ```bash
     git clone https://github.com/jhincapie/Ubicomp.Utils.NET.git
@@ -56,4 +56,4 @@ This project has been modernized to target .NET Standard 2.0 and .NET 10.0.
 3.  **Run Tests**: `dotnet test Tests\Ubicomp.Utils.NET.Tests.csproj`
 
 ---
-*Note: The core libraries target `netstandard2.0` for maximum compatibility, while the Sample App and Tests target `net10.0` (or `net8.0`).*
+*Note: The core libraries target `netstandard2.0` for maximum compatibility, while the Sample App and Tests target `net8.0`.*
