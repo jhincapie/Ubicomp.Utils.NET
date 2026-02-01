@@ -81,7 +81,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
       currentMessageCons = 1;
       socket.StartReceiving();
 
-      Logger.LogInformation("Multicast Sockect Started to Listen for Traffic.");
+      string interfaces = string.Join(", ", socket.JoinedAddresses.Select(a => a.ToString()));
+      Logger.LogInformation("Multicast Socket Started to Listen for Traffic on {0}:{1} (Interfaces: {2})", address, port, interfaces);
       Logger.LogInformation("TransportComponent Initialized.");
     }
 

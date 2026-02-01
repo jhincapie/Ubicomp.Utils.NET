@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Threading;
+using System.Linq;
 
 namespace Ubicomp.Utils.NET.Sockets
 {
@@ -28,6 +29,9 @@ namespace Ubicomp.Utils.NET.Sockets
     private int targetPort;
     private int udpTTL;
     private string? localIP;
+    private List<IPAddress> joinedAddresses = new List<IPAddress>();
+
+    public IEnumerable<IPAddress> JoinedAddresses => joinedAddresses;
 
     //socket initialization 
     public MulticastSocket(string tIP, int tPort, int TTL, string? lIP = null)
@@ -79,10 +83,12 @@ namespace Ubicomp.Utils.NET.Sockets
       IPAddress mcastAddr = IPAddress.Parse(targetIP);
       IPAddress? localAddr = localIP != null ? IPAddress.Parse(localIP) : null;
       
+      joinedAddresses.Clear();
       if (localAddr != null)
       {
         // If a specific local IP is provided, join only on that interface
         udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, localAddr));
+        joinedAddresses.Add(localAddr);
         
         // Also set the multicast interface for sending
         try
@@ -106,6 +112,7 @@ namespace Ubicomp.Utils.NET.Sockets
                 try
                 {
                   udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, addr.Address));
+                  joinedAddresses.Add(addr.Address);
                 }
                 catch (SocketException)
                 {
@@ -120,6 +127,8 @@ namespace Ubicomp.Utils.NET.Sockets
         try
         {
           udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, IPAddress.Any));
+          if (!joinedAddresses.Any(a => a.Equals(IPAddress.Any)))
+            joinedAddresses.Add(IPAddress.Any);
         }
         catch (SocketException) { /* Already joined or not supported */ }
 

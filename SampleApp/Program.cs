@@ -57,13 +57,6 @@ namespace Ubicomp.Utils.NET.SampleApp
             // Run network diagnostics
             TransportComponent.Instance.VerifyNetworking();
 
-            Console.WriteLine("Sending a test message...");
-            var source = new EventSource(Guid.NewGuid(), Environment.MachineName, "Sample App Source");
-            var content = new SimpleContent { Text = "Hello from Sample App!" };
-            var message = new TransportMessage(source, SampleAppID, content);
-            
-            TransportComponent.Instance.Send(message);
-
             if (noWait)
             {
                 Console.WriteLine("Waiting 5 seconds for messages...");
