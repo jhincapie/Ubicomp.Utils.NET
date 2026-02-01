@@ -1,5 +1,8 @@
 # Ubicomp.Utils.NET Project Context
 
+## Core Mandates
+*   **NEVER push directly to the `master` branch.** All changes must be submitted via Pull Requests for review.
+
 ## Project Overview
 **Ubicomp.Utils.NET** is a collection of .NET libraries designed to facilitate the development of context-aware and networked applications. It provides frameworks for multicast communication and context monitoring, abstracting complex networking and data management tasks.
 

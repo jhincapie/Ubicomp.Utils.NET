@@ -55,5 +55,9 @@ This project has been modernized to target .NET Standard 2.0 and .NET 8.0.
 2.  **Run Sample**: `dotnet run --project SampleApp\Ubicomp.Utils.NET.SampleApp.csproj`
 3.  **Run Tests**: `dotnet test Tests\Ubicomp.Utils.NET.Tests.csproj`
 
+## Contribution Guidelines
+*   **Do NOT push directly to the `master` branch.** 
+*   Always create a feature branch and submit a Pull Request.
+
 ---
 *Note: The core libraries target `netstandard2.0` for maximum compatibility, while the Sample App and Tests target `net8.0`.*
