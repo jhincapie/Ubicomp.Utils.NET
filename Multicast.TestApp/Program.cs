@@ -1,9 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Net;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
+using Newtonsoft.Json;
 
 namespace Ubicomp.Utils.NET.Muticast.TestApp
 {
@@ -23,8 +24,8 @@ namespace Ubicomp.Utils.NET.Muticast.TestApp
     {
       TransportComponent.Instance.TransportListeners.Add(Program.ProgramID, this);
 
-      TransportMessageExporter.Exporters.Add(Program.ProgramID, new TestExporter());
-      TransportMessageImporter.Importers.Add(Program.ProgramID, new TestImporter());
+      // Register MockMessage type for polymorphic deserialization
+      TransportMessageConverter.KnownTypes.Add(Program.ProgramID, typeof(MockMessage));
 
       TransportComponent.Instance.Init();
     }
@@ -55,7 +56,14 @@ namespace Ubicomp.Utils.NET.Muticast.TestApp
 
     void ITransportListener.MessageReceived(TransportMessage message, string rawMessage)
     {
-      Console.WriteLine("MessageReceived: {0}", (message.MessageData as MockMessage).Message);
+      if (message.MessageData is MockMessage mock)
+      {
+          Console.WriteLine("MessageReceived: {0}", mock.Message);
+      }
+      else
+      {
+          Console.WriteLine("MessageReceived: (Raw or Unknown) " + rawMessage);
+      }
     }
 
     static void Main(string[] args)
@@ -64,6 +72,8 @@ namespace Ubicomp.Utils.NET.Muticast.TestApp
       Program testObj = new Program("225.4.5.6", 5000, 10);
       testObj.Config();
       testObj.SendMessages();
+      // Console.Read() might block indefinitely in some test environments, 
+      // but this is a TestApp meant for manual or long-running execution.
       Console.Read();
     }
 

@@ -6,14 +6,10 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Jayrock.Json">
-      <HintPath>..\Libs\Jayrock.Json.dll</HintPath>
-    </Reference>
-    <Reference Include="log4net">
-      <HintPath>..\Libs\log4net.dll</HintPath>
-    </Reference>
+    <ProjectReference Include="..\MulticastSocket\MulticastSocket.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\MulticastSocket\MulticastSocket.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
 </Project>

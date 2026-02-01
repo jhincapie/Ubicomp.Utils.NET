@@ -4,6 +4,20 @@ A set of libraries to ease the creation of context aware and networked applicati
 
 Created By: Juan David Hincapie-Ramos - http://blog.jhincapie.com
 
+## Architecture
+![System Architecture Diagram](assets/system_architecture_diagram.png)
+
+## Project Documentation
+*   [**MulticastSocket**](MulticastSocket/README.md): Low-level multicast networking wrapper.
+*   [**MulticastTransportFramework**](MulticastTransportFramework/README.md): High-level messaging and transport layer.
+*   [**ContextAwarenessFramework**](ContextAwarenessFramework/README.md): Framework for context sensing and data management.
+
+## Modernization Status
+This project has been modernized to target .NET Standard 2.0 and .NET 10.0.
+*   **Serialization**: Migrated from `Jayrock` to `Newtonsoft.Json`.
+*   **Logging**: Migrated from `log4net` to `Microsoft.Extensions.Logging`.
+*   **Dependencies**: All dependencies are now managed via NuGet; the legacy `Libs` folder has been removed.
+
 ## How to Run
 
 ### Linux (using .NET CLI)

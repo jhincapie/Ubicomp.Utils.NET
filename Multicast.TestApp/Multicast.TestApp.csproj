@@ -7,11 +7,6 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Jayrock.Json">
-      <HintPath>..\Libs\Jayrock.Json.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\MulticastTransportFramework\MulticastTransportFramework.csproj" />
   </ItemGroup>
 </Project>

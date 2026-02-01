@@ -1,21 +1,22 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Net;
-using Jayrock.Json.Conversion;
-using Jayrock.Json;
+using Newtonsoft.Json;
 using System.IO;
 using System.Threading;
 using Ubicomp.Utils.NET.Sockets;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
 {
 
   public class TransportComponent : ITransportListener
   {
-
-    log4net.ILog logger = log4net.LogManager.GetLogger(typeof(TransportComponent));
+    // Use NullLogger by default to avoid null checks
+    public ILogger Logger { get; set; } = NullLogger.Instance;
 
     public const int TransportComponentID = 0;
     public static TransportComponent Instance = new TransportComponent();
@@ -30,8 +31,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
     public Dictionary<Int32, ITransportListener> TransportListeners = new Dictionary<int, ITransportListener>();
 
-    public ImportContext JsonImportContext;
-    public ExportContext JsonExportContext;
+    private JsonSerializerSettings jsonSettings;
 
     private static Int32 currentMessageCons = 0;
 
@@ -55,11 +55,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
     private TransportComponent()
     {
-      JsonExportContext = JsonConvert.CreateExportContext();
-      JsonExportContext.Register(new TransportMessageExporter());
-
-      JsonImportContext = JsonConvert.CreateImportContext();
-      JsonImportContext.Register(new TransportMessageImporter());
+      jsonSettings = new JsonSerializerSettings();
+      jsonSettings.Converters.Add(new TransportMessageConverter());
 
       TransportListeners.Add(TransportComponent.TransportComponentID, this);
     }
@@ -77,19 +74,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
       currentMessageCons = 1;
       socket.StartReceiving();
 
-      logger.Info("Multicast Sockect Started to Listen for Traffic.");
-      logger.Info("TransportComponent Initialized.");
+      Logger.LogInformation("Multicast Sockect Started to Listen for Traffic.");
+      Logger.LogInformation("TransportComponent Initialized.");
     }
 
     public String Send(TransportMessage message)
     {
-      StringBuilder buffer = new StringBuilder();
-      JsonWriter writer = new JsonTextWriter(new StringWriter(buffer));
-
+      String json;
       lock (exportLock)
-        JsonExportContext.Export(message, writer);
-
-      String json = buffer.ToString();
+        json = JsonConvert.SerializeObject(message, jsonSettings);
 
       socket.Send(json);
       return json;
@@ -101,11 +94,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
       {
         if (e.Type == MulticastSocketMessageType.SendException)
         {
-          logger.Error(String.Format("Error Sending Message: {0}", e.NewObject));
+          Logger.LogError("Error Sending Message: {0}", e.NewObject);
         }
         else if (e.Type == MulticastSocketMessageType.ReceiveException)
         {
-          logger.Error(String.Format("Error Receiving Message: {0}", e.NewObject));
+          Logger.LogError("Error Receiving Message: {0}", e.NewObject);
         }
         return;
       }
@@ -114,14 +107,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
       try
       {
         String sMessage = GetMessageAsString((byte[])e.NewObject);
-        JsonReader reader = new JsonTextReader(new StringReader(sMessage));
 
         TransportMessage tMessage = null;
         lock (importLock)
         {
-          Console.WriteLine("Importing message {0}", e.Consecutive);
-          //This is a method called from different threads -- This way we make only one import at a time.
-          tMessage = JsonImportContext.Import<TransportMessage>(reader);
+          // Using Logger instead of Console.WriteLine where appropriate, 
+          // or keeping Console.WriteLine for debug if not converted to Debug/Trace logs.
+          // For now, I'll convert these debug prints to Trace logs.
+          Logger.LogTrace("Importing message {0}", e.Consecutive);
+          tMessage = JsonConvert.DeserializeObject<TransportMessage>(sMessage, jsonSettings);
         }
 
         GateKeeperMethod(e.Consecutive);
@@ -129,19 +123,19 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         try
         {
-          Console.WriteLine("Processing message {0}", e.Consecutive);
+          Logger.LogTrace("Processing message {0}", e.Consecutive);
           ITransportListener listener = TransportListeners[tMessage.MessageType];
           listener.MessageReceived(tMessage, sMessage);
         }
         catch (Exception ex)
         {
-          logger.Error(String.Format("Error Processing Received Message: {0}", ex.Message));
+          Logger.LogError("Error Processing Received Message: {0}", ex.Message);
         }
 
       }
       catch (Exception ex)
       {
-        logger.Error(String.Format("Error Processing Received Message: {0}", ex.Message));
+        Logger.LogError("Error Processing Received Message: {0}", ex.Message);
       }
 
       //It's only called if the thread actually entered the gate. If it didn't, it would wake up another thread that should
@@ -185,7 +179,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
     public void MessageReceived(TransportMessage message, String rawMessage)
     {
-      logger.Info("Received Message for Transport Component - Not Implemented Feature.");
+      Logger.LogInformation("Received Message for Transport Component - Not Implemented Feature.");
     }
 
     #endregion

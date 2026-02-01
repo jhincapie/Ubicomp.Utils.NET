@@ -6,8 +6,6 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="log4net">
-      <HintPath>..\Libs\log4net.dll</HintPath>
-    </Reference>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
   </ItemGroup>
 </Project>

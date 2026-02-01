@@ -1,31 +1,79 @@
 using System;
 using System.Net;
-using Ubicomp.Utils.NET.Socket;
+using Ubicomp.Utils.NET.Sockets;
+using Ubicomp.Utils.NET.MulticastTransportFramework;
+using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace Ubicomp.Utils.NET.SampleApp
 {
-    class Program
+    class Program : ITransportListener
     {
+        public const int SampleAppID = 2;
+
         static void Main(string[] args)
         {
             Console.WriteLine("Ubicomp.Utils.NET Sample App");
             
-            var socket = new MulticastSocket("239.0.0.1", 5000, 1);
-            socket.OnMessageReceived += (sender, message) => 
-            {
-                Console.WriteLine($"Received message: {message}");
-            };
+            Program app = new Program();
+            app.Run();
+        }
 
-            Console.WriteLine("Starting multicast socket...");
-            socket.Start();
+        public void Run()
+        {
+            // 1. Create a logger factory
+            using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
+            {
+                builder.AddConsole();
+                builder.SetMinimumLevel(LogLevel.Trace);
+            });
+
+            // 2. Create a logger for the TransportComponent
+            ILogger<TransportComponent> logger = loggerFactory.CreateLogger<TransportComponent>();
+            
+            // 3. Inject the logger
+            TransportComponent.Instance.Logger = logger;
+
+            // Configure Transport Component
+            TransportComponent.Instance.MulticastGroupAddress = IPAddress.Parse("239.0.0.1");
+            TransportComponent.Instance.Port = 5000;
+            TransportComponent.Instance.UDPTTL = 1;
+            
+            // Register this app as a listener for message type 2
+            TransportComponent.Instance.TransportListeners.Add(SampleAppID, this);
+            
+            // Register message type for deserialization
+            TransportMessageConverter.KnownTypes.Add(SampleAppID, typeof(SimpleContent));
+            
+            Console.WriteLine("Initializing Transport Component...");
+            TransportComponent.Instance.Init();
 
             Console.WriteLine("Sending a test message...");
-            socket.Send("Hello from Sample App!");
+            var source = new EventSource(Guid.NewGuid(), Environment.MachineName, "Sample App Source");
+            var content = new SimpleContent { Text = "Hello from Sample App!" };
+            var message = new TransportMessage(source, SampleAppID, content);
+            
+            TransportComponent.Instance.Send(message);
 
             Console.WriteLine("Press any key to exit.");
             Console.ReadKey();
-
-            socket.Stop();
         }
+
+        public void MessageReceived(TransportMessage message, string rawMessage)
+        {
+            if (message.MessageData is SimpleContent content)
+            {
+                Console.WriteLine($"Received message: {content.Text} from {message.MessageSource.ResourceName}");
+            }
+            else
+            {
+                Console.WriteLine($"Received raw message of type {message.MessageType}: {rawMessage}");
+            }
+        }
+    }
+
+    public class SimpleContent : ITransportMessageContent
+    {
+        public string Text { get; set; }
     }
 }
