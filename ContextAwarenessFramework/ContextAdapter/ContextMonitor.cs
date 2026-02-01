@@ -20,6 +20,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
     protected int updateInterval = 3000;
 
     private bool stopped = false;
+    private EventWaitHandle stopWaitHandle = new ManualResetEvent(false);
 
     public ContextAdapterUpdateType UpdateType
     {
@@ -39,6 +40,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
     public void Start() 
     {
       stopped = false;
+      stopWaitHandle.Reset();
       CustomStart();
       if (OnStart != null)
         OnStart(this, null);
@@ -53,6 +55,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
     public void Stop() 
     {
       stopped = true;
+      stopWaitHandle.Set();
       CustomStop();
       if (OnStop != null)
         OnStop(this, null);
@@ -72,9 +75,14 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
       while (!stopped)
       {
         if (updateType == ContextAdapterUpdateType.Interval)
-          Thread.Sleep(updateInterval);
+        {
+          if (stopWaitHandle.WaitOne(updateInterval))
+             break;
+        }
+        
         if (stopped)
           break;
+          
         CustomRun();
       }
     }
