@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Jayrock.Json.Conversion;
+using Newtonsoft.Json;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
 {
@@ -14,21 +14,21 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     private String resourceName;
     private String friendlyName;
 
-    [JsonMemberName("resourceId")]
+    [JsonProperty("resourceId")]
     public Guid ResourceId
     {
       get { return resourceId; }
       set { resourceId = value; }
     }
 
-    [JsonMemberName("resourceName")]
+    [JsonProperty("resourceName")]
     public String ResourceName
     {
       get { return resourceName; }
       set { resourceName = value; }
     }
 
-    [JsonMemberName("friendlyName")]
+    [JsonProperty("friendlyName")]
     public String FriendlyName
     {
       get { return friendlyName; }

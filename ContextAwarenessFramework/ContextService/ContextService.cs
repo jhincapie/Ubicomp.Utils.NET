@@ -1,10 +1,12 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Windows.Threading;
 using Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
 {
@@ -16,8 +18,8 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
 
   public abstract class ContextService : IContextMonitorListener
   {
-
-    log4net.ILog logger = log4net.LogManager.GetLogger(typeof(ContextService));
+    // Exposed logger property, defaults to NullLogger
+    public ILogger Logger { get; set; } = NullLogger.Instance;
 
     public event EventHandler OnStart;
     public event EventHandler OnStop;
@@ -114,7 +116,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
 
           ExecutePersit();
         }
-        catch (ThreadAbortException abortE)
+        catch (ThreadAbortException)
         { }
       }
     }
@@ -167,7 +169,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
       }
       catch (Exception exception)
       {
-        logger.Error("An error ocurred processing monitor reading", exception.InnerException);
+        Logger.LogError(exception, "An error ocurred processing monitor reading");
       }
     }
 
