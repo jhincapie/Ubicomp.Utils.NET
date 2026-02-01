@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -11,8 +11,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
   {
 
     private Guid resourceId;
-    private String resourceName;
-    private String friendlyName;
+    private string resourceName = string.Empty;
+    private string? friendlyName;
 
     [JsonProperty("resourceId")]
     public Guid ResourceId
@@ -22,14 +22,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     }
 
     [JsonProperty("resourceName")]
-    public String ResourceName
+    public string ResourceName
     {
       get { return resourceName; }
       set { resourceName = value; }
     }
 
     [JsonProperty("friendlyName")]
-    public String FriendlyName
+    public string? FriendlyName
     {
       get { return friendlyName; }
       set { friendlyName = value; }
@@ -38,14 +38,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     public EventSource()
     { }
 
-    public EventSource(Guid resourceId, String resourceName)
+    public EventSource(Guid resourceId, string resourceName)
     {
       this.resourceId = resourceId;
       this.resourceName = resourceName;
       friendlyName = null;
     }
 
-    public EventSource(Guid resourceId, String resourceName, String friendlyName)
+    public EventSource(Guid resourceId, string resourceName, string? friendlyName)
     {
       this.resourceId = resourceId;
       this.resourceName = resourceName;

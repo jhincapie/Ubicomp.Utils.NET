@@ -4,5 +4,7 @@
     <RootNamespace>Ubicomp.Utils.NET.Socket</RootNamespace>
     <AssemblyName>Ubicomp.Utils.NET.MulticastSocket</AssemblyName>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
 </Project>

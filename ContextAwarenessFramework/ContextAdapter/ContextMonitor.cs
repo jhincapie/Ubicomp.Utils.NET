@@ -12,9 +12,9 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
   public abstract class ContextMonitor : IDisposable
   {
 
-    public event EventHandler OnStart;
-    public event EventHandler OnStop;
-    public event NotifyContextMonitorListeners OnNotifyContextServices;
+    public event EventHandler? OnStart;
+    public event EventHandler? OnStop;
+    public event NotifyContextMonitorListeners? OnNotifyContextServices;
 
     protected ContextAdapterUpdateType updateType = ContextAdapterUpdateType.Continous;
     protected int updateInterval = 3000;
@@ -42,8 +42,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
       stopWaitHandle.Reset();
       stopped = false;
       CustomStart();
-      if (OnStart != null)
-        OnStart(this, null);
+      OnStart?.Invoke(this, EventArgs.Empty);
     }
 
     protected virtual void CustomStart()
@@ -57,8 +56,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
       stopped = true;
       stopWaitHandle.Set();
       CustomStop();
-      if (OnStop != null)
-        OnStop(this, null);
+      OnStop?.Invoke(this, EventArgs.Empty);
     }
 
     protected virtual void CustomStop()
@@ -91,8 +89,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
 
     protected void NotifyContextServices(object sender, NotifyContextMonitorListenersEventArgs e)
     {
-      if (OnNotifyContextServices != null)
-        OnNotifyContextServices(sender, e);
+      OnNotifyContextServices?.Invoke(sender, e);
     }
 
     public void Dispose()

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -61,7 +61,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
       monitorsStarted = false;
     }
 
-    public static ContextMonitor GetContextMonitor(Type cmType)
+    public static ContextMonitor? GetContextMonitor(Type cmType)
     {
       foreach (ContextMonitor monitor in monitors)
       {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Net.Sockets;
@@ -14,14 +14,14 @@ namespace Ubicomp.Utils.NET.Sockets
   public class MulticastSocket
   {
 
-    public event NotifyMulticastSocketListener OnNotifyMulticastSocketListener;
+    public event NotifyMulticastSocketListener? OnNotifyMulticastSocketListener;
 
     //Socket creation, regular UDP socket 
     private Socket udpSocket;
     private Int32 mConsecutive;
 
-    private EndPoint localEndPoint;
-    private IPEndPoint localIPEndPoint;
+    private EndPoint localEndPoint = null!;
+    private IPEndPoint localIPEndPoint = null!;
 
     private string targetIP;
     private int targetPort;
@@ -102,10 +102,12 @@ namespace Ubicomp.Utils.NET.Sockets
     private void ReceiveCallback(IAsyncResult ar)
     {
       // Retrieve the state object and the client socket from the async state object. 
-      StateObject state = null;
+      StateObject? state = null;
       try
       {
-        state = (StateObject)ar.AsyncState;
+        state = (StateObject?)ar.AsyncState;
+        if (state == null) return;
+        
         Socket client = state.WorkSocket;
 
         // Read data from the remote device. 
@@ -152,7 +154,8 @@ namespace Ubicomp.Utils.NET.Sockets
       try
       {
         // Retrieve the socket from the state object. 
-        Socket client = (Socket)ar.AsyncState;
+        Socket? client = (Socket?)ar.AsyncState;
+        if (client == null) return;
 
         // Complete sending the data to the remote device. 
         int bytesSent = client.EndSendTo(ar);
@@ -166,22 +169,22 @@ namespace Ubicomp.Utils.NET.Sockets
       }
     }
 
-    private void NotifyMulticastSocketListener(MulticastSocketMessageType messageType, Object obj)
+    private void NotifyMulticastSocketListener(MulticastSocketMessageType messageType, object? obj)
     {
       ThreadPool.QueueUserWorkItem(new WaitCallback(ThreadedNotifyMulticastSocketListener), new NotifyMulticastSocketListenerEventArgs(messageType, obj));
     }
 
-    private void NotifyMulticastSocketListener(MulticastSocketMessageType messageType, Object obj, int consecutive)
+    private void NotifyMulticastSocketListener(MulticastSocketMessageType messageType, object? obj, int consecutive)
     {
       ThreadPool.QueueUserWorkItem(new WaitCallback(ThreadedNotifyMulticastSocketListener), new NotifyMulticastSocketListenerEventArgs(messageType, obj, consecutive));
     }
 
-    private void ThreadedNotifyMulticastSocketListener(Object argsObj)
+    private void ThreadedNotifyMulticastSocketListener(object? argsObj)
     {
       try
       {
-        if (OnNotifyMulticastSocketListener != null)
-          OnNotifyMulticastSocketListener(this, (NotifyMulticastSocketListenerEventArgs)argsObj);
+        if (OnNotifyMulticastSocketListener != null && argsObj is NotifyMulticastSocketListenerEventArgs args)
+          OnNotifyMulticastSocketListener(this, args);
       }
       catch (Exception e)
       {
@@ -194,7 +197,7 @@ namespace Ubicomp.Utils.NET.Sockets
       public const int BufferSize = 1024;
 
       private byte[] sBuffer;
-      private Socket workSocket;
+      private Socket workSocket = null!;
 
       internal byte[] Buffer
       {
@@ -211,7 +214,6 @@ namespace Ubicomp.Utils.NET.Sockets
       internal StateObject()
       {
         sBuffer = new byte[BufferSize];
-        workSocket = null;
       }
 
       internal StateObject(int size, Socket sock)
