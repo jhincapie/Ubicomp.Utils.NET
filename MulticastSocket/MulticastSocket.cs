@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Net.Sockets;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Threading;
 
 namespace Ubicomp.Utils.NET.Sockets
@@ -26,9 +27,10 @@ namespace Ubicomp.Utils.NET.Sockets
     private string targetIP;
     private int targetPort;
     private int udpTTL;
+    private string? localIP;
 
     //socket initialization 
-    public MulticastSocket(string tIP, int tPort, int TTL)
+    public MulticastSocket(string tIP, int tPort, int TTL, string? lIP = null)
     {
       udpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
       mConsecutive = 0;
@@ -36,6 +38,7 @@ namespace Ubicomp.Utils.NET.Sockets
       targetIP = tIP;
       targetPort = tPort;
       udpTTL = TTL;
+      localIP = lIP;
 
       SetupSocket();
     }
@@ -45,7 +48,7 @@ namespace Ubicomp.Utils.NET.Sockets
       if (udpSocket.IsBound)
         throw new ApplicationException("The socket is already bound and receving.");
 
-      //recieve data from any source 
+      // Always bind to Any for receiving multicast packets on Linux/Unix
       localIPEndPoint = new IPEndPoint(IPAddress.Any, targetPort);
       localEndPoint = (EndPoint)localIPEndPoint;
 
@@ -61,6 +64,7 @@ namespace Ubicomp.Utils.NET.Sockets
 
       //allow for loopback testing 
       udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 1);
+      udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, 1);
 
       //extremly important to bind the Socket before joining multicast groups 
       udpSocket.Bind(localIPEndPoint);
@@ -72,7 +76,60 @@ namespace Ubicomp.Utils.NET.Sockets
       udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, udpTTL);
 
       //join multicast group 
-      udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(IPAddress.Parse(targetIP)));
+      IPAddress mcastAddr = IPAddress.Parse(targetIP);
+      IPAddress? localAddr = localIP != null ? IPAddress.Parse(localIP) : null;
+      
+      if (localAddr != null)
+      {
+        // If a specific local IP is provided, join only on that interface
+        udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, localAddr));
+        
+        // Also set the multicast interface for sending
+        try
+        {
+          udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, localAddr.GetAddressBytes());
+        }
+        catch (SocketException) { }
+      }
+      else
+      {
+        // Try joining on all interfaces that are up and support multicast
+        foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+        {
+          if (ni.OperationalStatus == OperationalStatus.Up && ni.SupportsMulticast)
+          {
+            var ipProps = ni.GetIPProperties();
+            foreach (var addr in ipProps.UnicastAddresses)
+            {
+              if (addr.Address.AddressFamily == AddressFamily.InterNetwork)
+              {
+                try
+                {
+                  udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, addr.Address));
+                }
+                catch (SocketException)
+                {
+                  // Some interfaces might fail to join, ignore them
+                }
+              }
+            }
+          }
+        }
+
+        // Also try the default join if no interfaces were found or joined
+        try
+        {
+          udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, IPAddress.Any));
+        }
+        catch (SocketException) { /* Already joined or not supported */ }
+
+        // Set the multicast interface for sending to Any (0.0.0.0)
+        try
+        {
+          udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, IPAddress.Any.GetAddressBytes());
+        }
+        catch (SocketException) { }
+      }
 
       NotifyMulticastSocketListener(MulticastSocketMessageType.SocketStarted, null);
     }
