@@ -136,7 +136,7 @@ namespace Ubicomp.Utils.NET.Sockets
     //client send function 
     public void Send(string sendData)
     {
-      byte[] bytesToSend = Encoding.ASCII.GetBytes(sendData);
+      byte[] bytesToSend = Encoding.UTF8.GetBytes(sendData);
 
       //set the target IP 
       IPEndPoint remoteIPEndPoint = new IPEndPoint(IPAddress.Parse(targetIP), targetPort);
@@ -183,7 +183,10 @@ namespace Ubicomp.Utils.NET.Sockets
         if (OnNotifyMulticastSocketListener != null)
           OnNotifyMulticastSocketListener(this, (NotifyMulticastSocketListenerEventArgs)argsObj);
       }
-      catch { }
+      catch (Exception e)
+      {
+        Console.Error.WriteLine(e);
+      }
     }
 
     internal class StateObject
