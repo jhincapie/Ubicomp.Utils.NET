@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>Ubicomp.Utils.NET.Muticast.TestApp</RootNamespace>
     <AssemblyName>Ubicomp.Utils.NET.Muticast.TestApp</AssemblyName>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>

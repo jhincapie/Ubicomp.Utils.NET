@@ -50,7 +50,14 @@ namespace Ubicomp.Utils.NET.Sockets
       localEndPoint = (EndPoint)localIPEndPoint;
 
       //init Socket properties:
-      udpSocket.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoDelay, 1);
+      try
+      {
+        udpSocket.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoDelay, 1);
+      }
+      catch (SocketException)
+      {
+        // NoDelay is not supported for UDP on some platforms (e.g. Linux)
+      }
 
       //allow for loopback testing 
       udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 1);
