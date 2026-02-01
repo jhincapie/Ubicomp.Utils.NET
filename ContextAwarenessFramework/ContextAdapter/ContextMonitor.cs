@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,7 +9,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
 
   public enum ContextAdapterUpdateType { Continous, Interval, OnRequest };
 
-  public abstract class ContextMonitor
+  public abstract class ContextMonitor : IDisposable
   {
 
     public event EventHandler OnStart;
@@ -20,6 +20,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
     protected int updateInterval = 3000;
 
     private bool stopped = false;
+    private ManualResetEvent stopWaitHandle = new ManualResetEvent(false);
 
     public ContextAdapterUpdateType UpdateType
     {
@@ -38,6 +39,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
     /// </summary>
     public void Start() 
     {
+      stopWaitHandle.Reset();
       stopped = false;
       CustomStart();
       if (OnStart != null)
@@ -53,6 +55,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
     public void Stop() 
     {
       stopped = true;
+      stopWaitHandle.Set();
       CustomStop();
       if (OnStop != null)
         OnStop(this, null);
@@ -72,7 +75,11 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
       while (!stopped)
       {
         if (updateType == ContextAdapterUpdateType.Interval)
-          Thread.Sleep(updateInterval);
+        {
+          if (stopWaitHandle.WaitOne(updateInterval, false))
+            break;
+        }
+
         if (stopped)
           break;
         CustomRun();
@@ -86,6 +93,23 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
     {
       if (OnNotifyContextServices != null)
         OnNotifyContextServices(sender, e);
+    }
+
+    public void Dispose()
+    {
+      Dispose(true);
+      GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+      if (disposing)
+      {
+        if (stopWaitHandle != null)
+        {
+          ((IDisposable)stopWaitHandle).Dispose();
+        }
+      }
     }
 
   }
