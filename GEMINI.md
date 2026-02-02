@@ -43,6 +43,10 @@ All commands should be run from the repository root.
     ```bash
     dotnet run --project SampleApp/Ubicomp.Utils.NET.SampleApp.csproj
     ```
+    *Note: Use `--no-wait` argument for automated testing to avoid blocking on `Console.ReadKey()`.*
+    ```bash
+    dotnet run --project SampleApp/Ubicomp.Utils.NET.SampleApp.csproj -- --no-wait
+    ```
 
 *   **Run Tests:**
     ```bash

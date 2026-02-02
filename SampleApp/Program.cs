@@ -16,11 +16,17 @@ namespace Ubicomp.Utils.NET.SampleApp
             Console.WriteLine("Ubicomp.Utils.NET Sample App");
             
             Program app = new Program();
-            app.Run();
+            app.Run(args);
         }
 
-        public void Run()
+        public void Run(string[] args)
         {
+            bool noWait = false;
+            foreach (var arg in args)
+            {
+                if (arg == "--no-wait") noWait = true;
+            }
+
             // 1. Create a logger factory
             using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
             {
@@ -48,15 +54,19 @@ namespace Ubicomp.Utils.NET.SampleApp
             Console.WriteLine("Initializing Transport Component...");
             TransportComponent.Instance.Init();
 
-            Console.WriteLine("Sending a test message...");
-            var source = new EventSource(Guid.NewGuid(), Environment.MachineName, "Sample App Source");
-            var content = new SimpleContent { Text = "Hello from Sample App!" };
-            var message = new TransportMessage(source, SampleAppID, content);
-            
-            TransportComponent.Instance.Send(message);
+            // Run network diagnostics
+            TransportComponent.Instance.VerifyNetworking();
 
-            Console.WriteLine("Press any key to exit.");
-            Console.ReadKey();
+            if (noWait)
+            {
+                Console.WriteLine("Waiting 5 seconds for messages...");
+                System.Threading.Thread.Sleep(5000);
+            }
+            else
+            {
+                Console.WriteLine("Press any key to exit.");
+                Console.ReadKey();
+            }
         }
 
         public void MessageReceived(TransportMessage message, string rawMessage)

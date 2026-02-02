@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,13 +9,13 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
   public class TransportMessage
   {
 
-    public const String DATE_FORMAT_NOW = "yyyy-MM-dd HH:mm:ss";
+    public const string DATE_FORMAT_NOW = "yyyy-MM-dd HH:mm:ss";
 
     private Guid messageId;
-    private EventSource messageSource;
+    private EventSource messageSource = null!;
     private int messageType;
-    private ITransportMessageContent messageData;
-    private String timeStamp;
+    private ITransportMessageContent messageData = null!;
+    private string timeStamp = string.Empty;
 
     public Guid MessageId
     {
@@ -41,7 +41,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
       set { messageData = value; }
     }
 
-    public String TimeStamp
+    public string TimeStamp
     {
       get { return timeStamp; }
       set { timeStamp = value; }

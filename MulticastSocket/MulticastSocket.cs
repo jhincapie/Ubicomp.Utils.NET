@@ -1,9 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Net.Sockets;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Threading;
+using System.Linq;
 
 namespace Ubicomp.Utils.NET.Sockets
 {
@@ -14,21 +16,25 @@ namespace Ubicomp.Utils.NET.Sockets
   public class MulticastSocket
   {
 
-    public event NotifyMulticastSocketListener OnNotifyMulticastSocketListener;
+    public event NotifyMulticastSocketListener? OnNotifyMulticastSocketListener;
 
     //Socket creation, regular UDP socket 
     private Socket udpSocket;
     private Int32 mConsecutive;
 
-    private EndPoint localEndPoint;
-    private IPEndPoint localIPEndPoint;
+    private EndPoint localEndPoint = null!;
+    private IPEndPoint localIPEndPoint = null!;
 
     private string targetIP;
     private int targetPort;
     private int udpTTL;
+    private string? localIP;
+    private List<IPAddress> joinedAddresses = new List<IPAddress>();
+
+    public IEnumerable<IPAddress> JoinedAddresses => joinedAddresses;
 
     //socket initialization 
-    public MulticastSocket(string tIP, int tPort, int TTL)
+    public MulticastSocket(string tIP, int tPort, int TTL, string? lIP = null)
     {
       udpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
       mConsecutive = 0;
@@ -36,6 +42,7 @@ namespace Ubicomp.Utils.NET.Sockets
       targetIP = tIP;
       targetPort = tPort;
       udpTTL = TTL;
+      localIP = lIP;
 
       SetupSocket();
     }
@@ -45,7 +52,7 @@ namespace Ubicomp.Utils.NET.Sockets
       if (udpSocket.IsBound)
         throw new ApplicationException("The socket is already bound and receving.");
 
-      //recieve data from any source 
+      // Always bind to Any for receiving multicast packets on Linux/Unix
       localIPEndPoint = new IPEndPoint(IPAddress.Any, targetPort);
       localEndPoint = (EndPoint)localIPEndPoint;
 
@@ -61,6 +68,7 @@ namespace Ubicomp.Utils.NET.Sockets
 
       //allow for loopback testing 
       udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 1);
+      udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, 1);
 
       //extremly important to bind the Socket before joining multicast groups 
       udpSocket.Bind(localIPEndPoint);
@@ -72,7 +80,65 @@ namespace Ubicomp.Utils.NET.Sockets
       udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, udpTTL);
 
       //join multicast group 
-      udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(IPAddress.Parse(targetIP)));
+      IPAddress mcastAddr = IPAddress.Parse(targetIP);
+      IPAddress? localAddr = localIP != null ? IPAddress.Parse(localIP) : null;
+      
+      joinedAddresses.Clear();
+      if (localAddr != null)
+      {
+        // If a specific local IP is provided, join only on that interface
+        udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, localAddr));
+        joinedAddresses.Add(localAddr);
+        
+        // Also set the multicast interface for sending
+        try
+        {
+          udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, localAddr.GetAddressBytes());
+        }
+        catch (SocketException) { }
+      }
+      else
+      {
+        // Try joining on all interfaces that are up and support multicast
+        foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+        {
+          if (ni.OperationalStatus == OperationalStatus.Up && ni.SupportsMulticast)
+          {
+            var ipProps = ni.GetIPProperties();
+            foreach (var addr in ipProps.UnicastAddresses)
+            {
+              if (addr.Address.AddressFamily == AddressFamily.InterNetwork)
+              {
+                try
+                {
+                  udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, addr.Address));
+                  joinedAddresses.Add(addr.Address);
+                }
+                catch (SocketException)
+                {
+                  // Some interfaces might fail to join, ignore them
+                }
+              }
+            }
+          }
+        }
+
+        // Also try the default join if no interfaces were found or joined
+        try
+        {
+          udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, IPAddress.Any));
+          if (!joinedAddresses.Any(a => a.Equals(IPAddress.Any)))
+            joinedAddresses.Add(IPAddress.Any);
+        }
+        catch (SocketException) { /* Already joined or not supported */ }
+
+        // Set the multicast interface for sending to Any (0.0.0.0)
+        try
+        {
+          udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, IPAddress.Any.GetAddressBytes());
+        }
+        catch (SocketException) { }
+      }
 
       NotifyMulticastSocketListener(MulticastSocketMessageType.SocketStarted, null);
     }
@@ -102,10 +168,12 @@ namespace Ubicomp.Utils.NET.Sockets
     private void ReceiveCallback(IAsyncResult ar)
     {
       // Retrieve the state object and the client socket from the async state object. 
-      StateObject state = null;
+      StateObject? state = null;
       try
       {
-        state = (StateObject)ar.AsyncState;
+        state = (StateObject?)ar.AsyncState;
+        if (state == null) return;
+        
         Socket client = state.WorkSocket;
 
         // Read data from the remote device. 
@@ -119,8 +187,6 @@ namespace Ubicomp.Utils.NET.Sockets
         NotifyMulticastSocketListener(MulticastSocketMessageType.MessageReceived, bufferCopy, ++mConsecutive);
 
         //keep listening 
-        for (int i = 0; i < bytesRead; i++)
-          state.Buffer[i] = (byte)'\0';
         Recieve(state);
       }
       catch (Exception e)
@@ -152,7 +218,8 @@ namespace Ubicomp.Utils.NET.Sockets
       try
       {
         // Retrieve the socket from the state object. 
-        Socket client = (Socket)ar.AsyncState;
+        Socket? client = (Socket?)ar.AsyncState;
+        if (client == null) return;
 
         // Complete sending the data to the remote device. 
         int bytesSent = client.EndSendTo(ar);
@@ -166,22 +233,22 @@ namespace Ubicomp.Utils.NET.Sockets
       }
     }
 
-    private void NotifyMulticastSocketListener(MulticastSocketMessageType messageType, Object obj)
+    private void NotifyMulticastSocketListener(MulticastSocketMessageType messageType, object? obj)
     {
       ThreadPool.QueueUserWorkItem(new WaitCallback(ThreadedNotifyMulticastSocketListener), new NotifyMulticastSocketListenerEventArgs(messageType, obj));
     }
 
-    private void NotifyMulticastSocketListener(MulticastSocketMessageType messageType, Object obj, int consecutive)
+    private void NotifyMulticastSocketListener(MulticastSocketMessageType messageType, object? obj, int consecutive)
     {
       ThreadPool.QueueUserWorkItem(new WaitCallback(ThreadedNotifyMulticastSocketListener), new NotifyMulticastSocketListenerEventArgs(messageType, obj, consecutive));
     }
 
-    private void ThreadedNotifyMulticastSocketListener(Object argsObj)
+    private void ThreadedNotifyMulticastSocketListener(object? argsObj)
     {
       try
       {
-        if (OnNotifyMulticastSocketListener != null)
-          OnNotifyMulticastSocketListener(this, (NotifyMulticastSocketListenerEventArgs)argsObj);
+        if (OnNotifyMulticastSocketListener != null && argsObj is NotifyMulticastSocketListenerEventArgs args)
+          OnNotifyMulticastSocketListener(this, args);
       }
       catch (Exception e)
       {
@@ -194,7 +261,7 @@ namespace Ubicomp.Utils.NET.Sockets
       public const int BufferSize = 1024;
 
       private byte[] sBuffer;
-      private Socket workSocket;
+      private Socket workSocket = null!;
 
       internal byte[] Buffer
       {
@@ -211,7 +278,6 @@ namespace Ubicomp.Utils.NET.Sockets
       internal StateObject()
       {
         sBuffer = new byte[BufferSize];
-        workSocket = null;
       }
 
       internal StateObject(int size, Socket sock)
