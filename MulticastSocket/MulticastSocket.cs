@@ -15,7 +15,7 @@ namespace Ubicomp.Utils.NET.Sockets
     /// Handles joining multicast groups on multiple interfaces and provides
     /// asynchronous sending and receiving capabilities.
     /// </summary>
-    public class MulticastSocket
+    public class MulticastSocket : IDisposable
     {
         /// <summary>
         /// Occurs when the socket status changes or a message is received.
@@ -24,7 +24,7 @@ namespace Ubicomp.Utils.NET.Sockets
             NotifyMulticastSocketListener? OnNotifyMulticastSocketListener;
 
         /// <summary>The underlying UDP socket.</summary>
-        private readonly Socket _udpSocket;
+        private Socket? _udpSocket;
 
         /// <summary>A counter for received messages to maintain
         /// order.</summary>
@@ -84,6 +84,9 @@ namespace Ubicomp.Utils.NET.Sockets
 
         private void SetupSocket()
         {
+            if (_udpSocket == null)
+                return;
+
             if (_udpSocket.IsBound)
                 throw new ApplicationException(
                     "The socket is already bound and receiving.");
@@ -111,6 +114,9 @@ namespace Ubicomp.Utils.NET.Sockets
 
         private void SetDefaultSocketOptions()
         {
+            if (_udpSocket == null)
+                return;
+
             try
             {
                 _udpSocket.SetSocketOption(SocketOptionLevel.Udp,
@@ -129,6 +135,9 @@ namespace Ubicomp.Utils.NET.Sockets
         private void JoinSpecificInterface(IPAddress mcastAddr,
                                            IPAddress localAddr)
         {
+            if (_udpSocket == null)
+                return;
+
             _udpSocket.SetSocketOption(
                 SocketOptionLevel.IP, SocketOptionName.AddMembership,
                 new MulticastOption(mcastAddr, localAddr));
@@ -150,7 +159,9 @@ namespace Ubicomp.Utils.NET.Sockets
             var validAddresses =
                 NetworkInterface.GetAllNetworkInterfaces()
                     .Where(ni => ni.OperationalStatus == OperationalStatus.Up &&
-                                 ni.SupportsMulticast)
+                                 (ni.SupportsMulticast ||
+                                  ni.NetworkInterfaceType ==
+                                      NetworkInterfaceType.Loopback))
                     .SelectMany(ni => ni.GetIPProperties().UnicastAddresses)
                     .Where(addr => addr.Address.AddressFamily ==
                                    AddressFamily.InterNetwork)
@@ -160,7 +171,7 @@ namespace Ubicomp.Utils.NET.Sockets
             {
                 try
                 {
-                    _udpSocket.SetSocketOption(
+                    _udpSocket?.SetSocketOption(
                         SocketOptionLevel.IP, SocketOptionName.AddMembership,
                         new MulticastOption(mcastAddr, addr));
                     _joinedAddresses.Add(addr);
@@ -178,7 +189,7 @@ namespace Ubicomp.Utils.NET.Sockets
         {
             try
             {
-                _udpSocket.SetSocketOption(
+                _udpSocket?.SetSocketOption(
                     SocketOptionLevel.IP, SocketOptionName.AddMembership,
                     new MulticastOption(mcastAddr, IPAddress.Any));
                 if (!_joinedAddresses.Any(a => a.Equals(IPAddress.Any)))
@@ -193,7 +204,7 @@ namespace Ubicomp.Utils.NET.Sockets
         {
             try
             {
-                _udpSocket.SetSocketOption(SocketOptionLevel.IP,
+                _udpSocket?.SetSocketOption(SocketOptionLevel.IP,
                                            SocketOptionName.MulticastInterface,
                                            IPAddress.Any.GetAddressBytes());
             }
@@ -208,11 +219,17 @@ namespace Ubicomp.Utils.NET.Sockets
                 throw new ApplicationException(
                     "No socket listener has been specified.");
 
+            if (_udpSocket == null)
+                throw new ApplicationException("Socket is not initialized.");
+
             Receive(new StateObject { WorkSocket = _udpSocket });
         }
 
         private void Receive(StateObject state)
         {
+            if (_udpSocket == null)
+                return;
+
             state.WorkSocket.BeginReceiveFrom(
                 state.Buffer, 0, StateObject.BufferSize, 0, ref _localEndPoint,
                 ReceiveCallback, state);
@@ -235,19 +252,42 @@ namespace Ubicomp.Utils.NET.Sockets
                                bufferCopy, ++_mConsecutive);
                 Receive(state);
             }
+            catch (ObjectDisposedException)
+            {
+                // Expected when socket is closed
+            }
             catch (Exception e)
             {
                 Console.Error.WriteLine(e);
                 NotifyListener(MulticastSocketMessageType.ReceiveException, e);
                 if (state != null)
-                    Receive(state);
+                {
+                    try
+                    {
+                        Receive(state);
+                    }
+                    catch
+                    {
+                    }
+                }
                 else
-                    StartReceiving();
+                {
+                    try
+                    {
+                        StartReceiving();
+                    }
+                    catch
+                    {
+                    }
+                }
             }
         }
 
         public void Send(string sendData)
         {
+            if (_udpSocket == null)
+                return;
+
             byte[] bytesToSend = Encoding.UTF8.GetBytes(sendData);
             var remoteEndPoint =
                 new IPEndPoint(IPAddress.Parse(_targetIP), _targetPort);
@@ -296,6 +336,30 @@ namespace Ubicomp.Utils.NET.Sockets
                         Console.Error.WriteLine(e);
                     }
                 });
+        }
+
+        /// <summary>
+        /// Closes the underlying socket and stops any ongoing operations.
+        /// </summary>
+        public void Close()
+        {
+            try
+            {
+                _udpSocket?.Close();
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine(e);
+            }
+        }
+
+        /// <summary>
+        /// Disposes the socket resources.
+        /// </summary>
+        public void Dispose()
+        {
+            Close();
+            _udpSocket?.Dispose();
         }
 
         internal class StateObject

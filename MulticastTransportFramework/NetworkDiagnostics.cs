@@ -20,8 +20,13 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// </summary>
         /// <param name="port">The port to check.</param>
         /// <param name="logger">The logger instance.</param>
-        public static void LogFirewallStatus(int port, ILogger logger)
+        public static void LogFirewallStatus(int port, ILogger? logger)
         {
+            if (logger == null)
+            {
+                Console.WriteLine($"--- Firewall Diagnostic for Port {port} ---");
+            }
+
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
                 CheckLinuxFirewall(port, logger);
@@ -30,69 +35,96 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             {
                 CheckWindowsFirewall(port, logger);
             }
+
+            if (logger == null)
+            {
+                Console.WriteLine("-----------------------------------------");
+            }
         }
 
-        private static void CheckLinuxFirewall(int port, ILogger logger)
-        {
-            // Check ufw
-            if (IsServiceActive("ufw"))
-            {
-                string status = ExecuteCommand("ufw", "status") ?? "";
-                if (status.Contains("Status: active"))
+                private static void CheckLinuxFirewall(int port, ILogger? logger)
                 {
-                    logger.LogInformation("Firewall 'ufw' is active. Ensure " +
-                                              "port {0}/udp is allowed.",
-                                          port);
-                    if (!status.Contains(port.ToString() + "/udp"))
+                    // Check ufw
+                    if (IsServiceActive("ufw"))
                     {
-                        logger.LogInformation("Port {0}/udp not explicitly " +
-                                                  "found in 'ufw status'.",
-                                              port);
+                        string status = ExecuteCommand("ufw", "status") ?? "";
+                        if (status.Contains("Status: active"))
+                        {
+                            string msg = $"Firewall 'ufw' is active. Ensure port {port}/udp is allowed.";
+                            if (logger != null) logger.LogInformation(msg);
+                            else Console.WriteLine(msg);
+        
+                            if (!status.Contains(port.ToString() + "/udp"))
+                            {
+                                string warn = $"Port {port}/udp not explicitly found in 'ufw status'.";
+                                if (logger != null) logger.LogInformation(warn);
+                                else Console.WriteLine(warn);
+                            }
+                        }
+                    }
+        
+                    // Check firewalld
+                    if (IsServiceActive("firewalld"))
+                    {
+                        string msg = $"Firewall 'firewalld' is active. Ensure port {port}/udp is allowed.";
+                        if (logger != null) logger.LogInformation(msg);
+                        else Console.WriteLine(msg);
+        
+                        string state = ExecuteCommand("firewall-cmd", "--state") ?? "";
+                        if (state.Trim() == "running")
+                        {                   
+                            string ports =
+                                ExecuteCommand("firewall-cmd", "--list-ports") ?? "";
+                            if (!ports.Contains(port.ToString() + "/udp"))
+                            {
+                                string warn = $"Port {port}/udp not explicitly found in 'firewall-cmd --list-ports'.";
+                                if (logger != null) logger.LogInformation(warn);
+                                else Console.WriteLine(warn);
+                            }
+                        }
                     }
                 }
-            }
-
-            // Check firewalld
-            if (IsServiceActive("firewalld"))
-            {
-                logger.LogInformation(
-                    "Firewall 'firewalld' is active. Ensure " +
-                        "port {0}/udp is allowed.",
-                    port);
-                string state = ExecuteCommand("firewall-cmd", "--state") ?? "";
-                if (state.Trim() == "running")
+        
+                private static void CheckWindowsFirewall(int port, ILogger? logger)
                 {
-                    string ports =
-                        ExecuteCommand("firewall-cmd", "--list-ports") ?? "";
-                    if (!ports.Contains(port.ToString() + "/udp"))
+                    string status =
+                        ExecuteCommand("netsh", "advfirewall show currentprofile") ??
+                        "";
+                    if (status.Contains("ON"))
                     {
-                        logger.LogInformation(
-                            "Port {0}/udp not explicitly found " +
-                                "in 'firewall-cmd --list-ports'.",
-                            port);
+                        string msg = $"Windows Firewall is ON. Checking for port {port}/udp...";
+                        if (logger != null) logger.LogInformation(msg);
+                        else Console.WriteLine(msg);
+                        
+                        string ruleCheck = ExecuteCommand("netsh", $"advfirewall firewall show rule name=all") ?? "";
+                        if (ruleCheck.Contains(port.ToString()) && ruleCheck.Contains("UDP"))
+                        {
+                            string info = $"Found firewall rule referencing port {port}/UDP.";
+                            if (logger != null) logger.LogInformation(info);
+                            else Console.WriteLine(info);
+                        }
+                        else
+                        {
+                            string warn = $"No explicit firewall rule found for port {port}/UDP. Multicast might be blocked.";
+                            if (logger != null) logger.LogWarning(warn);
+                            else Console.WriteLine(warn);
+                        }
                     }
                 }
-            }
-        }
-
-        private static void CheckWindowsFirewall(int port, ILogger logger)
-        {
-            string status =
-                ExecuteCommand("netsh", "advfirewall show currentprofile") ??
-                "";
-            if (status.Contains("ON"))
-            {
-                logger.LogInformation(
-                    "Windows Firewall is ON. Ensure port {0}/udp is allowed.",
-                    port);
-            }
-        }
-
         private static bool IsServiceActive(string serviceName)
         {
-            string output =
-                ExecuteCommand("systemctl", $"is-active {serviceName}") ?? "";
-            return output.Trim() == "active";
+            try 
+            {
+                string output =
+                    ExecuteCommand("systemctl", $"is-active {serviceName}") ?? "";
+                return output.Trim() == "active";
+            }
+            catch
+            {
+                // Fallback: check if the command itself exists and returns something
+                string? status = serviceName == "ufw" ? ExecuteCommand("ufw", "status") : null;
+                return status != null && status.Contains("Status: active");
+            }
         }
 
         private static string? ExecuteCommand(string command, string arguments)

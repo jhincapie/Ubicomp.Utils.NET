@@ -53,10 +53,20 @@ namespace Ubicomp.Utils.NET.Tests
 
             // Setup Transport (Singleton)
             // Use a port that is likely free
-            int port = 5005;
+            int port = 5000;
             transport.MulticastGroupAddress = IPAddress.Parse("239.1.2.6");
             transport.Port = port;
             transport.UDPTTL = 1;
+
+            if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+                    System.Runtime.InteropServices.OSPlatform.Linux))
+            {
+                transport.LocalIPAddress = IPAddress.Loopback;
+            }
+            else
+            {
+                transport.LocalIPAddress = null;
+            }
 
             try
             {

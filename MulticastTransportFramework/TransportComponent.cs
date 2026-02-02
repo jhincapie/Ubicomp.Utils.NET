@@ -49,7 +49,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private readonly JsonSerializerSettings _jsonSettings;
 
-        private static int _currentMessageCons = 0;
+        private int _currentMessageCons = 0;
+        private readonly object gate = new object();
 
         /// <summary>Gets or sets the multicast group IP address.</summary>
         public IPAddress MulticastGroupAddress
@@ -104,12 +105,18 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 throw new ApplicationException(
                     "Multicast group port not specified.");
 
+            Stop();
+
             _socket = new MulticastSocket(_address.ToString(), _port, _udpTTL,
                                           _localAddress?.ToString());
             _socket.OnNotifyMulticastSocketListener +=
                 socket_OnNotifyMulticastSocketListener;
 
-            _currentMessageCons = 1;
+            lock (gate)
+            {
+                _currentMessageCons = 1;
+                Monitor.PulseAll(gate);
+            }
             _socket.StartReceiving();
 
             string interfaces = string.Join(
@@ -118,6 +125,21 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                                       "Traffic on {0}:{1} (Interfaces: {2})",
                                   _address, _port, interfaces);
             Logger.LogInformation("TransportComponent Initialized.");
+        }
+
+        /// <summary>
+        /// Stops the transport component and closes the underlying socket.
+        /// </summary>
+        public void Stop()
+        {
+            if (_socket != null)
+            {
+                _socket.OnNotifyMulticastSocketListener -=
+                    socket_OnNotifyMulticastSocketListener;
+                _socket.Close();
+                _socket.Dispose();
+                _socket = null!;
+            }
         }
 
         /// <summary>
@@ -231,7 +253,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
         }
 
-        private static object gate = new object();
         private void GateKeeperMethod(int consecutive)
         {
             lock (gate)
@@ -242,6 +263,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 }
             }
         }
+
+
 
         private void NudgeGate()
         {

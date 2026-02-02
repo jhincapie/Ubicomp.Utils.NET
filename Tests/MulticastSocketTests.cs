@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using Microsoft.Extensions.Logging;
 using Ubicomp.Utils.NET.Sockets;
 using Xunit;
 
@@ -16,6 +17,29 @@ namespace Ubicomp.Utils.NET.Tests
     [Collection("SharedTransport")]
     public class MulticastSocketTests
     {
+        private const int TestPort = 5000;
+
+        /// <summary>
+        /// Diagnostic test to report firewall status before other tests.
+        /// </summary>
+        [Fact]
+        [Trait("Category", "Diagnostic")]
+        public void A_FirewallCheck()
+        {
+            // We name it starting with A_ to encourage alphabetical order in
+            // some runners, or just rely on it being the first one.
+            using var factory = Microsoft.Extensions.Logging.LoggerFactory.Create(builder => builder.AddConsole());
+            var logger = factory.CreateLogger("FirewallCheck");
+            
+            logger.LogInformation("--- Firewall Diagnostic for Port {0} ---", TestPort);
+            Ubicomp.Utils.NET.MulticastTransportFramework.NetworkDiagnostics.LogFirewallStatus(TestPort, logger);
+            logger.LogInformation("-----------------------------------------");
+            
+            // This test is for reporting, so we just pass unless we want to
+            // enforce it.
+            Assert.True(true);
+        }
+
         /// <summary>
         /// Validates that the constructor initializes the socket correctly.
         /// </summary>
@@ -23,7 +47,7 @@ namespace Ubicomp.Utils.NET.Tests
         public void Constructor_ShouldInitializeCorrectly()
         {
             string groupAddress = "239.0.0.1";
-            int port = 5000;
+            int port = TestPort;
             int ttl = 1;
 
             var socket = new MulticastSocket(groupAddress, port, ttl);
@@ -38,7 +62,7 @@ namespace Ubicomp.Utils.NET.Tests
         [Fact]
         public void StartReceiving_ShouldThrowIfNoListener()
         {
-            var socket = new MulticastSocket("239.0.0.2", 5001, 1);
+            var socket = new MulticastSocket("239.0.0.2", TestPort, 1);
 
             Assert.Throws<ApplicationException>(() => socket.StartReceiving());
         }
@@ -51,10 +75,20 @@ namespace Ubicomp.Utils.NET.Tests
         public void SendAndReceive_ShouldWork()
         {
             string groupAddress = "239.0.0.3";
-            int port = 5002;
+            int port = TestPort;
             int ttl = 0;
 
-            var receiver = new MulticastSocket(groupAddress, port, ttl);
+            // Use loopback on Linux for reliable local tests without firewall
+            // interference
+            string? localIP =
+                System.Runtime.InteropServices.RuntimeInformation
+                        .IsOSPlatform(System.Runtime.InteropServices
+                                          .OSPlatform.Linux)
+                    ? "127.0.0.1"
+                    : null;
+
+            using var receiver =
+                new MulticastSocket(groupAddress, port, ttl, localIP);
             string? receivedMessage = null;
             var signal = new ManualResetEvent(false);
 
@@ -71,7 +105,8 @@ namespace Ubicomp.Utils.NET.Tests
             receiver.StartReceiving();
             Thread.Sleep(500); // Wait for bind
 
-            var sender = new MulticastSocket(groupAddress, port, ttl);
+            using var sender =
+                new MulticastSocket(groupAddress, port, ttl, localIP);
             string msg = "Hello World";
             sender.Send(msg);
 
@@ -87,7 +122,7 @@ namespace Ubicomp.Utils.NET.Tests
         {
             // Arrange
             string ip = "239.1.2.3";
-            int port = 5001;
+            int port = TestPort;
             int ttl = 1;
             string testMessage = "Héllø Wørld 🛡️";
             string? receivedMessage = null;
@@ -143,7 +178,7 @@ namespace Ubicomp.Utils.NET.Tests
         {
             // Arrange
             string ip = "239.1.2.4";
-            int port = 5002;
+            int port = TestPort;
             int ttl = 1;
 
             // Use 127.0.0.1 for loopback tests on Linux/multi-homed systems
