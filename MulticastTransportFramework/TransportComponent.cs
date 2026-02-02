@@ -115,6 +115,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             TransportListeners.Add(TransportComponent.TransportComponentID,
                                    this);
+            TransportListeners.Add(AckMessageType, this);
         }
 
         /// <summary>
@@ -373,6 +374,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// <param name="rawMessage">The raw string representation.</param>
         public void MessageReceived(TransportMessage message, string rawMessage)
         {
+            if (message.MessageType == AckMessageType)
+            {
+                Logger.LogTrace("Acknowledgement message {0} handled by internal session manager.", message.MessageId);
+                return;
+            }
+
             Logger.LogInformation(
                 "Received Message for Transport Component - " +
                 "Not Implemented Feature.");

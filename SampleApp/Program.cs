@@ -130,12 +130,12 @@ namespace Ubicomp.Utils.NET.SampleApp
                 if (noWait)
                 {
                     waitTask.Wait();
-                    Console.WriteLine(session.IsAnyAckReceived ? "Ack session completed with success." : "Ack session timed out.");
+                    Console.WriteLine(session.IsAnyAckReceived ? "Ack session completed with success." : "Ack session timed out: no acks received.");
                 }
                 else
                 {
                     waitTask.ContinueWith(t => {
-                        Console.WriteLine(t.Result ? "Ack session completed with success." : "Ack session timed out.");
+                        Console.WriteLine(t.Result ? "Ack session completed with success." : "Ack session timed out: no acks received.");
                     });
                 }
             }
