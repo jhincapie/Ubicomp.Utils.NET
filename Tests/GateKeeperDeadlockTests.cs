@@ -35,7 +35,7 @@ namespace Ubicomp.Utils.NET.Tests
                 
                 // Ensure transport is initialized to set _currentMessageCons = 1
                 // We use dummy values since we won't actually use the socket
-                transport.MulticastGroupAddress = IPAddress.Loopback;
+                transport.MulticastGroupAddress = IPAddress.Parse("239.0.0.1");
                 transport.Port = 5000;
                 try { transport.Init(); } catch { /* Ignore if already init */ }
     

@@ -11,6 +11,6 @@
 - **Networking**: System.Net.Sockets (UDP Multicast).
 
 ## Development and Testing
-- **Test Framework**: MSTest.
+- **Test Framework**: xUnit.
 - **Build System**: .NET CLI / MSBuild.
 - **Dependency Management**: NuGet.

@@ -107,8 +107,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             Stop();
 
-            _socket = new MulticastSocket(_address.ToString(), _port, _udpTTL,
-                                          _localAddress?.ToString());
+            var options = new MulticastSocketOptions(_address.ToString(), _port)
+            {
+                TimeToLive = _udpTTL,
+                LocalIP = _localAddress?.ToString()
+            };
+            _socket = new MulticastSocket(options);
             _socket.OnNotifyMulticastSocketListener +=
                 socket_OnNotifyMulticastSocketListener;
 

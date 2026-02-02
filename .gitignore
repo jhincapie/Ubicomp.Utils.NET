@@ -18,6 +18,7 @@
 .vs/
 
 # Output and temp files
+conductor/
 nanobabana-output/
 *.log
 

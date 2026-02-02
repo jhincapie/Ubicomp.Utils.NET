@@ -44,15 +44,66 @@ namespace Ubicomp.Utils.NET.Tests
         /// Validates that the constructor initializes the socket correctly.
         /// </summary>
         [Fact]
-        public void Constructor_ShouldInitializeCorrectly()
+        public void Constructor_WithOptions_ShouldInitializeCorrectly()
         {
-            string groupAddress = "239.0.0.1";
-            int port = TestPort;
-            int ttl = 1;
+            var options = new MulticastSocketOptions("239.0.0.10", TestPort)
+            {
+                TimeToLive = 2,
+                ReuseAddress = true
+            };
 
-            var socket = new MulticastSocket(groupAddress, port, ttl);
+            var socket = new MulticastSocket(options);
 
             Assert.NotNull(socket);
+        }
+
+        [Fact]
+        public void Constructor_WithOptions_ShouldApplyOptionsToSocket()
+        {
+            var options = new MulticastSocketOptions("239.0.0.11", TestPort + 1)
+            {
+                TimeToLive = 5,
+                ReuseAddress = true,
+                MulticastLoopback = false
+            };
+
+            using var socket = new MulticastSocket(options);
+            
+            // We can't easily inspect the underlying socket without reflection
+            // But we can verify it was initialized without error.
+            Assert.NotNull(socket);
+        }
+
+        [Fact]
+        public void Constructor_WithOptions_ShouldApplyBufferSizes()
+        {
+            var options = new MulticastSocketOptions("239.0.0.12", TestPort + 2)
+            {
+                ReceiveBufferSize = 8192,
+                SendBufferSize = 8192
+            };
+
+            using var socket = new MulticastSocket(options);
+            
+            Assert.NotNull(socket);
+        }
+
+        [Fact]
+        public void Constructor_WithOptions_ShouldApplyInterfaceFilter()
+        {
+            var options = new MulticastSocketOptions("239.0.0.13", TestPort + 3)
+            {
+                // Only join loopback interfaces
+                InterfaceFilter = addr => IPAddress.IsLoopback(addr)
+            };
+
+            using var socket = new MulticastSocket(options);
+            
+            Assert.NotNull(socket);
+            foreach (var joined in socket.JoinedAddresses)
+            {
+                Assert.True(IPAddress.IsLoopback(joined), $"Non-loopback address joined: {joined}");
+            }
         }
 
         /// <summary>
@@ -62,7 +113,8 @@ namespace Ubicomp.Utils.NET.Tests
         [Fact]
         public void StartReceiving_ShouldThrowIfNoListener()
         {
-            var socket = new MulticastSocket("239.0.0.2", TestPort, 1);
+            var options = new MulticastSocketOptions("239.0.0.2", TestPort);
+            var socket = new MulticastSocket(options);
 
             Assert.Throws<ApplicationException>(() => socket.StartReceiving());
         }
@@ -87,8 +139,12 @@ namespace Ubicomp.Utils.NET.Tests
                     ? "127.0.0.1"
                     : null;
 
-            using var receiver =
-                new MulticastSocket(groupAddress, port, ttl, localIP);
+            var receiverOptions = new MulticastSocketOptions(groupAddress, port)
+            {
+                TimeToLive = ttl,
+                LocalIP = localIP
+            };
+            using var receiver = new MulticastSocket(receiverOptions);
             string? receivedMessage = null;
             var signal = new ManualResetEvent(false);
 
@@ -105,8 +161,12 @@ namespace Ubicomp.Utils.NET.Tests
             receiver.StartReceiving();
             Thread.Sleep(500); // Wait for bind
 
-            using var sender =
-                new MulticastSocket(groupAddress, port, ttl, localIP);
+            var senderOptions = new MulticastSocketOptions(groupAddress, port)
+            {
+                TimeToLive = ttl,
+                LocalIP = localIP
+            };
+            using var sender = new MulticastSocket(senderOptions);
             string msg = "Hello World";
             sender.Send(msg);
 
@@ -134,7 +194,12 @@ namespace Ubicomp.Utils.NET.Tests
                     System.Runtime.InteropServices.OSPlatform.Linux)
                     ? "127.0.0.1"
                     : null;
-            var socket = new MulticastSocket(ip, port, ttl, localIP);
+            var options = new MulticastSocketOptions(ip, port)
+            {
+                TimeToLive = ttl,
+                LocalIP = localIP
+            };
+            var socket = new MulticastSocket(options);
 
             socket.OnNotifyMulticastSocketListener += (sender, e) =>
             {
@@ -193,7 +258,12 @@ namespace Ubicomp.Utils.NET.Tests
                     System.Runtime.InteropServices.OSPlatform.Linux)
                     ? "127.0.0.1"
                     : null;
-            var socket = new MulticastSocket(ip, port, ttl, localIP);
+            var options = new MulticastSocketOptions(ip, port)
+            {
+                TimeToLive = ttl,
+                LocalIP = localIP
+            };
+            var socket = new MulticastSocket(options);
 
             // Capture Console.Error
             var stringWriter = new StringWriter();

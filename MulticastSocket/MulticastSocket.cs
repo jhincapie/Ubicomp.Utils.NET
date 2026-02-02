@@ -36,18 +36,8 @@ namespace Ubicomp.Utils.NET.Sockets
         /// <summary>The local IP endpoint representation.</summary>
         private IPEndPoint _localIPEndPoint = null!;
 
-        /// <summary>The target multicast group IP address.</summary>
-        private readonly string _targetIP;
-
-        /// <summary>The target port for multicast communication.</summary>
-        private readonly int _targetPort;
-
-        /// <summary>The Time-to-Live (TTL) value for multicast
-        /// packets.</summary>
-        private readonly int _udpTTL;
-
-        /// <summary>The specific local IP address to bind to, if any.</summary>
-        private readonly string? _localIP;
+        /// <summary>The configuration options for this socket.</summary>
+        private readonly MulticastSocketOptions _options;
 
         /// <summary>The list of IP addresses successfully joined.</summary>
         private readonly List<IPAddress> _joinedAddresses =
@@ -61,23 +51,18 @@ namespace Ubicomp.Utils.NET.Sockets
 
         /// <summary>
         /// Initializes a new instance of the <see cref="MulticastSocket"/>
-        /// class.
+        /// class using specific options.
         /// </summary>
-        /// <param name="targetIP">The multicast group IP address.</param>
-        /// <param name="targetPort">The port to use.</param>
-        /// <param name="timeToLive">The multicast Time-to-Live value.</param>
-        /// <param name="localIP">An optional local IP to bind to.</param>
-        public MulticastSocket(string targetIP, int targetPort, int timeToLive,
-                               string? localIP = null)
+        /// <param name="options">The configuration options.</param>
+        public MulticastSocket(MulticastSocketOptions options)
         {
+            options.Validate();
+
             _udpSocket = new Socket(AddressFamily.InterNetwork,
                                     SocketType.Dgram, ProtocolType.Udp);
             _mConsecutive = 0;
 
-            _targetIP = targetIP;
-            _targetPort = targetPort;
-            _udpTTL = timeToLive;
-            _localIP = localIP;
+            _options = options;
 
             SetupSocket();
         }
@@ -91,7 +76,7 @@ namespace Ubicomp.Utils.NET.Sockets
                 throw new ApplicationException(
                     "The socket is already bound and receiving.");
 
-            _localIPEndPoint = new IPEndPoint(IPAddress.Any, _targetPort);
+            _localIPEndPoint = new IPEndPoint(IPAddress.Any, _options.TargetPort);
             _localEndPoint = (EndPoint)_localIPEndPoint;
 
             SetDefaultSocketOptions();
@@ -99,14 +84,14 @@ namespace Ubicomp.Utils.NET.Sockets
             _udpSocket.Bind(_localIPEndPoint);
             _udpSocket.SetSocketOption(SocketOptionLevel.IP,
                                        SocketOptionName.MulticastTimeToLive,
-                                       _udpTTL);
+                                       _options.TimeToLive);
 
-            IPAddress mcastAddr = IPAddress.Parse(_targetIP);
+            IPAddress mcastAddr = IPAddress.Parse(_options.TargetIP);
             _joinedAddresses.Clear();
 
-            if (_localIP != null)
-                JoinSpecificInterface(mcastAddr, IPAddress.Parse(_localIP));
-            else
+            if (_options.LocalIP != null)
+                JoinSpecificInterface(mcastAddr, IPAddress.Parse(_options.LocalIP));
+            else if (_options.AutoJoin)
                 JoinAllInterfaces(mcastAddr);
 
             NotifyListener(MulticastSocketMessageType.SocketStarted);
@@ -119,17 +104,43 @@ namespace Ubicomp.Utils.NET.Sockets
 
             try
             {
-                _udpSocket.SetSocketOption(SocketOptionLevel.Udp,
-                                           SocketOptionName.NoDelay, 1);
+                if (_options.NoDelay)
+                {
+                    _udpSocket.SetSocketOption(SocketOptionLevel.Udp,
+                                               SocketOptionName.NoDelay, 1);
+                }
             }
             catch (SocketException)
             {
             }
 
-            _udpSocket.SetSocketOption(SocketOptionLevel.Socket,
-                                       SocketOptionName.ReuseAddress, 1);
-            _udpSocket.SetSocketOption(SocketOptionLevel.IP,
-                                       SocketOptionName.MulticastLoopback, 1);
+            if (_options.ReuseAddress)
+            {
+                _udpSocket.SetSocketOption(SocketOptionLevel.Socket,
+                                           SocketOptionName.ReuseAddress, 1);
+            }
+
+            if (_options.MulticastLoopback)
+            {
+                _udpSocket.SetSocketOption(SocketOptionLevel.IP,
+                                           SocketOptionName.MulticastLoopback, 1);
+            }
+
+            if (_options.DontFragment)
+            {
+                _udpSocket.SetSocketOption(SocketOptionLevel.IP,
+                                           SocketOptionName.DontFragment, 1);
+            }
+
+            if (_options.ReceiveBufferSize > 0)
+            {
+                _udpSocket.ReceiveBufferSize = _options.ReceiveBufferSize;
+            }
+
+            if (_options.SendBufferSize > 0)
+            {
+                _udpSocket.SendBufferSize = _options.SendBufferSize;
+            }
         }
 
         private void JoinSpecificInterface(IPAddress mcastAddr,
@@ -169,6 +180,9 @@ namespace Ubicomp.Utils.NET.Sockets
 
             foreach (var addr in validAddresses)
             {
+                if (_options.InterfaceFilter != null && !_options.InterfaceFilter(addr))
+                    continue;
+
                 try
                 {
                     _udpSocket?.SetSocketOption(
@@ -181,7 +195,10 @@ namespace Ubicomp.Utils.NET.Sockets
                 }
             }
 
-            TryJoinDefault(mcastAddr);
+            if (_options.InterfaceFilter == null || _options.InterfaceFilter(IPAddress.Any))
+            {
+                TryJoinDefault(mcastAddr);
+            }
             SetMulticastInterfaceToAny();
         }
 
@@ -295,7 +312,7 @@ namespace Ubicomp.Utils.NET.Sockets
 
             byte[] bytesToSend = Encoding.UTF8.GetBytes(sendData);
             var remoteEndPoint =
-                new IPEndPoint(IPAddress.Parse(_targetIP), _targetPort);
+                new IPEndPoint(IPAddress.Parse(_options.TargetIP), _options.TargetPort);
 
             _udpSocket.BeginSendTo(bytesToSend, 0, bytesToSend.Length,
                                    SocketFlags.None, remoteEndPoint,

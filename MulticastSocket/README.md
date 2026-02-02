@@ -22,7 +22,11 @@ The **MulticastSocket** library provides an easy-to-use interface for joining mu
 using Ubicomp.Utils.NET.Sockets;
 
 // Initialize: Target IP, Port, TTL
-MulticastSocket mSocket = new MulticastSocket("224.0.0.1", 5000, 1);
+MulticastSocketOptions options = new MulticastSocketOptions("224.0.0.1", 5000)
+{
+    TimeToLive = 1
+};
+MulticastSocket mSocket = new MulticastSocket(options);
 ```
 
 ### Receiving Messages
@@ -47,6 +51,30 @@ mSocket.StartReceiving();
 ```csharp
 mSocket.Send("Hello Multicast!");
 ```
+
+### Advanced Configuration
+You can fine-tune the socket behavior using `MulticastSocketOptions`:
+
+```csharp
+var options = new MulticastSocketOptions("239.0.0.1", 5000)
+{
+    TimeToLive = 2,
+    ReuseAddress = true,
+    NoDelay = true,
+    ReceiveBufferSize = 65536,
+    // Join only the loopback interface for testing
+    InterfaceFilter = addr => IPAddress.IsLoopback(addr)
+};
+
+using var socket = new MulticastSocket(options);
+```
+
+The options object also provides a `Validate()` method (called automatically by the constructor) to ensure your settings (like IP range and ports) are correct.
+
+## Implementation Details
+- **Multicast Group Management**: Automatically joins all valid IPv4 interfaces by default.
+- **Buffer Management**: Uses a `StateObject` with a internal buffer to manage asynchronous receives.
+- **Socket Options**: Sets `ReuseAddress` to allow multiple applications to share the same port.
 
 ## Dependencies
 - `System.Net`
