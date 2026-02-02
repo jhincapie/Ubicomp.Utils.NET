@@ -17,13 +17,19 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         /// <summary>Gets or sets the unique identifier for the
         /// message.</summary>
-        public Guid MessageId { get; set; }
+        public Guid MessageId
+        {
+            get; set;
+        }
 
         /// <summary>Gets or sets the source of the message.</summary>
         public EventSource MessageSource { get; set; } = null!;
 
         /// <summary>Gets or sets the type identifier of the message.</summary>
-        public int MessageType { get; set; }
+        public int MessageType
+        {
+            get; set;
+        }
 
         /// <summary>Gets or sets the actual content of the message.</summary>
         public ITransportMessageContent MessageData { get; set; } = null!;

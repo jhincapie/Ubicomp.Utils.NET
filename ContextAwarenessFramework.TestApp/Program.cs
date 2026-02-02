@@ -57,7 +57,8 @@ namespace ContextAwarenessFramework.TestApp
         public string Value
         {
             get => _value;
-            set {
+            set
+            {
                 _value = value;
                 PropertyChanged?.Invoke(
                     this, new PropertyChangedEventArgs(nameof(Value)));

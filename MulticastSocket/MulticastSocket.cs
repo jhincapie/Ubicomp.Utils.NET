@@ -76,7 +76,7 @@ namespace Ubicomp.Utils.NET.Sockets
                 throw new ApplicationException(
                     "The socket is already bound and receiving.");
 
-            _localIPEndPoint = new IPEndPoint(IPAddress.Any, _options.TargetPort);
+            _localIPEndPoint = new IPEndPoint(IPAddress.Any, _options.Port);
             _localEndPoint = (EndPoint)_localIPEndPoint;
 
             SetDefaultSocketOptions();
@@ -86,7 +86,7 @@ namespace Ubicomp.Utils.NET.Sockets
                                        SocketOptionName.MulticastTimeToLive,
                                        _options.TimeToLive);
 
-            IPAddress mcastAddr = IPAddress.Parse(_options.TargetIP);
+            IPAddress mcastAddr = IPAddress.Parse(_options.GroupAddress);
             _joinedAddresses.Clear();
 
             if (_options.LocalIP != null)
@@ -312,7 +312,7 @@ namespace Ubicomp.Utils.NET.Sockets
 
             byte[] bytesToSend = Encoding.UTF8.GetBytes(sendData);
             var remoteEndPoint =
-                new IPEndPoint(IPAddress.Parse(_options.TargetIP), _options.TargetPort);
+                new IPEndPoint(IPAddress.Parse(_options.GroupAddress), _options.Port);
 
             _udpSocket.BeginSendTo(bytesToSend, 0, bytesToSend.Length,
                                    SocketFlags.None, remoteEndPoint,

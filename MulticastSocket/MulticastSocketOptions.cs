@@ -10,16 +10,25 @@ namespace Ubicomp.Utils.NET.Sockets
     public class MulticastSocketOptions
     {
         /// <summary>The multicast group IP address.</summary>
-        public string TargetIP { get; set; }
+        public string GroupAddress
+        {
+            get; set;
+        }
 
         /// <summary>The port for multicast communication.</summary>
-        public int TargetPort { get; set; }
+        public int Port
+        {
+            get; set;
+        }
 
         /// <summary>The multicast Time-to-Live (TTL) value.</summary>
         public int TimeToLive { get; set; } = 1;
 
         /// <summary>The specific local IP address to bind to, if any.</summary>
-        public string? LocalIP { get; set; }
+        public string? LocalIP
+        {
+            get; set;
+        }
 
         /// <summary>Whether to allow multiple sockets to bind to the same address and port.</summary>
         public bool ReuseAddress { get; set; } = true;
@@ -40,7 +49,10 @@ namespace Ubicomp.Utils.NET.Sockets
         public int SendBufferSize { get; set; } = 0;
 
         /// <summary>An optional filter to select which network interfaces to join.</summary>
-        public Func<IPAddress, bool>? InterfaceFilter { get; set; }
+        public Func<IPAddress, bool>? InterfaceFilter
+        {
+            get; set;
+        }
 
         /// <summary>Whether to automatically join the multicast group upon socket startup.</summary>
         public bool AutoJoin { get; set; } = true;
@@ -48,12 +60,45 @@ namespace Ubicomp.Utils.NET.Sockets
         /// <summary>
         /// Initializes a new instance of the <see cref="MulticastSocketOptions"/> class.
         /// </summary>
-        /// <param name="targetIP">The multicast group IP address.</param>
-        /// <param name="targetPort">The port to use.</param>
-        public MulticastSocketOptions(string targetIP, int targetPort)
+        /// <param name="groupAddress">The multicast group IP address.</param>
+        /// <param name="port">The port to use.</param>
+        private MulticastSocketOptions(string groupAddress, int port)
         {
-            TargetIP = targetIP;
-            TargetPort = targetPort;
+            GroupAddress = groupAddress;
+            Port = port;
+        }
+
+        /// <summary>
+        /// Creates options for a local network with sensible defaults (TTL=1).
+        /// </summary>
+        /// <param name="groupAddress">The multicast group IP address (default: 239.0.0.1).</param>
+        /// <param name="port">The port to use (default: 5000).</param>
+        /// <returns>A new instance of <see cref="MulticastSocketOptions"/>.</returns>
+        public static MulticastSocketOptions LocalNetwork(string groupAddress = "239.0.0.1", int port = 5000)
+        {
+            var options = new MulticastSocketOptions(groupAddress, port)
+            {
+                TimeToLive = 1
+            };
+            options.Validate();
+            return options;
+        }
+
+        /// <summary>
+        /// Creates options for a wide area network with sensible defaults (TTL=16).
+        /// </summary>
+        /// <param name="groupAddress">The multicast group IP address (default: 239.0.0.1).</param>
+        /// <param name="port">The port to use (default: 5000).</param>
+        /// <param name="ttl">The Time-to-Live value (default: 16).</param>
+        /// <returns>A new instance of <see cref="MulticastSocketOptions"/>.</returns>
+        public static MulticastSocketOptions WideAreaNetwork(string groupAddress = "239.0.0.1", int port = 5000, int ttl = 16)
+        {
+            var options = new MulticastSocketOptions(groupAddress, port)
+            {
+                TimeToLive = ttl
+            };
+            options.Validate();
+            return options;
         }
 
         /// <summary>
@@ -62,14 +107,14 @@ namespace Ubicomp.Utils.NET.Sockets
         /// <exception cref="ArgumentException">Thrown if options are invalid.</exception>
         public void Validate()
         {
-            if (string.IsNullOrWhiteSpace(TargetIP))
-                throw new ArgumentException("Target IP cannot be empty.", nameof(TargetIP));
+            if (string.IsNullOrWhiteSpace(GroupAddress))
+                throw new ArgumentException("Group address cannot be empty.", nameof(GroupAddress));
 
-            if (!IPAddress.TryParse(TargetIP, out var ip) || !IsMulticast(ip))
-                throw new ArgumentException($"'{TargetIP}' is not a valid multicast IP address.", nameof(TargetIP));
+            if (!IPAddress.TryParse(GroupAddress, out var ip) || !IsMulticast(ip))
+                throw new ArgumentException($"'{GroupAddress}' is not a valid multicast IP address.", nameof(GroupAddress));
 
-            if (TargetPort < 1 || TargetPort > 65535)
-                throw new ArgumentException("Target port must be between 1 and 65535.", nameof(TargetPort));
+            if (Port < 1 || Port > 65535)
+                throw new ArgumentException("Port must be between 1 and 65535.", nameof(Port));
 
             if (TimeToLive < 0 || TimeToLive > 255)
                 throw new ArgumentException("TTL must be between 0 and 255.", nameof(TimeToLive));

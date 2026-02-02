@@ -42,78 +42,92 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
         }
 
-                private static void CheckLinuxFirewall(int port, ILogger? logger)
+        private static void CheckLinuxFirewall(int port, ILogger? logger)
+        {
+            // Check ufw
+            if (IsServiceActive("ufw"))
+            {
+                string status = ExecuteCommand("ufw", "status") ?? "";
+                if (status.Contains("Status: active"))
                 {
-                    // Check ufw
-                    if (IsServiceActive("ufw"))
+                    string msg = $"Firewall 'ufw' is active. Ensure port {port}/udp is allowed.";
+                    if (logger != null)
+                        logger.LogInformation(msg);
+                    else
+                        Console.WriteLine(msg);
+
+                    if (!status.Contains(port.ToString() + "/udp"))
                     {
-                        string status = ExecuteCommand("ufw", "status") ?? "";
-                        if (status.Contains("Status: active"))
-                        {
-                            string msg = $"Firewall 'ufw' is active. Ensure port {port}/udp is allowed.";
-                            if (logger != null) logger.LogInformation(msg);
-                            else Console.WriteLine(msg);
-        
-                            if (!status.Contains(port.ToString() + "/udp"))
-                            {
-                                string warn = $"Port {port}/udp not explicitly found in 'ufw status'.";
-                                if (logger != null) logger.LogInformation(warn);
-                                else Console.WriteLine(warn);
-                            }
-                        }
-                    }
-        
-                    // Check firewalld
-                    if (IsServiceActive("firewalld"))
-                    {
-                        string msg = $"Firewall 'firewalld' is active. Ensure port {port}/udp is allowed.";
-                        if (logger != null) logger.LogInformation(msg);
-                        else Console.WriteLine(msg);
-        
-                        string state = ExecuteCommand("firewall-cmd", "--state") ?? "";
-                        if (state.Trim() == "running")
-                        {                   
-                            string ports =
-                                ExecuteCommand("firewall-cmd", "--list-ports") ?? "";
-                            if (!ports.Contains(port.ToString() + "/udp"))
-                            {
-                                string warn = $"Port {port}/udp not explicitly found in 'firewall-cmd --list-ports'.";
-                                if (logger != null) logger.LogInformation(warn);
-                                else Console.WriteLine(warn);
-                            }
-                        }
-                    }
-                }
-        
-                private static void CheckWindowsFirewall(int port, ILogger? logger)
-                {
-                    string status =
-                        ExecuteCommand("netsh", "advfirewall show currentprofile") ??
-                        "";
-                    if (status.Contains("ON"))
-                    {
-                        string msg = $"Windows Firewall is ON. Checking for port {port}/udp...";
-                        if (logger != null) logger.LogInformation(msg);
-                        else Console.WriteLine(msg);
-                        
-                        string ruleCheck = ExecuteCommand("netsh", $"advfirewall firewall show rule name=all") ?? "";
-                        if (ruleCheck.Contains(port.ToString()) && ruleCheck.Contains("UDP"))
-                        {
-                            string info = $"Found firewall rule referencing port {port}/UDP.";
-                            if (logger != null) logger.LogInformation(info);
-                            else Console.WriteLine(info);
-                        }
+                        string warn = $"Port {port}/udp not explicitly found in 'ufw status'.";
+                        if (logger != null)
+                            logger.LogInformation(warn);
                         else
-                        {
-                            string warn = $"No explicit firewall rule found for port {port}/UDP. Multicast might be blocked.";
-                            if (logger != null) logger.LogWarning(warn);
-                            else Console.WriteLine(warn);
-                        }
+                            Console.WriteLine(warn);
                     }
                 }
+            }
+
+            // Check firewalld
+            if (IsServiceActive("firewalld"))
+            {
+                string msg = $"Firewall 'firewalld' is active. Ensure port {port}/udp is allowed.";
+                if (logger != null)
+                    logger.LogInformation(msg);
+                else
+                    Console.WriteLine(msg);
+
+                string state = ExecuteCommand("firewall-cmd", "--state") ?? "";
+                if (state.Trim() == "running")
+                {
+                    string ports =
+                        ExecuteCommand("firewall-cmd", "--list-ports") ?? "";
+                    if (!ports.Contains(port.ToString() + "/udp"))
+                    {
+                        string warn = $"Port {port}/udp not explicitly found in 'firewall-cmd --list-ports'.";
+                        if (logger != null)
+                            logger.LogInformation(warn);
+                        else
+                            Console.WriteLine(warn);
+                    }
+                }
+            }
+        }
+
+        private static void CheckWindowsFirewall(int port, ILogger? logger)
+        {
+            string status =
+                ExecuteCommand("netsh", "advfirewall show currentprofile") ??
+                "";
+            if (status.Contains("ON"))
+            {
+                string msg = $"Windows Firewall is ON. Checking for port {port}/udp...";
+                if (logger != null)
+                    logger.LogInformation(msg);
+                else
+                    Console.WriteLine(msg);
+
+                string ruleCheck = ExecuteCommand("netsh", $"advfirewall firewall show rule name=all") ?? "";
+                if (ruleCheck.Contains(port.ToString()) && ruleCheck.Contains("UDP"))
+                {
+                    string info = $"Found firewall rule referencing port {port}/UDP.";
+                    if (logger != null)
+                        logger.LogInformation(info);
+                    else
+                        Console.WriteLine(info);
+                }
+                else
+                {
+                    string warn = $"No explicit firewall rule found for port {port}/UDP. Multicast might be blocked.";
+                    if (logger != null)
+                        logger.LogWarning(warn);
+                    else
+                        Console.WriteLine(warn);
+                }
+            }
+        }
         private static bool IsServiceActive(string serviceName)
         {
-            try 
+            try
             {
                 string output =
                     ExecuteCommand("systemctl", $"is-active {serviceName}") ?? "";
@@ -132,14 +146,18 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             try
             {
                 using var process =
-                    new Process { StartInfo = new ProcessStartInfo {
-                        FileName = command,
-                        Arguments = arguments,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true,
-                    } };
+                    new Process
+                    {
+                        StartInfo = new ProcessStartInfo
+                        {
+                            FileName = command,
+                            Arguments = arguments,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                        }
+                    };
                 process.Start();
                 string output = process.StandardOutput.ReadToEnd();
                 process.WaitForExit();
@@ -214,7 +232,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public class LoopbackTestData : ITransportMessageContent
         {
             /// <summary>Gets or sets the diagnostic ID.</summary>
-            public Guid Id { get; set; }
+            public Guid Id
+            {
+                get; set;
+            }
         }
     }
 }

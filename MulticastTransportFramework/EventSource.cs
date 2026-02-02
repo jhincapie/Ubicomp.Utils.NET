@@ -16,7 +16,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// <summary>Gets or sets the unique ID of the resource
         /// source.</summary>
         [JsonProperty("resourceId")]
-        public Guid ResourceId { get; set; }
+        public Guid ResourceId
+        {
+            get; set;
+        }
 
         /// <summary>Gets or sets the name of the resource source.</summary>
         [JsonProperty("resourceName")]
@@ -24,7 +27,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         /// <summary>Gets or sets a friendly name for the source.</summary>
         [JsonProperty("friendlyName")]
-        public string? FriendlyName { get; set; }
+        public string? FriendlyName
+        {
+            get; set;
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="EventSource"/> class.

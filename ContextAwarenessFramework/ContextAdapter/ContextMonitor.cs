@@ -35,7 +35,8 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter
         public event NotifyContextMonitorListeners? OnNotifyContextServices;
 
         /// <summary>Gets or sets the update strategy.</summary>
-        public ContextAdapterUpdateType UpdateType {
+        public ContextAdapterUpdateType UpdateType
+        {
             get; set;
         } = ContextAdapterUpdateType.Continuous;
 

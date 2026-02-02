@@ -53,6 +53,11 @@ All commands should be run from the repository root.
     dotnet test Tests/Ubicomp.Utils.NET.Tests.csproj
     ```
 
+*   **Format Code:**
+    ```bash
+    dotnet format
+    ```
+
 ## Development Conventions
 *   **Project Format:** Modern SDK-style `.csproj` files are used.
 *   **Dependencies:** External libraries in the `Libs` folder are referenced via `<Reference>` tags with `<HintPath>`. When adding new dependencies, prefer NuGet packages if possible, but maintain existing patterns for local DLLs.

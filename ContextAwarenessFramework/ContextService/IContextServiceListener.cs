@@ -27,10 +27,16 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
     public class NotifyContextServiceListenersEventArgs : EventArgs
     {
         /// <summary>Gets or sets the type of context data.</summary>
-        public Type Type { get; set; }
+        public Type Type
+        {
+            get; set;
+        }
 
         /// <summary>Gets or sets the context data object.</summary>
-        public object NewObject { get; set; }
+        public object NewObject
+        {
+            get; set;
+        }
 
         /// <summary>
         /// Initializes a new instance of the

@@ -1,6 +1,6 @@
 {
     "editor.formatOnSave": true,
-    "editor.defaultFormatter": "xaver.clang-format",
+    "editor.defaultFormatter": "ms-dotnettools.csharp",
     "editor.renderWhitespace": "trailing",
     "files.trimTrailingWhitespace": true,
     "files.insertFinalNewline": true

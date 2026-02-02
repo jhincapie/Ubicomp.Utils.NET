@@ -16,7 +16,10 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.DataModel
     {
         /// <summary>Gets or sets the unique identifier for the
         /// entity.</summary>
-        Guid EntityGuid { get; set; }
+        Guid EntityGuid
+        {
+            get; set;
+        }
     }
 
 }

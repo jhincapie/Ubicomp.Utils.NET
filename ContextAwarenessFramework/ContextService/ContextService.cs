@@ -56,7 +56,8 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
             NotifyContextServiceListeners? OnNotifyContextServiceListeners;
 
         /// <summary>Gets or sets the persistence type.</summary>
-        protected ContextServicePersistenceType PersistenceType {
+        protected ContextServicePersistenceType PersistenceType
+        {
             get; set;
         } = ContextServicePersistenceType.None;
 
@@ -186,7 +187,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
             _datePersistRequested = DateTime.Now;
         }
 
-#region IContextMonitorListener Members
+        #region IContextMonitorListener Members
 
         /// <summary>
         /// Handles a new reading from a monitor.
@@ -214,7 +215,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
         {
         }
 
-#endregion
+        #endregion
     }
 
 }

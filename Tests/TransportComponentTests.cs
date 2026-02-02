@@ -16,10 +16,14 @@ namespace Ubicomp.Utils.NET.Tests
     {
         private class TestListener : ITransportListener
         {
-            public ManualResetEvent ReceivedEvent {
+            public ManualResetEvent ReceivedEvent
+            {
                 get;
             } = new ManualResetEvent(false);
-            public TransportMessage? LastMessage { get; private set; }
+            public TransportMessage? LastMessage
+            {
+                get; private set;
+            }
 
             /// <inheritdoc />
             public void MessageReceived(TransportMessage message,

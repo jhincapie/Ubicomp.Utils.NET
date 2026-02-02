@@ -21,11 +21,8 @@ The **MulticastSocket** library provides an easy-to-use interface for joining mu
 ```csharp
 using Ubicomp.Utils.NET.Sockets;
 
-// Initialize: Target IP, Port, TTL
-MulticastSocketOptions options = new MulticastSocketOptions("224.0.0.1", 5000)
-{
-    TimeToLive = 1
-};
+// Initialize: GroupAddress (Optional, defaults to 239.0.0.1), Port (Optional, defaults to 5000)
+MulticastSocketOptions options = MulticastSocketOptions.LocalNetwork(port: 5000);
 MulticastSocket mSocket = new MulticastSocket(options);
 ```
 
@@ -56,20 +53,20 @@ mSocket.Send("Hello Multicast!");
 You can fine-tune the socket behavior using `MulticastSocketOptions`:
 
 ```csharp
-var options = new MulticastSocketOptions("239.0.0.1", 5000)
-{
-    TimeToLive = 2,
-    ReuseAddress = true,
-    NoDelay = true,
-    ReceiveBufferSize = 65536,
-    // Join only the loopback interface for testing
-    InterfaceFilter = addr => IPAddress.IsLoopback(addr)
-};
+// Factory methods validate basic settings (GroupAddress, Port) internally
+var options = MulticastSocketOptions.LocalNetwork("239.0.0.2", 5000);
+options.TimeToLive = 2;
+options.ReuseAddress = true;
+options.NoDelay = true;
+options.ReceiveBufferSize = 65536;
+
+// Join only the loopback interface for testing
+options.InterfaceFilter = addr => IPAddress.IsLoopback(addr);
 
 using var socket = new MulticastSocket(options);
 ```
 
-The options object also provides a `Validate()` method (called automatically by the constructor) to ensure your settings (like IP range and ports) are correct.
+The options object also provides a `Validate()` method (called automatically by factory methods and the `MulticastSocket` constructor) to ensure your settings are correct.
 
 ## Implementation Details
 - **Multicast Group Management**: Automatically joins all valid IPv4 interfaces by default.

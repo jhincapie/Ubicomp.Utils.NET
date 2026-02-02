@@ -17,7 +17,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// A dictionary mapping message type IDs to their concrete .NET types.
         /// Used for deserializing the polymorphic MessageData property.
         /// </summary>
-        public static Dictionary<int, Type> KnownTypes {
+        public static Dictionary<int, Type> KnownTypes
+        {
             get;
         } = new Dictionary<int, Type>();
 
@@ -97,7 +98,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             {
                 // Attempt best effort. We use object to avoid 'cannot 
                 // instantiate interface' errors if type info is missing.
-                object? deserialized = dataToken.ToObject(typeof(object), 
+                object? deserialized = dataToken.ToObject(typeof(object),
                                                           serializer);
                 if (deserialized is ITransportMessageContent content)
                 {

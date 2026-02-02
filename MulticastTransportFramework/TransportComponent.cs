@@ -35,7 +35,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private static object exportLock = new object();
 
         private MulticastSocket _socket = null!;
-        private IPAddress _address = null!;
+        private IPAddress _multicastGroupAddress = null!;
         private IPAddress? _localAddress;
         private int _port;
         private int _udpTTL;
@@ -43,7 +43,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// <summary>
         /// A mapping of message types to their respective listeners.
         /// </summary>
-        public Dictionary<int, ITransportListener> TransportListeners {
+        public Dictionary<int, ITransportListener> TransportListeners
+        {
             get;
         } = new Dictionary<int, ITransportListener>();
 
@@ -55,8 +56,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// <summary>Gets or sets the multicast group IP address.</summary>
         public IPAddress MulticastGroupAddress
         {
-            get => _address;
-            set => _address = value;
+            get => _multicastGroupAddress;
+            set => _multicastGroupAddress = value;
         }
 
         /// <summary>Gets or sets the local IP address to bind to.</summary>
@@ -98,7 +99,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// </exception>
         public void Init()
         {
-            if (_address == null)
+            if (_multicastGroupAddress == null)
                 throw new ApplicationException(
                     "Multicast group address not specified.");
             if (_port == 0)
@@ -107,11 +108,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             Stop();
 
-            var options = new MulticastSocketOptions(_address.ToString(), _port)
-            {
-                TimeToLive = _udpTTL,
-                LocalIP = _localAddress?.ToString()
-            };
+            var options = MulticastSocketOptions.WideAreaNetwork(_multicastGroupAddress.ToString(), _port, _udpTTL);
+
+            options.LocalIP = _localAddress?.ToString();
+
             _socket = new MulticastSocket(options);
             _socket.OnNotifyMulticastSocketListener +=
                 socket_OnNotifyMulticastSocketListener;
@@ -127,7 +127,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 ", ", _socket.JoinedAddresses.Select(a => a.ToString()));
             Logger.LogInformation("Multicast Socket Started to Listen for " +
                                       "Traffic on {0}:{1} (Interfaces: {2})",
-                                  _address, _port, interfaces);
+                                  _multicastGroupAddress, _port, interfaces);
             Logger.LogInformation("TransportComponent Initialized.");
         }
 
@@ -179,7 +179,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public string Send(TransportMessage message)
         {
             string json;
-            lock (exportLock) json =
+            lock (exportLock)
+                json =
                 JsonConvert.SerializeObject(message, _jsonSettings);
 
             _socket.Send(json);
@@ -189,7 +190,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private void socket_OnNotifyMulticastSocketListener(
             object sender, NotifyMulticastSocketListenerEventArgs e)
         {
-            if (sender != _socket) return;
+            if (sender != _socket)
+                return;
 
             if (e.Type == MulticastSocketMessageType.SendException)
             {
@@ -281,7 +283,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
         }
 
-#region ITransportListener Members
+        #region ITransportListener Members
 
         /// <summary>
         /// Handles received messages for the transport component itself.
@@ -295,7 +297,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 "Not Implemented Feature.");
         }
 
-#endregion
+        #endregion
 
         private static string GetMessageAsString(byte[] messageBytes)
         {

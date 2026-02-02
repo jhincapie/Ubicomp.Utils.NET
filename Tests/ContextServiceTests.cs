@@ -10,7 +10,10 @@ namespace Ubicomp.Utils.NET.Tests
     {
         private class MockService : ContextService
         {
-            public bool WasStopped { get; private set; }
+            public bool WasStopped
+            {
+                get; private set;
+            }
             protected override void CustomStop()
             {
                 WasStopped = true;
