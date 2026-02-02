@@ -11,6 +11,7 @@ namespace Ubicomp.Utils.NET.Tests
     /// Unit tests for serialization and deserialization within the transport
     /// framework.
     /// </summary>
+    [Collection("SharedTransport")]
     public class SerializationTests
     {
         /// <summary>Mock content for serialization tests.</summary>

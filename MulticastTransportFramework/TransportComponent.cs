@@ -184,9 +184,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             bool enteredGate = false;
             try
             {
-                string sMessage = GetMessageAsString((byte[])e.NewObject);
+                // Enter the gate first based on socket sequence ID to ensure
+                // order, but we MUST exit it (nudge) even if deserialization
+                // fails.
+                GateKeeperMethod(e.Consecutive);
+                enteredGate = true;
 
+                string sMessage = GetMessageAsString((byte[])e.NewObject);
                 TransportMessage? tMessage = null;
+
                 lock (importLock)
                 {
                     Logger.LogTrace("Importing message {0}", e.Consecutive);
@@ -195,10 +201,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 }
 
                 if (tMessage == null)
+                {
+                    Logger.LogWarning("Deserialization failed for message {0}",
+                                      e.Consecutive);
                     return;
-
-                GateKeeperMethod(e.Consecutive);
-                enteredGate = true;
+                }
 
                 Logger.LogTrace("Processing message {0}", e.Consecutive);
                 if (!TransportListeners.TryGetValue(tMessage.MessageType,
@@ -214,8 +221,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
             catch (Exception ex)
             {
-                Logger.LogError("Error Processing Received Message: {0}",
-                                ex.Message);
+                Logger.LogError("Error Processing Received Message {0}: {1}",
+                                e.Consecutive, ex.Message);
             }
             finally
             {

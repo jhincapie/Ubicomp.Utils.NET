@@ -16,8 +16,8 @@ The tests currently cover:
 *   **TransportFramework**: Tests the end-to-end flow of message creation, serialization, and type resolution.
 
 ## Configuration
-The tests target `.NET 10.0` and use `xUnit` as the testing framework.
+The tests target `.NET 8.0` and use `xUnit` as the testing framework.
 Dependencies include:
 *   `Newtonsoft.Json`
-*   `log4net`
-*   `System.Configuration.ConfigurationManager` (required for legacy log4net support)
+*   `Microsoft.NET.Test.Sdk`
+*   `xunit`

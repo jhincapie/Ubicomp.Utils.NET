@@ -13,6 +13,7 @@ namespace Ubicomp.Utils.NET.Tests
     /// <summary>
     /// Unit tests for the <see cref="MulticastSocket"/> class.
     /// </summary>
+    [Collection("SharedTransport")]
     public class MulticastSocketTests
     {
         /// <summary>

@@ -1,4 +1,26 @@
-*/bin
-*/obj
-Multicast.NET.suo
-nanobabana-output
+# .NET exclusions
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# Visual Studio
+.vs/
+
+# Output and temp files
+nanobabana-output/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

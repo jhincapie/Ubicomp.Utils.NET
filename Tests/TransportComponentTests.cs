@@ -11,6 +11,7 @@ namespace Ubicomp.Utils.NET.Tests
     /// <summary>
     /// Unit tests for the <see cref="TransportComponent"/> class.
     /// </summary>
+    [Collection("SharedTransport")]
     public class TransportComponentTests
     {
         private class TestListener : ITransportListener

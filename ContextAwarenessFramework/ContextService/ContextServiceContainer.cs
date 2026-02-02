@@ -116,15 +116,12 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
                 {
                     service.Stop();
                     Thread serviceThread = _threads[service];
-                    // Using Join or checking state would be safer than Abort in
-                    // modern .NET
-                    try
+                    // Join the thread to allow it to exit gracefully.
+                    // service.Stop() signals the loop to terminate.
+                    if (!serviceThread.Join(500))
                     {
-                        serviceThread.Abort();
-                    }
-                    catch (PlatformNotSupportedException)
-                    {
-                        // Abort is not supported on .NET Core/5+
+                        // If it doesn't exit in time, we let it background or
+                        // could log a warning.
                     }
                 }
 
