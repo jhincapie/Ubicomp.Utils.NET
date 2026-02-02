@@ -33,6 +33,7 @@ namespace Ubicomp.Utils.NET.SampleApp
         {
             bool noWait = args.Contains("--no-wait");
             bool verbose = args.Contains("-v") || args.Contains("--verbose");
+            bool allowLocal = args.Contains("--local");
 
             // Parse optional parameters or use defaults
             string groupAddressStr = GetArgValue(args, "--address") ?? "239.0.0.1";
@@ -76,6 +77,7 @@ namespace Ubicomp.Utils.NET.SampleApp
             TransportComponent.Instance.MulticastGroupAddress = groupAddress;
             TransportComponent.Instance.Port = port;
             TransportComponent.Instance.UDPTTL = ttl;
+            TransportComponent.Instance.IgnoreLocalMessages = !allowLocal;
 
             // Register this app as a listener for message type 2
             TransportComponent.Instance.TransportListeners.Add(SampleAppID,

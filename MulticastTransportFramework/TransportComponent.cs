@@ -73,7 +73,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// Gets or sets a value indicating whether messages received from the local source
         /// should be ignored by this transport component.
         /// </summary>
-        public bool IgnoreLocalMessages { get; set; } = false;
+        public bool IgnoreLocalMessages { get; set; } = true;
 
         /// <summary>Gets or sets the multicast group IP address.</summary>
         public IPAddress MulticastGroupAddress

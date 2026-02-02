@@ -61,6 +61,7 @@ namespace Ubicomp.Utils.NET.Tests
             transport.MulticastGroupAddress = IPAddress.Parse("239.1.2.6");
             transport.Port = port;
             transport.UDPTTL = 1;
+            transport.IgnoreLocalMessages = false;
 
             if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
                     System.Runtime.InteropServices.OSPlatform.Linux))

@@ -97,6 +97,7 @@ namespace Ubicomp.Utils.NET.Tests
         {
             // Arrange
             var tc = TransportComponent.Instance;
+            tc.IgnoreLocalMessages = false;
             
             // Reflection to setup tc
             var socketField = typeof(TransportComponent).GetField("_socket", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -150,6 +151,7 @@ namespace Ubicomp.Utils.NET.Tests
         {
             // Arrange
             var tc = TransportComponent.Instance;
+            bool originalValue = tc.IgnoreLocalMessages;
             tc.IgnoreLocalMessages = true;
             
             // Reflection to setup tc
@@ -196,7 +198,7 @@ namespace Ubicomp.Utils.NET.Tests
             Assert.False(listenerCalled, "Listener should not have been called for a local message when IgnoreLocalMessages is true");
             
             // Cleanup
-            tc.IgnoreLocalMessages = false;
+            tc.IgnoreLocalMessages = originalValue;
         }
 
         private class MockListener : ITransportListener
