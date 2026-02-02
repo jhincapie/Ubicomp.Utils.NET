@@ -1,0 +1,57 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run Sample App",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build sample",
+            "program": "${workspaceFolder}/SampleApp/bin/Debug/net10.0/Ubicomp.Utils.NET.SampleApp.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/SampleApp",
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Run Multicast Test App",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build multicast test",
+            "program": "${workspaceFolder}/Multicast.TestApp/bin/Debug/net10.0/Ubicomp.Utils.NET.Muticast.TestApp.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/Multicast.TestApp",
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Run Context Framework Test App",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build context test",
+            "program": "${workspaceFolder}/ContextAwarenessFramework.TestApp/bin/Debug/net10.0/ContextAwarenessFramework.TestApp.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/ContextAwarenessFramework.TestApp",
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Debug Unit Tests",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "dotnet",
+            "args": [
+                "test",
+                "${workspaceFolder}/Tests/Ubicomp.Utils.NET.Tests.csproj"
+            ],
+            "cwd": "${workspaceFolder}/Tests",
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
+        {
+            "name": ".NET Core Attach",
+            "type": "coreclr",
+            "request": "attach"
+        }
+    ]
+}
