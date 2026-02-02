@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Newtonsoft.Json;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
 {
@@ -30,6 +31,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             get; set;
         }
+
+        /// <summary>Gets or sets a value indicating whether an acknowledgement is requested.</summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public bool RequestAck { get; set; }
 
         /// <summary>Gets or sets the actual content of the message.</summary>
         public ITransportMessageContent MessageData { get; set; } = null!;

@@ -48,6 +48,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             writer.WritePropertyName("messageType");
             writer.WriteValue(message.MessageType);
 
+            if (message.RequestAck)
+            {
+                writer.WritePropertyName("requestAck");
+                writer.WriteValue(true);
+            }
+
             writer.WritePropertyName("messageData");
             if (message.MessageData != null)
                 serializer.Serialize(writer, message.MessageData);
@@ -73,6 +79,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 jo["messageSource"]?.ToObject<EventSource>(serializer) ??
                 new EventSource();
             message.MessageType = jo["messageType"]?.Value<int>() ?? 0;
+            message.RequestAck = jo["requestAck"]?.Value<bool>() ?? false;
             message.TimeStamp =
                 jo["timeStamp"]?.Value<string>() ?? string.Empty;
 

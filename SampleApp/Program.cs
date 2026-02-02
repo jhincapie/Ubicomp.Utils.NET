@@ -107,6 +107,37 @@ namespace Ubicomp.Utils.NET.SampleApp
             // Run network diagnostics
             TransportComponent.Instance.VerifyNetworking();
 
+            if (args.Contains("--ack"))
+            {
+                var content = new SimpleContent { Text = "Ping with Ack request" };
+                var msg = new TransportMessage(TransportComponent.Instance.LocalSource, SampleAppID, content)
+                {
+                    RequestAck = true
+                };
+
+                Console.WriteLine("Sending message with Ack request...");
+                var session = TransportComponent.Instance.Send(msg);
+
+                session.OnAckReceived += (s, source) =>
+                {
+                    Console.WriteLine($"> Received Ack from: {source.ResourceName} ({source.FriendlyName ?? "No friendly name"})");
+                };
+
+                // Wait for acks in a background task if not in noWait mode
+                var waitTask = session.WaitAsync(TransportComponent.Instance.DefaultAckTimeout);
+                if (noWait)
+                {
+                    waitTask.Wait();
+                    Console.WriteLine(session.IsAnyAckReceived ? "Ack session completed with success." : "Ack session timed out.");
+                }
+                else
+                {
+                    waitTask.ContinueWith(t => {
+                        Console.WriteLine(t.Result ? "Ack session completed with success." : "Ack session timed out.");
+                    });
+                }
+            }
+
             if (noWait)
             {
                 Console.WriteLine("Waiting 5 seconds for messages...");
@@ -144,6 +175,12 @@ namespace Ubicomp.Utils.NET.SampleApp
                 Console.WriteLine(
                     $"Received raw message of type {message.MessageType}: " +
                     $"{rawMessage}");
+            }
+
+            if (message.RequestAck)
+            {
+                Console.WriteLine($"Sending Ack for message {message.MessageId}...");
+                TransportComponent.Instance.SendAck(message);
             }
         }
     }

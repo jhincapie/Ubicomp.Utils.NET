@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -27,6 +28,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// <summary>The unique ID for the transport component itself.</summary>
         public const int TransportComponentID = 0;
 
+        /// <summary>
+        /// The message type ID used for acknowledgements.
+        /// </summary>
+        public const int AckMessageType = 99;
+
         /// <summary>The singleton instance of the transport
         /// component.</summary>
         public static TransportComponent Instance = new TransportComponent();
@@ -48,10 +54,20 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             get;
         } = new Dictionary<int, ITransportListener>();
 
+        private readonly ConcurrentDictionary<Guid, AckSession> _activeSessions = new ConcurrentDictionary<Guid, AckSession>();
+
         private readonly JsonSerializerSettings _jsonSettings;
 
         private int _currentMessageCons = 0;
         private readonly object gate = new object();
+
+        /// <summary>Gets or sets the default timeout for acknowledgements.</summary>
+        public TimeSpan DefaultAckTimeout { get; set; } = TimeSpan.FromSeconds(5);
+
+        /// <summary>
+        /// Gets or sets the local source identification for this transport component.
+        /// </summary>
+        public EventSource LocalSource { get; set; } = new EventSource(Guid.NewGuid(), Environment.MachineName);
 
         /// <summary>Gets or sets the multicast group IP address.</summary>
         public IPAddress MulticastGroupAddress
@@ -85,6 +101,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             _jsonSettings = new JsonSerializerSettings();
             _jsonSettings.Converters.Add(new TransportMessageConverter());
+
+            if (!TransportMessageConverter.KnownTypes.ContainsKey(AckMessageType))
+            {
+                TransportMessageConverter.KnownTypes.Add(AckMessageType, typeof(AckMessageContent));
+            }
 
             TransportListeners.Add(TransportComponent.TransportComponentID,
                                    this);
@@ -175,16 +196,54 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// Sends a transport message over the multicast socket.
         /// </summary>
         /// <param name="message">The message to send.</param>
-        /// <returns>The JSON representation of the sent message.</returns>
-        public string Send(TransportMessage message)
+        /// <returns>An <see cref="AckSession"/> to track acknowledgements if requested.</returns>
+        public AckSession Send(TransportMessage message)
         {
+            var session = new AckSession(message.MessageId);
+
+            if (message.RequestAck)
+            {
+                _activeSessions.TryAdd(message.MessageId, session);
+                // Ensure cleanup after timeout
+                _ = session.WaitAsync(DefaultAckTimeout).ContinueWith(_ =>
+                {
+                    _activeSessions.TryRemove(message.MessageId, out var _);
+                });
+            }
+
             string json;
             lock (exportLock)
                 json =
                 JsonConvert.SerializeObject(message, _jsonSettings);
 
-            _socket.Send(json);
-            return json;
+            _socket?.Send(json);
+
+            if (!message.RequestAck)
+            {
+                // Report "success" immediately if no ack requested
+                session.ReportAck(LocalSource);
+            }
+
+            return session;
+        }
+
+        /// <summary>
+        /// Sends an acknowledgement for the specified message.
+        /// </summary>
+        /// <param name="originalMessage">The message to acknowledge.</param>
+        public void SendAck(TransportMessage originalMessage)
+        {
+            var ackContent = new AckMessageContent
+            {
+                OriginalMessageId = originalMessage.MessageId
+            };
+
+            var ackMessage = new TransportMessage(LocalSource, AckMessageType, ackContent)
+            {
+                RequestAck = false
+            };
+
+            Send(ackMessage);
         }
 
         private void socket_OnNotifyMulticastSocketListener(
@@ -235,6 +294,16 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     Logger.LogWarning("Deserialization failed for message {0}",
                                       e.Consecutive);
                     return;
+                }
+
+                if (tMessage.MessageType == AckMessageType && tMessage.MessageData is AckMessageContent ackContent)
+                {
+                    if (_activeSessions.TryGetValue(ackContent.OriginalMessageId, out var session))
+                    {
+                        Logger.LogTrace("Received Ack for message {0} from {1}",
+                                        ackContent.OriginalMessageId, tMessage.MessageSource.ResourceName);
+                        session.ReportAck(tMessage.MessageSource);
+                    }
                 }
 
                 Logger.LogTrace("Processing message {0}", e.Consecutive);

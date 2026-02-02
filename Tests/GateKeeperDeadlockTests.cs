@@ -4,6 +4,7 @@ using System.Net;
 using System.Reflection;
 using System.Text;
 using System.Threading;
+using Newtonsoft.Json;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
 using Ubicomp.Utils.NET.Sockets;
 using Xunit;
@@ -50,7 +51,20 @@ namespace Ubicomp.Utils.NET.Tests
 
             // Reset _currentMessageCons to 1 via reflection for a clean test
             var currentConsField = typeof(TransportComponent).GetField("_currentMessageCons", BindingFlags.Instance | BindingFlags.NonPublic);
-            currentConsField?.SetValue(transport, 1);
+            var gateField = typeof(TransportComponent).GetField("gate", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            if (currentConsField != null && gateField != null)
+            {
+                var gateObj = gateField.GetValue(transport);
+                if (gateObj != null)
+                {
+                    lock (gateObj)
+                    {
+                        currentConsField.SetValue(transport, 1);
+                        Monitor.PulseAll(gateObj);
+                    }
+                }
+            }
 
             var listener = new TestListener();
             int msgType = 888;
@@ -77,18 +91,24 @@ namespace Ubicomp.Utils.NET.Tests
 
             var validMsg = new TransportMessage(source, msgType, new EmptyContent());
 
-            string validJson = transport.Send(validMsg); // This just gets the JSON, we'll pass it manually
-
+            var settings = new JsonSerializerSettings();
+            settings.Converters.Add(new TransportMessageConverter());
+            string validJson = JsonConvert.SerializeObject(validMsg, settings);
 
             byte[] validData = Encoding.UTF8.GetBytes(validJson);
             var args2 = new NotifyMulticastSocketListenerEventArgs(MulticastSocketMessageType.MessageReceived, validData, 2);
 
+            // Ensure _socket is not null and is the sender to avoid early return in handler
+            var socketField = typeof(TransportComponent).GetField("_socket", BindingFlags.Instance | BindingFlags.NonPublic);
+            var mockSocket = new MulticastSocket(MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1));
+            socketField?.SetValue(transport, mockSocket);
+
             // Act
             // Invoke handler for message 1 (malformed)
-            handlerMethod?.Invoke(transport, new object[] { this, args1 });
+            handlerMethod?.Invoke(transport, new object[] { mockSocket, args1 });
 
             // Invoke handler for message 2 (valid)
-            handlerMethod?.Invoke(transport, new object[] { this, args2 });
+            handlerMethod?.Invoke(transport, new object[] { mockSocket, args2 });
 
             // Assert
             bool received = listener.ReceivedEvent.WaitOne(2000);
