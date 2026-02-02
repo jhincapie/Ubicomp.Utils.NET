@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,12 +10,14 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
   public abstract class ContextServiceContainer
   {
 
-    public static event EventHandler OnInitialize;
-    public static event EventHandler OnFinalize;
+    public static event EventHandler? OnInitialize;
+    public static event EventHandler? OnFinalize;
 
     private static bool servicesStarted = false;
     private static List<ContextService> services = new List<ContextService>();
     private static Dictionary<ContextService, Thread> threadsHT = new Dictionary<ContextService, Thread>();
+    private static Dictionary<Type, List<ContextService>> _serviceMap = new Dictionary<Type, List<ContextService>>();
+    private static readonly object _syncRoot = new object();
 
     public static void AddContextService(ContextService service)
     {
@@ -23,57 +25,77 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
       Thread serviceThread = new Thread(serviceStart);
       serviceThread.IsBackground = true;
 
-      if (!services.Contains(service))
+      lock (_syncRoot)
       {
-        services.Add(service);
-        threadsHT.Add(service, serviceThread);
-      }
+        if (!services.Contains(service))
+        {
+          services.Add(service);
+          threadsHT.Add(service, serviceThread);
 
-      if (servicesStarted)
-      {
-        serviceThread.Start();
-        service.Start();
+          Type serviceType = service.GetType();
+          if (!_serviceMap.ContainsKey(serviceType))
+          {
+            _serviceMap[serviceType] = new List<ContextService>();
+          }
+          _serviceMap[serviceType].Add(service);
+        }
+
+        if (servicesStarted)
+        {
+          serviceThread.Start();
+          service.Start();
+        }
       }
     }
 
-    public static ContextService GetContextService(Type contextServiceType)
+    public static List<ContextService> GetContextService(Type contextServiceType)
     {
-      foreach (ContextService service in services)
+      if (contextServiceType == null)
+        return new List<ContextService>();
+
+      lock (_syncRoot)
       {
-        if (service.GetType() == contextServiceType)
-          return service;
+        if (_serviceMap.ContainsKey(contextServiceType))
+        {
+          // Return a shallow copy of the list to avoid external modification issues
+          return new List<ContextService>(_serviceMap[contextServiceType]);
+        }
+        return new List<ContextService>();
       }
-      return null;
     }
 
     public static void StartServices()
     {
-      if (OnInitialize != null)
-        OnInitialize(null, EventArgs.Empty);
+      OnInitialize?.Invoke(null, EventArgs.Empty);
 
-      foreach (ContextService service in services)
+      lock (_syncRoot)
       {
-        Thread serviceThread = threadsHT[service];
-        serviceThread.Start();
-        service.Start();
-      }
+        foreach (ContextService service in services)
+        {
+          Thread serviceThread = threadsHT[service];
+          serviceThread.Start();
+          service.Start();
+        }
 
-      servicesStarted = true;
+        servicesStarted = true;
+      }
     }
 
     public static void StopServices()
     {
-      if (OnFinalize != null)
-        OnFinalize(null, EventArgs.Empty);
+      OnFinalize?.Invoke(null, EventArgs.Empty);
 
-      foreach (ContextService service in services)
+      lock (_syncRoot)
       {
-        service.Stop();
-        Thread serviceThread = threadsHT[service];
-        serviceThread.Abort();
-      }
+        foreach (ContextService service in services)
+        {
+          service.Stop();
+          Thread serviceThread = threadsHT[service];
+          serviceThread.Abort();
+        }
 
-      servicesStarted = false;
+        servicesStarted = false;
+      }
     }
 
   }

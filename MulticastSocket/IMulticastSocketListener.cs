@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -23,7 +23,7 @@ namespace Ubicomp.Utils.NET.Sockets
   public class NotifyMulticastSocketListenerEventArgs : EventArgs
   {
     private MulticastSocketMessageType type;
-    private Object newObject;
+    private object? newObject;
     private Int32 consecutive;
 
     public MulticastSocketMessageType Type
@@ -31,7 +31,7 @@ namespace Ubicomp.Utils.NET.Sockets
       get { return type; }
     }
 
-    public Object NewObject
+    public object? NewObject
     {
       get { return newObject; }
     }
@@ -41,13 +41,13 @@ namespace Ubicomp.Utils.NET.Sockets
       get { return consecutive; }
     }
 
-    public NotifyMulticastSocketListenerEventArgs(MulticastSocketMessageType type, Object newObject)
+    public NotifyMulticastSocketListenerEventArgs(MulticastSocketMessageType type, object? newObject)
     {
       this.type = type;
       this.newObject = newObject;
     }
 
-    public NotifyMulticastSocketListenerEventArgs(MulticastSocketMessageType type, Object newObject, int mCons)
+    public NotifyMulticastSocketListenerEventArgs(MulticastSocketMessageType type, object? newObject, int mCons)
     {
       this.type = type;
       this.newObject = newObject;

@@ -21,11 +21,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     public const int TransportComponentID = 0;
     public static TransportComponent Instance = new TransportComponent();
 
-    private static Object importLock = new Object();
-    private static Object exportLock = new Object();
+    private static object importLock = new object();
+    private static object exportLock = new object();
 
-    private MulticastSocket socket;
-    private IPAddress address;
+    private MulticastSocket socket = null!;
+    private IPAddress address = null!;
+    private IPAddress? localAddress;
     private int port;
     private int udpTTL;
 
@@ -39,6 +40,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     {
       get { return address; }
       set { address = value; }
+    }
+
+    public IPAddress? LocalIPAddress
+    {
+      get { return localAddress; }
+      set { localAddress = value; }
     }
 
     public int Port
@@ -68,19 +75,37 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
       if (port == 0)
         throw new ApplicationException("Multicast group port not specified.");
 
-      socket = new MulticastSocket(address.ToString(), port, udpTTL);
+      socket = new MulticastSocket(address.ToString(), port, udpTTL, localAddress?.ToString());
       socket.OnNotifyMulticastSocketListener += new NotifyMulticastSocketListener(socket_OnNotifyMulticastSocketListener);
 
       currentMessageCons = 1;
       socket.StartReceiving();
 
-      Logger.LogInformation("Multicast Sockect Started to Listen for Traffic.");
+      string interfaces = string.Join(", ", socket.JoinedAddresses.Select(a => a.ToString()));
+      Logger.LogInformation("Multicast Socket Started to Listen for Traffic on {0}:{1} (Interfaces: {2})", address, port, interfaces);
       Logger.LogInformation("TransportComponent Initialized.");
     }
 
-    public String Send(TransportMessage message)
+    public bool VerifyNetworking()
     {
-      String json;
+        Logger.LogInformation("Performing Network Diagnostics...");
+        NetworkDiagnostics.LogFirewallStatus(port, Logger);
+        
+        bool success = NetworkDiagnostics.PerformLoopbackTest(this);
+        if (success)
+        {
+            Logger.LogInformation("Network Diagnostics Passed: Multicast Loopback Successful.");
+        }
+        else
+        {
+            Logger.LogWarning("Network Diagnostics Failed: Multicast Loopback NOT received. Check firewall settings and interface configuration.");
+        }
+        return success;
+    }
+
+    public string Send(TransportMessage message)
+    {
+      string json;
       lock (exportLock)
         json = JsonConvert.SerializeObject(message, jsonSettings);
 
@@ -106,17 +131,17 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
       bool enteredGate = false;
       try
       {
-        String sMessage = GetMessageAsString((byte[])e.NewObject);
+        if (e.NewObject == null) return;
+        string sMessage = GetMessageAsString((byte[])e.NewObject);
 
-        TransportMessage tMessage = null;
+        TransportMessage? tMessage = null;
         lock (importLock)
         {
-          // Using Logger instead of Console.WriteLine where appropriate, 
-          // or keeping Console.WriteLine for debug if not converted to Debug/Trace logs.
-          // For now, I'll convert these debug prints to Trace logs.
           Logger.LogTrace("Importing message {0}", e.Consecutive);
           tMessage = JsonConvert.DeserializeObject<TransportMessage>(sMessage, jsonSettings);
         }
+
+        if (tMessage == null) return;
 
         GateKeeperMethod(e.Consecutive);
         enteredGate = true;
@@ -124,8 +149,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         try
         {
           Logger.LogTrace("Processing message {0}", e.Consecutive);
-          ITransportListener listener = TransportListeners[tMessage.MessageType];
-          listener.MessageReceived(tMessage, sMessage);
+          ITransportListener? listener;
+          if (TransportListeners.TryGetValue(tMessage.MessageType, out listener))
+          {
+            listener.MessageReceived(tMessage, sMessage);
+          }
+          else
+          {
+            Logger.LogWarning("No listener registered for message type {0}", tMessage.MessageType);
+          }
         }
         catch (Exception ex)
         {
@@ -145,7 +177,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     }
 
     //This method is being executed from a threadpool thread
-    private static Object gate = new Object();
+    private static object gate = new object();
     private static EventWaitHandle handle = new EventWaitHandle(true, EventResetMode.ManualReset);
     private void GateKeeperMethod(int consecutive)
     {
@@ -177,7 +209,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
     #region ITransportListener Members
 
-    public void MessageReceived(TransportMessage message, String rawMessage)
+    public void MessageReceived(TransportMessage message, string rawMessage)
     {
       Logger.LogInformation("Received Message for Transport Component - Not Implemented Feature.");
     }
@@ -189,7 +221,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
       int length = Array.IndexOf<byte>(receivedMsgB, (byte)'\0');
       if (length == -1)
         length = receivedMsgB.Length;
-      System.Text.ASCIIEncoding enc = new System.Text.ASCIIEncoding();
+      System.Text.UTF8Encoding enc = new System.Text.UTF8Encoding();
       return enc.GetString(receivedMsgB, 0, length);
     }
 
