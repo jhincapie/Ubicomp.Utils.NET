@@ -126,8 +126,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             string interfaces = string.Join(
                 ", ", _socket.JoinedAddresses.Select(a => a.ToString()));
             Logger.LogInformation("Multicast Socket Started to Listen for " +
-                                      "Traffic on {0}:{1} (Interfaces: {2})",
-                                  _multicastGroupAddress, _port, interfaces);
+                                      "Traffic on {0}:{1} (TTL: {2}, Interfaces: {3})",
+                                  _multicastGroupAddress, _port, _udpTTL, interfaces);
             Logger.LogInformation("TransportComponent Initialized.");
         }
 

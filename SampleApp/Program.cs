@@ -32,6 +32,30 @@ namespace Ubicomp.Utils.NET.SampleApp
         public void Run(string[] args)
         {
             bool noWait = args.Contains("--no-wait");
+            bool verbose = args.Contains("-v") || args.Contains("--verbose");
+
+            // Parse optional parameters or use defaults
+            string groupAddressStr = GetArgValue(args, "--address") ?? "239.0.0.1";
+            string portStr = GetArgValue(args, "--port") ?? "5000";
+            string ttlStr = GetArgValue(args, "--ttl") ?? "1";
+
+            if (!IPAddress.TryParse(groupAddressStr, out var groupAddress))
+            {
+                Console.WriteLine($"Invalid group address: {groupAddressStr}. Using default: 239.0.0.1");
+                groupAddress = IPAddress.Parse("239.0.0.1");
+            }
+
+            if (!int.TryParse(portStr, out int port))
+            {
+                Console.WriteLine($"Invalid port: {portStr}. Using default: 5000");
+                port = 5000;
+            }
+
+            if (!int.TryParse(ttlStr, out int ttl))
+            {
+                Console.WriteLine($"Invalid TTL: {ttlStr}. Using default: 1");
+                ttl = 1;
+            }
 
             // 1. Create a logger factory
             using ILoggerFactory loggerFactory = LoggerFactory.Create(
@@ -49,10 +73,9 @@ namespace Ubicomp.Utils.NET.SampleApp
             TransportComponent.Instance.Logger = logger;
 
             // Configure Transport Component
-            TransportComponent.Instance.MulticastGroupAddress =
-                IPAddress.Parse("239.0.0.1");
-            TransportComponent.Instance.Port = 5000;
-            TransportComponent.Instance.UDPTTL = 1;
+            TransportComponent.Instance.MulticastGroupAddress = groupAddress;
+            TransportComponent.Instance.Port = port;
+            TransportComponent.Instance.UDPTTL = ttl;
 
             // Register this app as a listener for message type 2
             TransportComponent.Instance.TransportListeners.Add(SampleAppID,
@@ -63,6 +86,22 @@ namespace Ubicomp.Utils.NET.SampleApp
                                                      typeof(SimpleContent));
 
             Console.WriteLine("Initializing Transport Component...");
+
+            if (verbose)
+            {
+                Console.WriteLine("Multicast Options:");
+                Console.WriteLine($"  Group Address: {TransportComponent.Instance.MulticastGroupAddress}");
+                Console.WriteLine($"  Port: {TransportComponent.Instance.Port}");
+                Console.WriteLine($"  Local IP: {TransportComponent.Instance.LocalIPAddress?.ToString() ?? "Any"}");
+                Console.WriteLine($"  TTL: {TransportComponent.Instance.UDPTTL}");
+                // These are defaults used in TransportComponent.Init() via MulticastSocketOptions.WideAreaNetwork
+                Console.WriteLine("  Reuse Address: True");
+                Console.WriteLine("  Multicast Loopback: True");
+                Console.WriteLine("  No Delay: True");
+                Console.WriteLine("  Don't Fragment: False");
+                Console.WriteLine("  Auto Join: True");
+            }
+
             TransportComponent.Instance.Init();
 
             // Run network diagnostics
@@ -78,6 +117,18 @@ namespace Ubicomp.Utils.NET.SampleApp
                 Console.WriteLine("Press any key to exit.");
                 Console.ReadKey();
             }
+        }
+
+        private string? GetArgValue(string[] args, string flag)
+        {
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (args[i].Equals(flag, StringComparison.OrdinalIgnoreCase))
+                {
+                    return args[i + 1];
+                }
+            }
+            return null;
         }
 
         /// <inheritdoc />
