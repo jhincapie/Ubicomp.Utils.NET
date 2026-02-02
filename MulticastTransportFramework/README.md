@@ -10,14 +10,34 @@ The **MulticastTransportFramework** abstracts raw socket communication into a st
 *   **Modern Logging:** Uses `Microsoft.Extensions.Logging` abstractions, allowing you to plug in any logger (Console, Debug, Serilog, etc.).
 *   **Type Safe:** Polymorphic message content support via `KnownTypes` registration.
 
-## System Diagram
-![MulticastTransportFramework System Diagram](assets/system_diagram.png)
+## System Architecture
+![MulticastTransportFramework Flow Diagram](assets/transport_flow_diagram.png)
 
 ## Key Concepts
-- **TransportComponent**: A Singleton class that manages the `MulticastSocket`, serialization settings, and listener routing.
-- **TransportMessage**: The standard envelope for all communication, containing `MessageId`, `Source`, `Type`, and `Data`.
-- **ITransportListener**: Interface for classes that handle specific message types.
-- **TransportMessageConverter**: Handles polymorphic deserialization of `MessageData` using a `KnownTypes` dictionary.
+
+### TransportComponent
+A Singleton class that manages the `MulticastSocket`, serialization settings, and listener routing.
+
+### Ordered Messaging (GateKeeper)
+UDP multicast does not guarantee the order of packets. The framework implements a **GateKeeper** mechanism:
+- Every packet received by the `MulticastSocket` is assigned a consecutive sequence ID.
+- The `TransportComponent` ensures that messages are only dispatched to listeners when their sequence ID matches the expected next ID.
+- This guarantees strict ordering of message processing, even if the underlying async operations complete out of order.
+
+### Reliable Messaging (Ack)
+While primarily built on UDP, the framework supports reliable delivery via an acknowledgement system:
+- **AckMessageContent**: A special message type for acknowledgements.
+- **AckSession**: Manages the lifecycle of a reliable message, including retries and timeout handling.
+- Use `TransportComponent.Instance.SendAck(...)` to send a message that requires confirmation.
+
+### Network Diagnostics
+Multicast can often be blocked by firewalls or network configuration. The framework includes a `NetworkDiagnostics` utility:
+- **Firewall Check**: Checks if common multicast ports are open.
+- **Loopback Test**: Verifies if the local machine can receive its own multicast traffic.
+- **Interface Discovery**: Lists all available network interfaces and their multicast capabilities.
+
+### TransportMessage
+The standard envelope for all communication, containing `MessageId`, `Source`, `Type`, and `Data`.
 
 ## Usage
 

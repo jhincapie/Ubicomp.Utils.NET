@@ -9,26 +9,33 @@ The **ContextAwarenessFramework** provides a standard structure for:
 3.  **Data Modeling**: Representing context using `IEntity` objects.
 4.  **Notification**: Thread-safe updates via observer pattern.
 
+## Architecture
+The framework follows the **Monitor-Service-Entity (MSE)** pattern, designed to decouple data acquisition from business logic and data presentation.
+
+![MSE Pattern Diagram](assets/mse_pattern_diagram.png)
+
 ## Key Components
 
 ### ContextMonitor
 Abstract base class for data producers.
-- **Update Types**: Continuous, Interval, or OnRequest.
-- **Events**: Fires `OnNotifyContextServices` when new data is available.
+- **Update Types**: Continuous (event-based), Interval (polling), or OnRequest.
+- **Threading**: Monitors typically run their own background loop to avoid blocking the main application.
 - **Usage**: Inherit from this to create specific sensors (e.g., `LocationMonitor`, `BatteryMonitor`).
 
 ### ContextService
 Abstract base class for data consumers/managers.
-- **Implements**: `IContextMonitorListener`.
-- **Threading**: Executes updates on the calling monitor's thread. Users can implement their own marshaling if UI updates are needed.
-- **Persistence**: Built-in support for periodic or request-based data saving (`PersistEntities`).
-- **Logging**: Exposes a `Logger` property (defaults to `NullLogger`) for injecting `Microsoft.Extensions.Logging` implementations.
-- **Usage**: Inherit from this to implement logic (e.g., `LocationService` that aggregates GPS and WiFi data).
+- **Data Aggregation**: Subscribes to one or more Monitors to process raw data into high-level context.
+- **Threading (UI Safety)**: The service captures the `Dispatcher` from the thread that created it. When updating state, it marshals calls back to this Dispatcher, ensuring that `ObservableCollection`s and other UI-bound properties can be updated safely from background monitor threads.
+- **Persistence**: Built-in support for multiple persistence patterns:
+    - `Periodic`: Saves state at a regular interval.
+    - `OnRequest`: Saves state only when explicitly called.
+    - `Combined`: Both periodic and on-demand.
+- **Logging**: Injects `Microsoft.Extensions.Logging` for consistent diagnostic output.
 
 ### IEntity
-Interface for data objects.
-- **Implements**: `INotifyPropertyChanged` for data binding support.
-- **Usage**: Define your domain models (e.g., `UserLocation`) implementing this interface.
+Interface for context data objects.
+- **Reactive**: Implements `INotifyPropertyChanged` for seamless integration with WPF/MAUI/Blazor data binding.
+- **Usage**: Define your domain models (e.g., `UserLocation`, `DeviceState`) implementing this interface.
 
 ## Usage Example
 ... (rest of usage) ...
