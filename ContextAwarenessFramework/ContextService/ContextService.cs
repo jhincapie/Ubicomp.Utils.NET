@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
-using System.Windows.Threading;
+
 using Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -21,9 +21,9 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
     // Exposed logger property, defaults to NullLogger
     public ILogger Logger { get; set; } = NullLogger.Instance;
 
-    public event EventHandler OnStart;
-    public event EventHandler OnStop;
-    public event NotifyContextServiceListeners OnNotifyContextServiceListeners;
+    public event EventHandler? OnStart;
+    public event EventHandler? OnStop;
+    public event NotifyContextServiceListeners? OnNotifyContextServiceListeners;
 
     private ContextServicePersistenceType persistenceType = ContextServicePersistenceType.None;
     private int persistInterval = 60000;
@@ -32,10 +32,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
     private DateTime datePersistRequested = DateTime.MinValue;
     private bool stopped = false;
 
-    protected Dispatcher _dispatcher;
 
-    //private List<IEntity> entities;
-    //private List<ITransformers> transformers;
 
     protected ContextServicePersistenceType PersistenceType
     {
@@ -49,10 +46,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
       set { persistInterval = value; }
     }
 
-    public ContextService()
-    {
-      _dispatcher = Dispatcher.CurrentDispatcher;
-    }
+
 
     protected virtual void LoadEntities()
     { }
@@ -65,8 +59,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
 
     protected void NotifyContextServiceListeners(object sender, NotifyContextServiceListenersEventArgs e)
     {
-      if (OnNotifyContextServiceListeners != null)
-        OnNotifyContextServiceListeners(sender, e);
+      OnNotifyContextServiceListeners?.Invoke(sender, e);
     }
 
     /// <summary>
@@ -75,8 +68,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
     public void Start()
     {
       CustomStart();
-      if (OnStart != null)
-        OnStart(this, null);
+      OnStart?.Invoke(this, EventArgs.Empty);
     }
 
     protected virtual void CustomStart()
@@ -90,8 +82,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
       stopped = true;
       ExecutePersit();
       CustomStop();
-      if (OnStop != null)
-        OnStop(this, null);
+      OnStop?.Invoke(this, EventArgs.Empty);
     }
 
     protected virtual void CustomStop()
@@ -121,7 +112,7 @@ namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
       }
     }
 
-    private Object lockPersist = new Object();
+    private object lockPersist = new object();
     private void ExecutePersit()
     {
       lock (lockPersist)
