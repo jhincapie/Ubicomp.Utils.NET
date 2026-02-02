@@ -69,6 +69,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// </summary>
         public EventSource LocalSource { get; set; } = new EventSource(Guid.NewGuid(), Environment.MachineName);
 
+        /// <summary>
+        /// Gets or sets a value indicating whether messages received from the local source
+        /// should be ignored by this transport component.
+        /// </summary>
+        public bool IgnoreLocalMessages { get; set; } = false;
+
         /// <summary>Gets or sets the multicast group IP address.</summary>
         public IPAddress MulticastGroupAddress
         {
@@ -293,6 +299,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 {
                     Logger.LogWarning("Deserialization failed for message {0}",
                                       e.Consecutive);
+                    return;
+                }
+
+                if (IgnoreLocalMessages && tMessage.MessageSource.ResourceId == LocalSource.ResourceId)
+                {
+                    Logger.LogTrace("Ignoring local message {0}", e.Consecutive);
                     return;
                 }
 

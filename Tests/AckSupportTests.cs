@@ -144,5 +144,66 @@ namespace Ubicomp.Utils.NET.Tests
             Assert.True(session.IsAnyAckReceived);
             Assert.Contains(ackSource.ResourceId, session.ReceivedAcks.Select(s => s.ResourceId));
         }
+
+        [Fact]
+        public void TransportComponent_IgnoreLocalMessages_ShouldFilter()
+        {
+            // Arrange
+            var tc = TransportComponent.Instance;
+            tc.IgnoreLocalMessages = true;
+            
+            // Reflection to setup tc
+            var socketField = typeof(TransportComponent).GetField("_socket", BindingFlags.Instance | BindingFlags.NonPublic);
+            var mockSocket = new MulticastSocket(MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1));
+            socketField?.SetValue(tc, mockSocket);
+
+            var currentConsField = typeof(TransportComponent).GetField("_currentMessageCons", BindingFlags.Instance | BindingFlags.NonPublic);
+            var gateField = typeof(TransportComponent).GetField("gate", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (currentConsField != null && gateField != null)
+            {
+                var gateObj = gateField.GetValue(tc);
+                if (gateObj != null)
+                {
+                    lock (gateObj)
+                    {
+                        currentConsField.SetValue(tc, 1);
+                        Monitor.PulseAll(gateObj);
+                    }
+                }
+            }
+
+            var handlerMethod = typeof(TransportComponent).GetMethod("socket_OnNotifyMulticastSocketListener", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            // Create a message from LocalSource
+            var msg = new TransportMessage(tc.LocalSource, TransportComponent.TransportComponentID, new AckMessageContent());
+            
+            var settings = new JsonSerializerSettings();
+            settings.Converters.Add(new TransportMessageConverter());
+            string json = JsonConvert.SerializeObject(msg, settings);
+            byte[] data = Encoding.UTF8.GetBytes(json);
+
+            var args = new NotifyMulticastSocketListenerEventArgs(MulticastSocketMessageType.MessageReceived, data, 1);
+
+            // Register a listener to see if it gets called
+            bool listenerCalled = false;
+            var listener = new MockListener(() => listenerCalled = true);
+            tc.TransportListeners[TransportComponent.TransportComponentID] = listener;
+
+            // Act
+            handlerMethod?.Invoke(tc, new object[] { mockSocket, args });
+
+            // Assert
+            Assert.False(listenerCalled, "Listener should not have been called for a local message when IgnoreLocalMessages is true");
+            
+            // Cleanup
+            tc.IgnoreLocalMessages = false;
+        }
+
+        private class MockListener : ITransportListener
+        {
+            private readonly Action _onReceived;
+            public MockListener(Action onReceived) => _onReceived = onReceived;
+            public void MessageReceived(TransportMessage message, string rawMessage) => _onReceived();
+        }
     }
 }
