@@ -187,8 +187,6 @@ namespace Ubicomp.Utils.NET.Sockets
         NotifyMulticastSocketListener(MulticastSocketMessageType.MessageReceived, bufferCopy, ++mConsecutive);
 
         //keep listening 
-        for (int i = 0; i < bytesRead; i++)
-          state.Buffer[i] = (byte)'\0';
         Recieve(state);
       }
       catch (Exception e)

@@ -32,6 +32,38 @@ namespace Ubicomp.Utils.NET.Tests
         }
 
         [Fact]
+        public void SendAndReceive_ShouldWork()
+        {
+            string groupAddress = "239.0.0.3";
+            int port = 5002;
+            int ttl = 0;
+
+            var receiver = new MulticastSocket(groupAddress, port, ttl);
+            string receivedMessage = null;
+            var signal = new System.Threading.ManualResetEvent(false);
+
+            receiver.OnNotifyMulticastSocketListener += (s, e) =>
+            {
+                if (e.Type == MulticastSocketMessageType.MessageReceived)
+                {
+                    byte[] data = (byte[])e.NewObject;
+                    receivedMessage = System.Text.Encoding.ASCII.GetString(data);
+                    signal.Set();
+                }
+            };
+
+            receiver.StartReceiving();
+            System.Threading.Thread.Sleep(500); // Wait for bind
+
+            var sender = new MulticastSocket(groupAddress, port, ttl);
+            string msg = "Hello World";
+            sender.Send(msg);
+
+            Assert.True(signal.WaitOne(2000), "Timed out waiting for message");
+            Assert.Equal(msg, receivedMessage);
+        }
+      
+        [Fact]
         public void Send_UTF8Message_ReceivedCorrectly()
         {
             // Arrange
