@@ -181,20 +181,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     private static EventWaitHandle handle = new EventWaitHandle(true, EventResetMode.ManualReset);
     private void GateKeeperMethod(int consecutive)
     {
-      while (true)
+      lock (gate)
       {
-        bool isTurn = false;
-        lock (gate)
+        while (currentMessageCons != consecutive)
         {
-          if (currentMessageCons == consecutive)
-            isTurn = true;
+          Monitor.Wait(gate);
         }
-
-        //goes out of this method and proceeds to process the received message
-        if (isTurn)
-          break;
-
-        handle.WaitOne();
       }
     }
 
@@ -203,7 +195,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
       lock (gate)
       {
         currentMessageCons++;
-        handle.Set();
+        Monitor.PulseAll(gate);
       }
     }
 
