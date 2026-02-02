@@ -40,8 +40,8 @@ namespace Ubicomp.Utils.NET.Tests
                 try { transport.Init(); } catch { /* Ignore if already init */ }
     
                 // Reset _currentMessageCons to 1 via reflection for a clean test
-                var currentConsField = typeof(TransportComponent).GetField("_currentMessageCons", BindingFlags.Static | BindingFlags.NonPublic);
-                currentConsField?.SetValue(null, 1);
+                var currentConsField = typeof(TransportComponent).GetField("_currentMessageCons", BindingFlags.Instance | BindingFlags.NonPublic);
+                currentConsField?.SetValue(transport, 1);
     
                 var listener = new TestListener();
                 int msgType = 888;

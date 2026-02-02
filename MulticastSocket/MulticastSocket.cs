@@ -252,6 +252,11 @@ namespace Ubicomp.Utils.NET.Sockets
                                bufferCopy, ++_mConsecutive);
                 Receive(state);
             }
+            catch (SocketException se) when (se.SocketErrorCode == SocketError.OperationAborted ||
+                                             se.SocketErrorCode == SocketError.Interrupted)
+            {
+                // Expected when socket is closed
+            }
             catch (ObjectDisposedException)
             {
                 // Expected when socket is closed

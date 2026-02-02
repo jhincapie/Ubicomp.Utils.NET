@@ -185,6 +185,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private void socket_OnNotifyMulticastSocketListener(
             object sender, NotifyMulticastSocketListenerEventArgs e)
         {
+            if (sender != _socket) return;
+
             if (e.Type == MulticastSocketMessageType.SendException)
             {
                 Logger.LogError("Error Sending Message: {0}", e.NewObject);

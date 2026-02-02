@@ -127,9 +127,14 @@ namespace Ubicomp.Utils.NET.Tests
             string testMessage = "Héllø Wørld 🛡️";
             string? receivedMessage = null;
             var receivedEvent = new ManualResetEvent(false);
-
-            // Use 127.0.0.1 for loopback tests on Linux/multi-homed systems
-            var socket = new MulticastSocket(ip, port, ttl, "127.0.0.1");
+            // Use 127.0.0.1 for loopback tests on Linux/multi-homed systems, null
+            // for Windows
+            string? localIP =
+                System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+                    System.Runtime.InteropServices.OSPlatform.Linux)
+                    ? "127.0.0.1"
+                    : null;
+            var socket = new MulticastSocket(ip, port, ttl, localIP);
 
             socket.OnNotifyMulticastSocketListener += (sender, e) =>
             {
@@ -181,8 +186,14 @@ namespace Ubicomp.Utils.NET.Tests
             int port = TestPort;
             int ttl = 1;
 
-            // Use 127.0.0.1 for loopback tests on Linux/multi-homed systems
-            var socket = new MulticastSocket(ip, port, ttl, "127.0.0.1");
+            // Use 127.0.0.1 for loopback tests on Linux/multi-homed systems, null
+            // for Windows
+            string? localIP =
+                System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+                    System.Runtime.InteropServices.OSPlatform.Linux)
+                    ? "127.0.0.1"
+                    : null;
+            var socket = new MulticastSocket(ip, port, ttl, localIP);
 
             // Capture Console.Error
             var stringWriter = new StringWriter();
