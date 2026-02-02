@@ -1,16 +1,25 @@
+#nullable enable
 using System;
-using Xunit;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
+using Xunit;
 
 namespace Ubicomp.Utils.NET.Tests
 {
+    /// <summary>
+    /// Unit tests for the basic components of the transport framework.
+    /// </summary>
     public class TransportFrameworkTests
     {
+        /// <summary>Mock content for transport framework tests.</summary>
         public class MockContent : ITransportMessageContent
         {
-            public string Content { get; set; }
+            /// <summary>Gets or sets the content text.</summary>
+            public string Content { get; set; } = string.Empty;
         }
 
+        /// <summary>
+        /// Validates that an EventSource initializes its properties correctly.
+        /// </summary>
         [Fact]
         public void EventSource_ShouldInitializeCorrectly()
         {
@@ -25,6 +34,10 @@ namespace Ubicomp.Utils.NET.Tests
             Assert.Equal(description, source.FriendlyName);
         }
 
+        /// <summary>
+        /// Validates that a TransportMessage initializes its properties
+        /// correctly.
+        /// </summary>
         [Fact]
         public void TransportMessage_ShouldInitializeCorrectly()
         {

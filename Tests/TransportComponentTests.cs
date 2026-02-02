@@ -1,31 +1,43 @@
+#nullable enable
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Threading;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
 using Xunit;
-using System.Collections.Generic;
 
-namespace MulticastTransportFramework.Tests
+namespace Ubicomp.Utils.NET.Tests
 {
+    /// <summary>
+    /// Unit tests for the <see cref="TransportComponent"/> class.
+    /// </summary>
     public class TransportComponentTests
     {
-        class TestListener : ITransportListener
+        private class TestListener : ITransportListener
         {
-            public ManualResetEvent ReceivedEvent = new ManualResetEvent(false);
-            public TransportMessage LastMessage;
+            public ManualResetEvent ReceivedEvent {
+                get;
+            } = new ManualResetEvent(false);
+            public TransportMessage? LastMessage { get; private set; }
 
-            public void MessageReceived(TransportMessage message, string rawMessage)
+            /// <inheritdoc />
+            public void MessageReceived(TransportMessage message,
+                                        string rawMessage)
             {
                 LastMessage = message;
                 ReceivedEvent.Set();
             }
         }
 
-        class TestContent : ITransportMessageContent
+        private class TestContent : ITransportMessageContent
         {
-            public string Data { get; set; }
+            public string Data { get; set; } = string.Empty;
         }
 
+        /// <summary>
+        /// Validates that sending and receiving a message end-to-end works
+        /// correctly.
+        /// </summary>
         [Fact]
         public void SendAndReceive_EndToEnd_Works()
         {
@@ -35,7 +47,8 @@ namespace MulticastTransportFramework.Tests
             // Register known type for deserialization
             int msgType = 999;
             if (!TransportMessageConverter.KnownTypes.ContainsKey(msgType))
-                TransportMessageConverter.KnownTypes.Add(msgType, typeof(TestContent));
+                TransportMessageConverter.KnownTypes.Add(msgType,
+                                                         typeof(TestContent));
 
             // Setup Transport (Singleton)
             // Use a port that is likely free
@@ -61,22 +74,26 @@ namespace MulticastTransportFramework.Tests
             transport.TransportListeners.Add(msgType, listener);
 
             var content = new TestContent { Data = "Test Payload" };
-            var msg = new TransportMessage(null, msgType, content);
+            var source = new EventSource(Guid.NewGuid(), "TestSource");
+            var msg = new TransportMessage(source, msgType, content);
 
             // Act
             transport.Send(msg);
 
             // Assert
-            // Wait for message to go through Socket -> OnNotify -> GateKeeper -> MessageReceived
+            // Wait for message to go through Socket -> OnNotify -> GateKeeper
+            // -> MessageReceived
             bool received = listener.ReceivedEvent.WaitOne(5000);
 
-            Assert.True(received, "Message was not received by listener - GateKeeper might be stuck");
+            Assert.True(received, "Message was not received by listener - " +
+                                      "GateKeeper might be stuck");
             Assert.NotNull(listener.LastMessage);
-            Assert.Equal(msgType, listener.LastMessage.MessageType);
+            Assert.Equal(msgType, listener.LastMessage!.MessageType);
 
-            var receivedContent = listener.LastMessage.MessageData as TestContent;
+            var receivedContent =
+                listener.LastMessage.MessageData as TestContent;
             Assert.NotNull(receivedContent);
-            Assert.Equal("Test Payload", receivedContent.Data);
+            Assert.Equal("Test Payload", receivedContent!.Data);
         }
     }
 }

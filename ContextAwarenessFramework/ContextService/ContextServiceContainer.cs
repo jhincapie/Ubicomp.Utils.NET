@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,97 +8,129 @@ using System.Threading;
 namespace Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService
 {
 
-  public abstract class ContextServiceContainer
-  {
-
-    public static event EventHandler? OnInitialize;
-    public static event EventHandler? OnFinalize;
-
-    private static bool servicesStarted = false;
-    private static List<ContextService> services = new List<ContextService>();
-    private static Dictionary<ContextService, Thread> threadsHT = new Dictionary<ContextService, Thread>();
-    private static Dictionary<Type, List<ContextService>> _serviceMap = new Dictionary<Type, List<ContextService>>();
-    private static readonly object _syncRoot = new object();
-
-    public static void AddContextService(ContextService service)
+    /// <summary>
+    /// Manages a collection of <see cref="ContextService"/> instances and their
+    /// lifecycles.
+    /// </summary>
+    public abstract class ContextServiceContainer
     {
-      ThreadStart serviceStart = new ThreadStart(service.Run);
-      Thread serviceThread = new Thread(serviceStart);
-      serviceThread.IsBackground = true;
+        /// <summary>Occurs when services are being initialized.</summary>
+        public static event EventHandler? OnInitialize;
+        /// <summary>Occurs when services are being finalized.</summary>
+        public static event EventHandler? OnFinalize;
 
-      lock (_syncRoot)
-      {
-        if (!services.Contains(service))
+        private static bool _servicesStarted = false;
+        private static readonly List<ContextService> _services =
+            new List<ContextService>();
+        private static readonly Dictionary<ContextService, Thread> _threads =
+            new Dictionary<ContextService, Thread>();
+        private static readonly Dictionary<Type, List<ContextService>>
+            _serviceMap = new Dictionary<Type, List<ContextService>>();
+        private static readonly object _syncRoot = new object();
+
+        /// <summary>
+        /// Registers a new service and prepares its background thread.
+        /// </summary>
+        /// <param name="service">The service to add.</param>
+        public static void AddContextService(ContextService service)
         {
-          services.Add(service);
-          threadsHT.Add(service, serviceThread);
+            Thread serviceThread =
+                new Thread(service.Run) { IsBackground = true };
 
-          Type serviceType = service.GetType();
-          if (!_serviceMap.ContainsKey(serviceType))
-          {
-            _serviceMap[serviceType] = new List<ContextService>();
-          }
-          _serviceMap[serviceType].Add(service);
+            lock (_syncRoot)
+            {
+                if (_services.Contains(service))
+                    return;
+
+                _services.Add(service);
+                _threads.Add(service, serviceThread);
+
+                Type serviceType = service.GetType();
+                if (!_serviceMap.ContainsKey(serviceType))
+                {
+                    _serviceMap[serviceType] = new List<ContextService>();
+                }
+                _serviceMap[serviceType].Add(service);
+
+                if (_servicesStarted)
+                {
+                    serviceThread.Start();
+                    service.Start();
+                }
+            }
         }
 
-        if (servicesStarted)
+        /// <summary>
+        /// Retrieves registered services of the specified type.
+        /// </summary>
+        /// <param name="serviceType">The type of the service.</param>
+        /// <returns>A list of registered service instances.</returns>
+        public static List<ContextService> GetContextService(Type serviceType)
         {
-          serviceThread.Start();
-          service.Start();
+            if (serviceType == null)
+                return new List<ContextService>();
+
+            lock (_syncRoot)
+            {
+                if (_serviceMap.TryGetValue(serviceType,
+                                            out var registeredServices))
+                {
+                    // Return a shallow copy of the list to avoid external
+                    // modification issues
+                    return new List<ContextService>(registeredServices);
+                }
+                return new List<ContextService>();
+            }
         }
-      }
+
+        /// <summary>
+        /// Starts all registered services.
+        /// </summary>
+        public static void StartServices()
+        {
+            OnInitialize?.Invoke(null, EventArgs.Empty);
+
+            lock (_syncRoot)
+            {
+                foreach (ContextService service in _services)
+                {
+                    Thread serviceThread = _threads[service];
+                    serviceThread.Start();
+                    service.Start();
+                }
+
+                _servicesStarted = true;
+            }
+        }
+
+        /// <summary>
+        /// Stops all registered services.
+        /// </summary>
+        public static void StopServices()
+        {
+            OnFinalize?.Invoke(null, EventArgs.Empty);
+
+            lock (_syncRoot)
+            {
+                foreach (ContextService service in _services)
+                {
+                    service.Stop();
+                    Thread serviceThread = _threads[service];
+                    // Using Join or checking state would be safer than Abort in
+                    // modern .NET
+                    try
+                    {
+                        serviceThread.Abort();
+                    }
+                    catch (PlatformNotSupportedException)
+                    {
+                        // Abort is not supported on .NET Core/5+
+                    }
+                }
+
+                _servicesStarted = false;
+            }
+        }
     }
-
-    public static List<ContextService> GetContextService(Type contextServiceType)
-    {
-      if (contextServiceType == null)
-        return new List<ContextService>();
-
-      lock (_syncRoot)
-      {
-        if (_serviceMap.ContainsKey(contextServiceType))
-        {
-          // Return a shallow copy of the list to avoid external modification issues
-          return new List<ContextService>(_serviceMap[contextServiceType]);
-        }
-        return new List<ContextService>();
-      }
-    }
-
-    public static void StartServices()
-    {
-      OnInitialize?.Invoke(null, EventArgs.Empty);
-
-      lock (_syncRoot)
-      {
-        foreach (ContextService service in services)
-        {
-          Thread serviceThread = threadsHT[service];
-          serviceThread.Start();
-          service.Start();
-        }
-
-        servicesStarted = true;
-      }
-    }
-
-    public static void StopServices()
-    {
-      OnFinalize?.Invoke(null, EventArgs.Empty);
-
-      lock (_syncRoot)
-      {
-        foreach (ContextService service in services)
-        {
-          service.Stop();
-          Thread serviceThread = threadsHT[service];
-          serviceThread.Abort();
-        }
-
-        servicesStarted = false;
-      }
-    }
-
-  }
 
 }

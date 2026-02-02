@@ -1,4 +1,5 @@
-﻿using System;
+#nullable enable
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,10 +7,12 @@ using Ubicomp.Utils.NET.MulticastTransportFramework;
 
 namespace Ubicomp.Utils.NET.Muticast.TestApp
 {
-  public class MockMessage : ITransportMessageContent
-  {
-
-    public String Message { get; set; }
-
-  }
+    /// <summary>
+    /// Mock message content for testing purposes.
+    /// </summary>
+    public class MockMessage : ITransportMessageContent
+    {
+        /// <summary>Gets or sets the mock message text.</summary>
+        public string Message { get; set; } = string.Empty;
+    }
 }

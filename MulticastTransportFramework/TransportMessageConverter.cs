@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
@@ -5,17 +6,30 @@ using Newtonsoft.Json.Linq;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
 {
+    /// <summary>
+    /// Custom JSON converter for <see cref="TransportMessage"/> objects.
+    /// Handles polymorphic deserialization of the message data based on the
+    /// message type.
+    /// </summary>
     public class TransportMessageConverter : JsonConverter
     {
-        // Changed to map Int -> Type for simpler deserialization
-        public static Dictionary<int, Type> KnownTypes = new Dictionary<int, Type>();
+        /// <summary>
+        /// A dictionary mapping message type IDs to their concrete .NET types.
+        /// Used for deserializing the polymorphic MessageData property.
+        /// </summary>
+        public static Dictionary<int, Type> KnownTypes {
+            get;
+        } = new Dictionary<int, Type>();
 
+        /// <inheritdoc />
         public override bool CanConvert(Type objectType)
         {
             return objectType == typeof(TransportMessage);
         }
 
-        public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer)
+        /// <inheritdoc />
+        public override void WriteJson(JsonWriter writer, object? value,
+                                       JsonSerializer serializer)
         {
             if (value == null)
             {
@@ -23,73 +37,79 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 return;
             }
 
-            TransportMessage tMessage = (TransportMessage)value;
-            
+            TransportMessage message = (TransportMessage)value;
+
             writer.WriteStartObject();
             writer.WritePropertyName("messageId");
-            serializer.Serialize(writer, tMessage.MessageId);
+            serializer.Serialize(writer, message.MessageId);
             writer.WritePropertyName("messageSource");
-            serializer.Serialize(writer, tMessage.MessageSource);
+            serializer.Serialize(writer, message.MessageSource);
             writer.WritePropertyName("messageType");
-            writer.WriteValue(tMessage.MessageType);
-            
+            writer.WriteValue(message.MessageType);
+
             writer.WritePropertyName("messageData");
-            // Simply serialize the object. Newtonsoft will handle the concrete type.
-            if (tMessage.MessageData != null)
-            {
-                serializer.Serialize(writer, tMessage.MessageData);
-            }
+            if (message.MessageData != null)
+                serializer.Serialize(writer, message.MessageData);
             else
-            {
                 writer.WriteNull();
-            }
-            
+
             writer.WritePropertyName("timeStamp");
-            writer.WriteValue(tMessage.TimeStamp);
+            writer.WriteValue(message.TimeStamp);
             writer.WriteEndObject();
         }
 
-        public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
+        /// <inheritdoc />
+        public override object? ReadJson(JsonReader reader, Type objectType,
+                                         object? existingValue,
+                                         JsonSerializer serializer)
         {
             JObject jo = JObject.Load(reader);
-            TransportMessage tMessage = new TransportMessage();
+            TransportMessage message = new TransportMessage();
 
-            tMessage.MessageId = jo["messageId"]?.ToObject<Guid>(serializer) ?? Guid.Empty;
-            tMessage.MessageSource = jo["messageSource"]?.ToObject<EventSource>(serializer) ?? new EventSource();
-            tMessage.MessageType = jo["messageType"]?.Value<int>() ?? 0;
-            tMessage.TimeStamp = jo["timeStamp"]?.Value<string>() ?? string.Empty;
+            message.MessageId =
+                jo["messageId"]?.ToObject<Guid>(serializer) ?? Guid.Empty;
+            message.MessageSource =
+                jo["messageSource"]?.ToObject<EventSource>(serializer) ??
+                new EventSource();
+            message.MessageType = jo["messageType"]?.Value<int>() ?? 0;
+            message.TimeStamp =
+                jo["timeStamp"]?.Value<string>() ?? string.Empty;
 
             JToken? dataToken = jo["messageData"];
-            if (dataToken != null && dataToken.Type != JTokenType.Null)
+            if (dataToken == null || dataToken.Type == JTokenType.Null)
+                return message;
+
+            if (KnownTypes.TryGetValue(message.MessageType,
+                                       out Type? targetType) &&
+                targetType != null)
             {
-                if (KnownTypes.TryGetValue(tMessage.MessageType, out Type? targetType) && targetType != null)
+                // Deserialize directly to the known type
+                object? deserialized =
+                    dataToken.ToObject(targetType, serializer);
+                if (deserialized is ITransportMessageContent content)
                 {
-                    // Deserialize directly to the known type
-                    object? deserialized = dataToken.ToObject(targetType, serializer);
-                    if (deserialized is ITransportMessageContent content)
-                    {
-                        tMessage.MessageData = content;
-                    }
+                    message.MessageData = content;
                 }
-                else
-                {
-                    try 
-                    {
-                        // Attempt best effort
-                        object? deserialized = dataToken.ToObject(typeof(ITransportMessageContent), serializer);
-                        if (deserialized is ITransportMessageContent content)
-                        {
-                            tMessage.MessageData = content;
-                        }
-                    }
-                    catch
-                    {
-                        // Best effort failed, messageData remains null (or initialized null! so we might want to assign a fallback if strictly required)
-                    }
-                }
+                return message;
             }
 
-            return tMessage;
+            try
+            {
+                // Attempt best effort
+                object? deserialized = dataToken.ToObject(
+                    typeof(ITransportMessageContent), serializer);
+                if (deserialized is ITransportMessageContent content)
+                {
+                    message.MessageData = content;
+                }
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine(
+                    $"Error during best-effort deserialization of transport message content: {e.Message}");
+            }
+
+            return message;
         }
     }
 }

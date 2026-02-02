@@ -1,11 +1,16 @@
-﻿using System;
+#nullable enable
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
 {
-  public interface ITransportMessageContent
-  {
-  }
+    /// <summary>
+    /// Marker interface for content that can be carried within a
+    /// <see cref="TransportMessage"/>.
+    /// </summary>
+    public interface ITransportMessageContent
+    {
+    }
 }

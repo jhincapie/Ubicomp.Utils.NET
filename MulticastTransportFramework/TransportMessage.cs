@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,65 +7,60 @@ using System.Text;
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
 {
 
-  public class TransportMessage
-  {
-
-    public const string DATE_FORMAT_NOW = "yyyy-MM-dd HH:mm:ss";
-
-    private Guid messageId;
-    private EventSource messageSource = null!;
-    private int messageType;
-    private ITransportMessageContent messageData = null!;
-    private string timeStamp = string.Empty;
-
-    public Guid MessageId
+    /// <summary>
+    /// Represents the message envelope used for multicast communication.
+    /// </summary>
+    public class TransportMessage
     {
-      get { return messageId; }
-      set { messageId = value; }
-    }
+        /// <summary>The date format used for timestamps.</summary>
+        public const string DATE_FORMAT_NOW = "yyyy-MM-dd HH:mm:ss";
 
-    public EventSource MessageSource
-    {
-      get { return messageSource; }
-      set { messageSource = value; }
-    }
+        /// <summary>Gets or sets the unique identifier for the
+        /// message.</summary>
+        public Guid MessageId { get; set; }
 
-    public int MessageType
-    {
-      get { return messageType; }
-      set { messageType = value; }
-    }
+        /// <summary>Gets or sets the source of the message.</summary>
+        public EventSource MessageSource { get; set; } = null!;
 
-    public ITransportMessageContent MessageData
-    {
-      get { return messageData; }
-      set { messageData = value; }
-    }
+        /// <summary>Gets or sets the type identifier of the message.</summary>
+        public int MessageType { get; set; }
 
-    public string TimeStamp
-    {
-      get { return timeStamp; }
-      set { timeStamp = value; }
-    }
+        /// <summary>Gets or sets the actual content of the message.</summary>
+        public ITransportMessageContent MessageData { get; set; } = null!;
 
-    public TransportMessage()
-    {
-      messageId = Guid.NewGuid();
-      SetTimeStamp();
-    }
+        /// <summary>Gets or sets the message timestamp.</summary>
+        public string TimeStamp { get; set; } = string.Empty;
 
-    public TransportMessage(EventSource es, int mt, ITransportMessageContent md) : this()
-    {
-      messageSource = es;
-      messageType = mt;
-      messageData = md;
-    }
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TransportMessage"/>
+        /// class.
+        /// </summary>
+        public TransportMessage()
+        {
+            MessageId = Guid.NewGuid();
+            SetTimeStamp();
+        }
 
-    private void SetTimeStamp()
-    {
-      timeStamp = DateTime.Now.ToString(DATE_FORMAT_NOW);
-    }
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TransportMessage"/>
+        /// class with content.
+        /// </summary>
+        /// <param name="source">The source event.</param>
+        /// <param name="type">The type of the message.</param>
+        /// <param name="data">The message data.</param>
+        public TransportMessage(EventSource source, int type,
+                                ITransportMessageContent data)
+            : this()
+        {
+            MessageSource = source;
+            MessageType = type;
+            MessageData = data;
+        }
 
-  }
+        private void SetTimeStamp()
+        {
+            TimeStamp = DateTime.Now.ToString(DATE_FORMAT_NOW);
+        }
+    }
 
 }

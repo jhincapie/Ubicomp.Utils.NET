@@ -5,6 +5,16 @@
 		}
 	],
 	"settings": {
-		"dotnet.defaultSolution": "Ubicomp.Utils.NET.sln"
+		"dotnet.defaultSolution": "Ubicomp.Utils.NET.sln",
+		"workbench.colorCustomizations": {
+			"editorWhitespace.foreground": "#ff0000"
+		},
+		"csharp.format.enable": true,
+		"files.trimTrailingWhitespace": true,
+		"editor.rulers": [80],
+		"editor.wordWrapColumn": 80,
+		"[csharp]": {
+			"editor.defaultFormatter": "xaver.clang-format"
+		}
 	}
 }
