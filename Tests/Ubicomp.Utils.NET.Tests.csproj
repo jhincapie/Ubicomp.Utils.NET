@@ -18,10 +18,12 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\MulticastSocket\MulticastSocket.csproj" />
+    <ProjectReference Include="..\MulticastTransportFramework\MulticastTransportFramework.csproj" />
   </ItemGroup>
 
 </Project>
