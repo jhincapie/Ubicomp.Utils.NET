@@ -30,31 +30,49 @@ namespace Ubicomp.Utils.NET.Sockets
             get; set;
         }
 
-        /// <summary>Whether to allow multiple sockets to bind to the same address and port.</summary>
+        /// <summary>
+        /// Whether to allow multiple sockets to bind to the same 
+        /// address and port.
+        /// </summary>
         public bool ReuseAddress { get; set; } = true;
 
-        /// <summary>Whether multicast packets are looped back to the sending interface.</summary>
+        /// <summary>
+        /// Whether multicast packets are looped back to the sending interface.
+        /// </summary>
         public bool MulticastLoopback { get; set; } = true;
 
-        /// <summary>Whether to disable the Nagle algorithm for low-latency sending.</summary>
+        /// <summary>
+        /// Whether to disable the Nagle algorithm for low-latency sending.
+        /// </summary>
         public bool NoDelay { get; set; } = true;
 
-        /// <summary>Whether to set the Don't Fragment flag on IP packets.</summary>
+        /// <summary>
+        /// Whether to set the Don't Fragment flag on IP packets.
+        /// </summary>
         public bool DontFragment { get; set; } = false;
 
-        /// <summary>The size of the receive buffer in bytes. 0 uses the OS default.</summary>
+        /// <summary>
+        /// The size of the receive buffer in bytes. 0 uses the OS default.
+        /// </summary>
         public int ReceiveBufferSize { get; set; } = 0;
 
-        /// <summary>The size of the send buffer in bytes. 0 uses the OS default.</summary>
+        /// <summary>
+        /// The size of the send buffer in bytes. 0 uses the OS default.
+        /// </summary>
         public int SendBufferSize { get; set; } = 0;
 
-        /// <summary>An optional filter to select which network interfaces to join.</summary>
+        /// <summary>
+        /// An optional filter to select which network interfaces to join.
+        /// </summary>
         public Func<IPAddress, bool>? InterfaceFilter
         {
             get; set;
         }
 
-        /// <summary>Whether to automatically join the multicast group upon socket startup.</summary>
+        /// <summary>
+        /// Whether to automatically join the multicast group upon 
+        /// socket startup.
+        /// </summary>
         public bool AutoJoin { get; set; } = true;
 
         /// <summary>
@@ -65,7 +83,8 @@ namespace Ubicomp.Utils.NET.Sockets
         public bool EnforceOrdering { get; set; } = false;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="MulticastSocketOptions"/> class.
+        /// Initializes a new instance of the 
+        /// <see cref="MulticastSocketOptions"/> class.
         /// </summary>
         /// <param name="groupAddress">The multicast group IP address.</param>
         /// <param name="port">The port to use.</param>
@@ -78,10 +97,14 @@ namespace Ubicomp.Utils.NET.Sockets
         /// <summary>
         /// Creates options for a local network with sensible defaults (TTL=1).
         /// </summary>
-        /// <param name="groupAddress">The multicast group IP address (default: 239.0.0.1).</param>
+        /// <param name="groupAddress">
+        /// The multicast group IP address (default: 239.0.0.1).
+        /// </param>
         /// <param name="port">The port to use (default: 5000).</param>
         /// <returns>A new instance of <see cref="MulticastSocketOptions"/>.</returns>
-        public static MulticastSocketOptions LocalNetwork(string groupAddress = "239.0.0.1", int port = 5000)
+        public static MulticastSocketOptions LocalNetwork(
+            string groupAddress = "239.0.0.1",
+            int port = 5000)
         {
             var options = new MulticastSocketOptions(groupAddress, port)
             {
@@ -92,13 +115,19 @@ namespace Ubicomp.Utils.NET.Sockets
         }
 
         /// <summary>
-        /// Creates options for a wide area network with sensible defaults (TTL=16).
+        /// Creates options for a wide area network with sensible 
+        /// defaults (TTL=16).
         /// </summary>
-        /// <param name="groupAddress">The multicast group IP address (default: 239.0.0.1).</param>
+        /// <param name="groupAddress">
+        /// The multicast group IP address (default: 239.0.0.1).
+        /// </param>
         /// <param name="port">The port to use (default: 5000).</param>
         /// <param name="ttl">The Time-to-Live value (default: 16).</param>
         /// <returns>A new instance of <see cref="MulticastSocketOptions"/>.</returns>
-        public static MulticastSocketOptions WideAreaNetwork(string groupAddress = "239.0.0.1", int port = 5000, int ttl = 16)
+        public static MulticastSocketOptions WideAreaNetwork(
+            string groupAddress = "239.0.0.1",
+            int port = 5000,
+            int ttl = 16)
         {
             var options = new MulticastSocketOptions(groupAddress, port)
             {

@@ -121,7 +121,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             _socket = new MulticastSocketBuilder()
                 .WithOptions(_socketOptions)
                 .OnMessageReceived(msg => HandleSocketMessage(msg))
-                .OnError(err => Logger.LogError("Socket Error: {0}. Exception: {1}", err.Message, err.Exception?.Message))
+                .OnError(err => Logger.LogError(
+                    "Socket Error: {0}. Exception: {1}",
+                    err.Message,
+                    err.Exception?.Message))
                 .Build();
 
             lock (gate)
@@ -133,9 +136,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
             _socket.StartReceiving();
 
-            string interfaces = string.Join(", ", _socket.JoinedAddresses.Select(a => a.ToString()));
-            Logger.LogInformation("Multicast Socket Started to Listen for Traffic on {0}:{1} (TTL: {2}, Interfaces: {3})",
-                                  _socketOptions.GroupAddress, _socketOptions.Port, _socketOptions.TimeToLive, interfaces);
+            string interfaces = string.Join(
+                ", ",
+                _socket.JoinedAddresses.Select(a => a.ToString()));
+            Logger.LogInformation(
+                "Multicast Socket Started on {0}:{1} (TTL: {2}, Interfaces: {3})",
+                _socketOptions.GroupAddress,
+                _socketOptions.Port,
+                _socketOptions.TimeToLive,
+                interfaces);
             Logger.LogInformation("TransportComponent Initialized.");
         }
 
@@ -170,11 +179,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             bool success = NetworkDiagnostics.PerformLoopbackTest(this);
             if (success)
             {
-                Logger.LogInformation("Network Diagnostics Passed: Multicast Loopback Successful.");
+                Logger.LogInformation(
+                    "Network Diagnostics Passed: Multicast Loopback Successful.");
             }
             else
             {
-                Logger.LogWarning("Network Diagnostics Failed: Multicast Loopback NOT received. Check firewall settings and interface configuration.");
+                Logger.LogWarning(
+                    "Network Diagnostics Failed: Multicast Loopback NOT " +
+                    "received. Check firewall settings and interface " +
+                    "configuration.");
             }
             return success;
         }
@@ -182,7 +195,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// <summary>
         /// Sends a message of type T over the multicast socket.
         /// </summary>
-        public AckSession Send<T>(T content, SendOptions? options = null) where T : class
+        public AckSession Send<T>(T content, SendOptions? options = null)
+            where T : class
         {
             int messageType;
             if (options?.MessageType != null)
@@ -191,7 +205,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
             else if (!_typeToIdMap.TryGetValue(typeof(T), out messageType))
             {
-                throw new ArgumentException($"Type {typeof(T).Name} is not registered and no MessageType was provided in SendOptions.");
+                throw new ArgumentException(
+                    $"Type {typeof(T).Name} is not registered and no " +
+                    "MessageType was provided in SendOptions.");
             }
 
             var message = new TransportMessage(LocalSource, messageType, content)
@@ -202,17 +218,20 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             return SendInternal(message, options?.AckTimeout);
         }
 
-        private AckSession SendInternal(TransportMessage message, TimeSpan? ackTimeout)
+        private AckSession SendInternal(
+            TransportMessage message,
+            TimeSpan? ackTimeout)
         {
             var session = new AckSession(message.MessageId);
 
             if (message.RequestAck)
             {
                 _activeSessions.TryAdd(message.MessageId, session);
-                _ = session.WaitAsync(ackTimeout ?? DefaultAckTimeout).ContinueWith(_ =>
-                {
-                    _activeSessions.TryRemove(message.MessageId, out var _);
-                });
+                _ = session.WaitAsync(ackTimeout ?? DefaultAckTimeout)
+                    .ContinueWith(_ =>
+                    {
+                        _activeSessions.TryRemove(message.MessageId, out var _);
+                    });
             }
 
             string json;
@@ -254,120 +273,139 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             SendInternal(ackMessage, null);
         }
 
-                internal void HandleSocketMessage(SocketMessage msg)
+        internal void HandleSocketMessage(SocketMessage msg)
+        {
+            if (!_socketOptions.EnforceOrdering)
+            {
+                ProcessSingleMessage(msg);
+                return;
+            }
+
+            bool shouldStartTimeout;
+            bool shouldProcessNow;
+
+            lock (gate)
+            {
+                if (_isStopping)
+                    return;
+
+                if (msg.SequenceId > _currentMessageCons)
                 {
-                    if (!_socketOptions.EnforceOrdering)
-                    {
-                        ProcessSingleMessage(msg);
-                        return;
-                    }
-        
-                    bool shouldStartTimeout;
-                    bool shouldProcessNow;
-        
+                    _waitingMessages[msg.SequenceId] = msg;
+                    shouldStartTimeout = true;
+                    shouldProcessNow = false;
+                }
+                else if (msg.SequenceId == _currentMessageCons)
+                {
+                    shouldStartTimeout = false;
+                    shouldProcessNow = true;
+                }
+                else
+                {
+                    Logger.LogWarning(
+                        "Received late message {0} (current is {1}). Ignoring.",
+                        msg.SequenceId,
+                        _currentMessageCons);
+                    return;
+                }
+            }
+
+            if (shouldProcessNow)
+            {
+                ProcessMessageAndSequence(msg);
+            }
+            else if (shouldStartTimeout)
+            {
+                // Start a task to wait and then jump if necessary
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(GateKeeperTimeout);
+                    SocketMessage? nextToProcess = null;
                     lock (gate)
                     {
-                        if (_isStopping) return;
-        
+                        if (_isStopping)
+                            return;
+
+                        // If the message we were waiting for still hasn't arrived
                         if (msg.SequenceId > _currentMessageCons)
                         {
-                            _waitingMessages[msg.SequenceId] = msg;
-                            shouldStartTimeout = true;
-                            shouldProcessNow = false;
-                        }
-                        else if (msg.SequenceId == _currentMessageCons)
-                        {
-                            shouldStartTimeout = false;
-                            shouldProcessNow = true;
-                        }
-                        else
-                        {
-                            Logger.LogWarning("Received late message {0} (current is {1}). Ignoring.", msg.SequenceId, _currentMessageCons);
-                            return;
-                        }
-                    }
-        
-                    if (shouldProcessNow)
-                    {
-                        ProcessMessageAndSequence(msg);
-                    }
-                    else if (shouldStartTimeout)
-                    {
-                        // Start a task to wait and then jump if necessary
-                        _ = Task.Run(async () =>
-                        {
-                            await Task.Delay(GateKeeperTimeout);
-                            SocketMessage? nextToProcess = null;
-                            lock (gate)
+                            Logger.LogWarning(
+                                "Sequence gap detected. Timed out waiting for message {0}. Jumping to {1}.",
+                                _currentMessageCons,
+                                msg.SequenceId);
+                            _currentMessageCons = msg.SequenceId;
+                            if (_waitingMessages.TryGetValue(_currentMessageCons, out nextToProcess))
                             {
-                                if (_isStopping) return;
-        
-                                // If the message we were waiting for still hasn't arrived
-                                if (msg.SequenceId > _currentMessageCons)
-                                {
-                                    Logger.LogWarning("Sequence gap detected. Timed out waiting for message {0}. Jumping to {1}.", _currentMessageCons, msg.SequenceId);
-                                    _currentMessageCons = msg.SequenceId;
-                                    if (_waitingMessages.TryGetValue(_currentMessageCons, out nextToProcess))
-                                    {
-                                        _waitingMessages.Remove(_currentMessageCons);
-                                    }
-                                }
+                                _waitingMessages.Remove(_currentMessageCons);
                             }
-                            if (nextToProcess != null)
-                            {
-                                ProcessMessageAndSequence(nextToProcess);
-                            }
-                        });
-                    }
-                }
-        
-                private void ProcessSingleMessage(SocketMessage msg)
-                {
-                    try
-                    {
-                        string sMessage = Encoding.UTF8.GetString(msg.Data);
-                        TransportMessage? tMessage;
-        
-                        lock (importLock)
-                        {
-                            Logger.LogTrace("Importing message {0}", msg.SequenceId);
-                            tMessage = JsonConvert.DeserializeObject<TransportMessage>(sMessage, _jsonSettings);
-                        }
-        
-                        if (tMessage != null)
-                        {
-                            ProcessTransportMessage(tMessage, msg.SequenceId);
                         }
                     }
-                    catch (Exception ex)
+                    if (nextToProcess != null)
                     {
-                        Logger.LogError("Error Processing Received Message {0}: {1}", msg.SequenceId, ex.Message);
+                        ProcessMessageAndSequence(nextToProcess);
                     }
-                }
-        
-                private void ProcessMessageAndSequence(SocketMessage initialMsg)
+                });
+            }
+        }
+
+        private void ProcessSingleMessage(SocketMessage msg)
+        {
+            try
+            {
+                string sMessage = Encoding.UTF8.GetString(msg.Data);
+                TransportMessage? tMessage;
+
+                lock (importLock)
                 {
-                    SocketMessage? currentMsg = initialMsg;
-        
-                    while (currentMsg != null)
-                    {
-                        ProcessSingleMessage(currentMsg);
-                        currentMsg = NudgeGateAndGetNext();
-                    }
+                    Logger.LogTrace("Importing message {0}", msg.SequenceId);
+                    tMessage = JsonConvert.DeserializeObject<TransportMessage>(sMessage, _jsonSettings);
                 }
+
+                if (tMessage != null)
+                {
+                    ProcessTransportMessage(tMessage, msg.SequenceId);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(
+                    "Error Processing Received Message {0}: {1}",
+                    msg.SequenceId,
+                    ex.Message);
+            }
+        }
+
+        private void ProcessMessageAndSequence(SocketMessage initialMsg)
+        {
+            SocketMessage? currentMsg = initialMsg;
+
+            while (currentMsg != null)
+            {
+                ProcessSingleMessage(currentMsg);
+                currentMsg = NudgeGateAndGetNext();
+            }
+        }
+
         private void ProcessTransportMessage(TransportMessage tMessage, int sequenceId)
         {
-            if (IgnoreLocalMessages && tMessage.MessageSource.ResourceId == LocalSource.ResourceId)
+            if (IgnoreLocalMessages &&
+                tMessage.MessageSource.ResourceId == LocalSource.ResourceId)
             {
                 Logger.LogTrace("Ignoring local message {0}", sequenceId);
                 return;
             }
 
-            if (tMessage.MessageType == AckMessageType && tMessage.MessageData is AckMessageContent ackContent)
+            if (tMessage.MessageType == AckMessageType &&
+                tMessage.MessageData is AckMessageContent ackContent)
             {
-                if (_activeSessions.TryGetValue(ackContent.OriginalMessageId, out var session))
+                if (_activeSessions.TryGetValue(
+                    ackContent.OriginalMessageId,
+                    out var session))
                 {
-                    Logger.LogTrace("Received Ack for message {0} from {1}", ackContent.OriginalMessageId, tMessage.MessageSource.ResourceName);
+                    Logger.LogTrace(
+                        "Received Ack for message {0} from {1}",
+                        ackContent.OriginalMessageId,
+                        tMessage.MessageSource.ResourceName);
                     session.ReportAck(tMessage.MessageSource);
                 }
             }
@@ -378,14 +416,21 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             if (_genericHandlers.TryGetValue(tMessage.MessageType, out var handler))
             {
-                var context = new MessageContext(tMessage.MessageId, tMessage.MessageSource, tMessage.TimeStamp, tMessage.RequestAck);
+                var context = new MessageContext(
+                    tMessage.MessageId,
+                    tMessage.MessageSource,
+                    tMessage.TimeStamp,
+                    tMessage.RequestAck);
                 handler.DynamicInvoke(tMessage.MessageData, context);
                 handled = true;
             }
 
-            if (handled && AutoSendAcks && tMessage.RequestAck && tMessage.MessageType != AckMessageType)
+            if (handled && AutoSendAcks && tMessage.RequestAck &&
+                tMessage.MessageType != AckMessageType)
             {
-                Logger.LogTrace("Automatically sending Ack for message {0}", tMessage.MessageId);
+                Logger.LogTrace(
+                    "Automatically sending Ack for message {0}",
+                    tMessage.MessageId);
                 SendAck(tMessage.MessageId);
             }
         }
@@ -395,7 +440,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             lock (gate)
             {
                 _currentMessageCons++;
-                
+
                 if (_waitingMessages.TryGetValue(_currentMessageCons, out var nextMsg))
                 {
                     _waitingMessages.Remove(_currentMessageCons);
