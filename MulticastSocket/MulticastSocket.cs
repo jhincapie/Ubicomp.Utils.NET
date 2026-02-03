@@ -181,7 +181,8 @@ namespace Ubicomp.Utils.NET.Sockets
                 byte[] bufferCopy = new byte[bytesRead];
                 Array.Copy(state.Buffer, 0, bufferCopy, 0, bytesRead);
 
-                var msg = new SocketMessage(bufferCopy, ++_mConsecutive);
+                int seqId = Interlocked.Increment(ref _mConsecutive);
+                var msg = new SocketMessage(bufferCopy, seqId);
                 OnMessageReceivedAction?.Invoke(msg);
 
                 Receive(state);

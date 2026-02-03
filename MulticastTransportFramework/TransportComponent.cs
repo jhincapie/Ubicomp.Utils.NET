@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Newtonsoft.Json;
@@ -47,9 +48,17 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private int _currentMessageCons = 1;
         private readonly object gate = new object();
+        private bool _isStopping = false;
+        private readonly SortedDictionary<int, SocketMessage> _waitingMessages = new SortedDictionary<int, SocketMessage>();
 
         /// <summary>Gets or sets the default timeout for acknowledgements.</summary>
         public TimeSpan DefaultAckTimeout { get; set; } = TimeSpan.FromSeconds(5);
+
+        /// <summary>
+        /// Gets or sets the timeout for the GateKeeper to wait for a specific sequence number.
+        /// Defaults to 500ms.
+        /// </summary>
+        public TimeSpan GateKeeperTimeout { get; set; } = TimeSpan.FromMilliseconds(500);
 
         /// <summary>
         /// Gets or sets the local source identification for this transport component.
@@ -118,6 +127,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             lock (gate)
             {
                 _currentMessageCons = 1;
+                _isStopping = false;
+                _waitingMessages.Clear();
                 Monitor.PulseAll(gate);
             }
             _socket.StartReceiving();
@@ -133,6 +144,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// </summary>
         public void Stop()
         {
+            lock (gate)
+            {
+                _isStopping = true;
+                Monitor.PulseAll(gate);
+            }
+
             if (_socket != null)
             {
                 _socket.Close();
@@ -239,95 +256,148 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         internal void HandleSocketMessage(SocketMessage msg)
         {
-            bool enteredGate = false;
-            try
-            {
-                GateKeeperMethod(msg.SequenceId);
-                enteredGate = true;
+            bool shouldStartTimeout;
+            bool shouldProcessNow;
 
-                string sMessage = Encoding.UTF8.GetString(msg.Data);
-                TransportMessage? tMessage;
-
-                lock (importLock)
-                {
-                    Logger.LogTrace("Importing message {0}", msg.SequenceId);
-                    tMessage = JsonConvert.DeserializeObject<TransportMessage>(sMessage, _jsonSettings);
-                }
-
-                if (tMessage == null)
-                {
-                    Logger.LogWarning("Deserialization failed for message {0}", msg.SequenceId);
-                    return;
-                }
-
-                if (IgnoreLocalMessages && tMessage.MessageSource.ResourceId == LocalSource.ResourceId)
-                {
-                    Logger.LogTrace("Ignoring local message {0}", msg.SequenceId);
-                    return;
-                }
-
-                if (tMessage.MessageType == AckMessageType && tMessage.MessageData is AckMessageContent ackContent)
-                {
-                    if (_activeSessions.TryGetValue(ackContent.OriginalMessageId, out var session))
-                    {
-                        Logger.LogTrace("Received Ack for message {0} from {1}", ackContent.OriginalMessageId, tMessage.MessageSource.ResourceName);
-                        session.ReportAck(tMessage.MessageSource);
-                    }
-                }
-
-                Logger.LogTrace("Processing message {0}", msg.SequenceId);
-
-                bool handled = false;
-
-                // First, check for generic handlers
-                if (_genericHandlers.TryGetValue(tMessage.MessageType, out var handler))
-                {
-                    var context = new MessageContext(tMessage.MessageId, tMessage.MessageSource, tMessage.TimeStamp, tMessage.RequestAck);
-                    handler.DynamicInvoke(tMessage.MessageData, context);
-                    handled = true;
-                }
-
-                if (handled && AutoSendAcks && tMessage.RequestAck && tMessage.MessageType != AckMessageType)
-                {
-                    Logger.LogTrace("Automatically sending Ack for message {0}", tMessage.MessageId);
-                    SendAck(tMessage.MessageId);
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError("Error Processing Received Message {0}: {1}", msg.SequenceId, ex.Message);
-            }
-            finally
-            {
-                if (enteredGate) NudgeGate();
-            }
-        }
-
-        private void GateKeeperMethod(int consecutive)
-        {
             lock (gate)
             {
-                while (_currentMessageCons != consecutive)
+                if (_isStopping) return;
+
+                if (msg.SequenceId > _currentMessageCons)
                 {
-                    Monitor.Wait(gate);
+                    _waitingMessages[msg.SequenceId] = msg;
+                    shouldStartTimeout = true;
+                    shouldProcessNow = false;
+                }
+                else if (msg.SequenceId == _currentMessageCons)
+                {
+                    shouldStartTimeout = false;
+                    shouldProcessNow = true;
+                }
+                else
+                {
+                    Logger.LogWarning("Received late message {0} (current is {1}). Ignoring.", msg.SequenceId, _currentMessageCons);
+                    return;
+                }
+            }
+
+            if (shouldProcessNow)
+            {
+                ProcessMessageAndSequence(msg);
+            }
+            else if (shouldStartTimeout)
+            {
+                // Start a task to wait and then jump if necessary
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(GateKeeperTimeout);
+                    SocketMessage? nextToProcess = null;
+                    lock (gate)
+                    {
+                        if (_isStopping) return;
+                        
+                        // If the message we were waiting for still hasn't arrived
+                        if (msg.SequenceId > _currentMessageCons)
+                        {
+                            Logger.LogWarning("Sequence gap detected. Timed out waiting for message {0}. Jumping to {1}.", _currentMessageCons, msg.SequenceId);
+                            _currentMessageCons = msg.SequenceId;
+                            if (_waitingMessages.TryGetValue(_currentMessageCons, out nextToProcess))
+                            {
+                                _waitingMessages.Remove(_currentMessageCons);
+                            }
+                        }
+                    }
+                    if (nextToProcess != null)
+                    {
+                        ProcessMessageAndSequence(nextToProcess);
+                    }
+                });
+            }
+        }
+
+        private void ProcessMessageAndSequence(SocketMessage initialMsg)
+        {
+            SocketMessage? currentMsg = initialMsg;
+
+            while (currentMsg != null)
+            {
+                try
+                {
+                    string sMessage = Encoding.UTF8.GetString(currentMsg.Data);
+                    TransportMessage? tMessage;
+
+                    lock (importLock)
+                    {
+                        Logger.LogTrace("Importing message {0}", currentMsg.SequenceId);
+                        tMessage = JsonConvert.DeserializeObject<TransportMessage>(sMessage, _jsonSettings);
+                    }
+
+                    if (tMessage != null)
+                    {
+                        ProcessTransportMessage(tMessage, currentMsg.SequenceId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError("Error Processing Received Message {0}: {1}", currentMsg.SequenceId, ex.Message);
+                }
+                finally
+                {
+                    currentMsg = NudgeGateAndGetNext();
                 }
             }
         }
 
-        private void NudgeGate()
+        private void ProcessTransportMessage(TransportMessage tMessage, int sequenceId)
+        {
+            if (IgnoreLocalMessages && tMessage.MessageSource.ResourceId == LocalSource.ResourceId)
+            {
+                Logger.LogTrace("Ignoring local message {0}", sequenceId);
+                return;
+            }
+
+            if (tMessage.MessageType == AckMessageType && tMessage.MessageData is AckMessageContent ackContent)
+            {
+                if (_activeSessions.TryGetValue(ackContent.OriginalMessageId, out var session))
+                {
+                    Logger.LogTrace("Received Ack for message {0} from {1}", ackContent.OriginalMessageId, tMessage.MessageSource.ResourceName);
+                    session.ReportAck(tMessage.MessageSource);
+                }
+            }
+
+            Logger.LogTrace("Processing message {0}", sequenceId);
+
+            bool handled = false;
+
+            if (_genericHandlers.TryGetValue(tMessage.MessageType, out var handler))
+            {
+                var context = new MessageContext(tMessage.MessageId, tMessage.MessageSource, tMessage.TimeStamp, tMessage.RequestAck);
+                handler.DynamicInvoke(tMessage.MessageData, context);
+                handled = true;
+            }
+
+            if (handled && AutoSendAcks && tMessage.RequestAck && tMessage.MessageType != AckMessageType)
+            {
+                Logger.LogTrace("Automatically sending Ack for message {0}", tMessage.MessageId);
+                SendAck(tMessage.MessageId);
+            }
+        }
+
+        private SocketMessage? NudgeGateAndGetNext()
         {
             lock (gate)
             {
                 _currentMessageCons++;
-                Monitor.PulseAll(gate);
-            }
-        }
+                
+                if (_waitingMessages.TryGetValue(_currentMessageCons, out var nextMsg))
+                {
+                    _waitingMessages.Remove(_currentMessageCons);
+                    return nextMsg;
+                }
 
-        private static string GetMessageAsString(byte[] messageBytes)
-        {
-            int length = Array.IndexOf<byte>(messageBytes, (byte)'\0');
-            if (length == -1) length = messageBytes.Length;
-            return Encoding.UTF8.GetString(messageBytes, 0, length);
+                Monitor.PulseAll(gate);
+                return null;
+            }
         }
     }
 }
