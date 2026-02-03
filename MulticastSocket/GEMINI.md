@@ -13,6 +13,7 @@
 
 ## Implementation Details
 *   **Threading**: Incoming messages are offloaded to the `ThreadPool` before firing callbacks. This ensures the receive loop remains responsive.
+*   **Async I/O**: Supports modern Task-based sending via `SendAsync`, wrapping the internal Begin/End pattern for high performance and better developer experience.
 *   **Buffer Management**: A `StateObject` class manages internal buffers. Data is copied into `SocketMessage` objects before being passed to consumers.
 *   **Sequence ID**: Every received message is assigned a consecutive ID used by higher layers (e.g., `TransportComponent`) to maintain order.
 *   **Socket Options**: Sets `ReuseAddress` (SO_REUSEADDR) to allow multiple apps to bind the same port on the same machine.

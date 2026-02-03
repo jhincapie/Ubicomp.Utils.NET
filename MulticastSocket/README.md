@@ -43,10 +43,10 @@ socket.StartReceiving();
 ```csharp
 // Send raw bytes
 byte[] data = Encoding.UTF8.GetBytes("Hello Multicast!");
-socket.Send(data);
+await socket.SendAsync(data);
 
 // Or use the string overload
-socket.Send("Hello Multicast!");
+await socket.SendAsync("Hello Multicast!");
 ```
 
 ### Advanced Configuration

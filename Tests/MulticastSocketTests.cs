@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Ubicomp.Utils.NET.Sockets;
 using Xunit;
@@ -62,7 +63,7 @@ namespace Ubicomp.Utils.NET.Tests
         }
 
         [Fact]
-        public void SendAndReceive_ShouldWork()
+        public async Task SendAndReceive_ShouldWork()
         {
             string groupAddress = "239.0.0.3";
             int port = TestPort + 10;
@@ -96,14 +97,14 @@ namespace Ubicomp.Utils.NET.Tests
                 .Build();
 
             string msgStr = "Hello World";
-            sender.Send(msgStr);
+            await sender.SendAsync(msgStr);
 
             Assert.True(signal.WaitOne(2000), "Timed out waiting for message");
             Assert.Equal(msgStr, receivedMessage);
         }
 
         [Fact]
-        public void Send_UTF8Message_ReceivedCorrectly()
+        public async Task Send_UTF8Message_ReceivedCorrectly()
         {
             string ip = "239.1.2.3";
             int port = TestPort + 11;
@@ -126,7 +127,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             socket.StartReceiving();
 
-            socket.Send(testMessage);
+            await socket.SendAsync(testMessage);
             bool signalReceived = receivedEvent.WaitOne(2000);
 
             Assert.True(signalReceived, "Timeout waiting for message");

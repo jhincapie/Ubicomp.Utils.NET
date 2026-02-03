@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
 using Ubicomp.Utils.NET.Sockets;
@@ -48,21 +49,21 @@ namespace Ubicomp.Utils.NET.Muticast.TestApp
             _transport.Start();
         }
 
-        private void SendMessages()
+        private async Task SendMessagesAsync()
         {
-            _transport.Send(new MockMessage() { Message = "Hello World 1" });
-            _transport.Send(new MockMessage() { Message = "Hello World 2" });
-            _transport.Send(new MockMessage() { Message = "Hello World 3" });
-            _transport.Send(new MockMessage() { Message = "Hello World 4" });
-            _transport.Send(new MockMessage() { Message = "Hello World 5" });
+            await _transport.SendAsync(new MockMessage() { Message = "Hello World 1" });
+            await _transport.SendAsync(new MockMessage() { Message = "Hello World 2" });
+            await _transport.SendAsync(new MockMessage() { Message = "Hello World 3" });
+            await _transport.SendAsync(new MockMessage() { Message = "Hello World 4" });
+            await _transport.SendAsync(new MockMessage() { Message = "Hello World 5" });
         }
 
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
             Console.WriteLine("Press any key to finish.");
             Program testObj = new Program("225.4.5.6", 5000, 10);
             testObj.Start();
-            testObj.SendMessages();
+            await testObj.SendMessagesAsync();
 
             Console.Read();
         }

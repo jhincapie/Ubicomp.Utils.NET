@@ -81,7 +81,7 @@ namespace Ubicomp.Utils.NET.Tests
         }
 
         [Fact]
-        public void TransportComponent_Send_ShouldReturnAckSession()
+        public async Task TransportComponent_Send_ShouldReturnAckSession()
         {
             var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1);
             var tc = new TransportComponent(options);
@@ -89,7 +89,7 @@ namespace Ubicomp.Utils.NET.Tests
             // Register a dummy type for sending
             tc.RegisterHandler<AckMessageContent>(1, (c, ctx) => { });
 
-            var session = tc.Send(new AckMessageContent(), new SendOptions { RequestAck = true });
+            var session = await tc.SendAsync(new AckMessageContent(), new SendOptions { RequestAck = true });
 
             Assert.NotNull(session);
         }
@@ -104,10 +104,10 @@ namespace Ubicomp.Utils.NET.Tests
 
             // Register a dummy type for sending
             tc.RegisterHandler<AckMessageContent>(1, (c, ctx) => { });
-            var session = tc.Send(new AckMessageContent(), new SendOptions { RequestAck = true });
+            var session = await tc.SendAsync(new AckMessageContent(), new SendOptions { RequestAck = true });
 
             // Create an Ack message for this msg
-            var manualSession = tc.Send(new AckMessageContent(), new SendOptions { RequestAck = true });
+            var manualSession = await tc.SendAsync(new AckMessageContent(), new SendOptions { RequestAck = true });
 
             var ackContent = new AckMessageContent { OriginalMessageId = manualSession.OriginalMessageId };
             var ackSource = new EventSource(Guid.NewGuid(), "Responder");

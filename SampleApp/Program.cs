@@ -2,6 +2,7 @@
 using System;
 using System.Linq;
 using System.Net;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
 using Ubicomp.Utils.NET.Sockets;
@@ -16,19 +17,19 @@ namespace Ubicomp.Utils.NET.SampleApp
         /// <summary>The ID for this sample application.</summary>
         public const int SampleAppID = 2;
 
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
             Console.WriteLine("Ubicomp.Utils.NET Sample App");
 
             Program app = new Program();
-            app.Run(args);
+            await app.RunAsync(args);
         }
 
         /// <summary>
         /// Runs the sample application logic.
         /// </summary>
         /// <param name="args">Command line arguments.</param>
-        public void Run(string[] args)
+        public async Task RunAsync(string[] args)
         {
             bool noWait = args.Contains("--no-wait");
             bool verbose = args.Contains("-v") || args.Contains("--verbose");
@@ -79,7 +80,7 @@ namespace Ubicomp.Utils.NET.SampleApp
                 if (context.RequestAck)
                 {
                     Console.WriteLine("Manually sending Ack...");
-                    transport.SendAck(context);
+                    _ = transport.SendAckAsync(context);
                 }
             });
 
@@ -96,14 +97,14 @@ namespace Ubicomp.Utils.NET.SampleApp
             transport.Start();
 
             // Run network diagnostics
-            transport.VerifyNetworking();
+            await transport.VerifyNetworkingAsync();
 
             if (args.Contains("--ack"))
             {
                 var content = new SimpleContent { Text = "Ping with Ack request" };
 
                 Console.WriteLine("Sending message with Ack request...");
-                var session = transport.Send(content, new SendOptions { RequestAck = true });
+                var session = await transport.SendAsync(content, new SendOptions { RequestAck = true });
 
                 session.OnAckReceived += (s, source) =>
                 {
@@ -114,12 +115,12 @@ namespace Ubicomp.Utils.NET.SampleApp
                 var waitTask = session.WaitAsync(transport.DefaultAckTimeout);
                 if (noWait)
                 {
-                    waitTask.Wait();
+                    await waitTask;
                     Console.WriteLine(session.IsAnyAckReceived ? "Ack session completed with success." : "Ack session timed out: no acks received.");
                 }
                 else
                 {
-                    waitTask.ContinueWith(t =>
+                    _ = waitTask.ContinueWith(t =>
                     {
                         Console.WriteLine(t.Result ? "Ack session completed with success." : "Ack session timed out: no acks received.");
                     });

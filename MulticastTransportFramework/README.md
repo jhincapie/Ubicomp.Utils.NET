@@ -55,10 +55,10 @@ Send any object directly. The framework handles the envelope and ID mapping.
 
 ```csharp
 // Simple send
-transport.Send(new MyData { Value = "Hello" });
+await transport.SendAsync(new MyData { Value = "Hello" });
 
 // Send with options (e.g., request acknowledgement)
-var session = transport.Send(new MyData { Value = "Ping" }, new SendOptions { RequestAck = true });
+var session = await transport.SendAsync(new MyData { Value = "Ping" }, new SendOptions { RequestAck = true });
 
 session.OnAckReceived += (s, source) => Console.WriteLine($"Ack from {source.ResourceName}");
 ```
@@ -67,11 +67,11 @@ session.OnAckReceived += (s, source) => Console.WriteLine($"Ack from {source.Res
 If `AutoSendAcks` is disabled (the default), you can manually acknowledge messages using the `MessageContext`.
 
 ```csharp
-transport.RegisterHandler<MyData>(101, (data, context) => 
+transport.RegisterHandler<MyData>(101, async (data, context) => 
 {
     if (context.RequestAck)
     {
-        transport.SendAck(context);
+        await transport.SendAckAsync(context);
     }
 });
 ```

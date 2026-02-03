@@ -4,7 +4,7 @@
 **MulticastTransportFramework** implements a higher-level messaging protocol over UDP multicast.
 
 *   **Fluent Builder**: Use `TransportBuilder` to configure and create a `TransportComponent`.
-*   **Strongly-Typed Messaging**: Generic `Send<T>` and `RegisterHandler<T>` methods handle internal serialization and routing.
+*   **Strongly-Typed Messaging**: Generic `Send<T>` (synchronous) and `SendAsync<T>` (modern Task-based) methods handle internal serialization and routing.
 *   **POCO Support**: Any class can be used as message content; no marker interface is required.
 *   **Serialization**: Uses `Newtonsoft.Json` to convert between .NET objects and JSON strings.
 *   **Logging**: Uses `Microsoft.Extensions.Logging.ILogger`, typically injected via the builder.

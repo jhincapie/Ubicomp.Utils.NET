@@ -7,6 +7,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Ubicomp.Utils.NET.Sockets
 {
@@ -217,36 +218,6 @@ namespace Ubicomp.Utils.NET.Sockets
             }
         }
 
-        public void Send(string sendData)
-        {
-            if (_udpSocket == null)
-                return;
-            byte[] bytesToSend = Encoding.UTF8.GetBytes(sendData);
-            Send(bytesToSend);
-        }
-
-        public void Send(byte[] bytesToSend)
-        {
-            if (_udpSocket == null)
-                return;
-            var remoteEndPoint = new IPEndPoint(IPAddress.Parse(_options.GroupAddress), _options.Port);
-            _udpSocket.BeginSendTo(bytesToSend, 0, bytesToSend.Length, SocketFlags.None, remoteEndPoint, SendCallback, _udpSocket);
-        }
-
-        private void SendCallback(IAsyncResult ar)
-        {
-            try
-            {
-                if (!(ar.AsyncState is Socket client))
-                    return;
-                client.EndSendTo(ar);
-            }
-            catch (Exception e)
-            {
-                OnErrorAction?.Invoke(new SocketErrorContext("Error during send.", e));
-            }
-        }
-
         public void Close()
         {
             try
@@ -254,6 +225,35 @@ namespace Ubicomp.Utils.NET.Sockets
                 _udpSocket?.Close();
             }
             catch { }
+        }
+
+        /// <summary>
+        /// Sends a string asynchronously over the multicast socket.
+        /// </summary>
+        /// <param name="sendData">The string data to send.</param>
+        /// <returns>A task that completes when the send operation is finished.</returns>
+        public Task SendAsync(string sendData)
+        {
+            if (_udpSocket == null)
+                return Task.CompletedTask;
+            byte[] bytesToSend = Encoding.UTF8.GetBytes(sendData);
+            return SendAsync(bytesToSend);
+        }
+
+        /// <summary>
+        /// Sends a byte array asynchronously over the multicast socket.
+        /// </summary>
+        /// <param name="bytesToSend">The byte array to send.</param>
+        /// <returns>A task that completes when the send operation is finished.</returns>
+        public Task SendAsync(byte[] bytesToSend)
+        {
+            if (_udpSocket == null)
+                return Task.CompletedTask;
+
+            var remoteEndPoint = new IPEndPoint(IPAddress.Parse(_options.GroupAddress), _options.Port);
+            return Task.Factory.FromAsync(
+                _udpSocket.BeginSendTo(bytesToSend, 0, bytesToSend.Length, SocketFlags.None, remoteEndPoint, null, null),
+                _udpSocket.EndSendTo);
         }
 
         public void Dispose()

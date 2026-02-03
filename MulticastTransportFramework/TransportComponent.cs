@@ -163,15 +163,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         }
 
         /// <summary>
-        /// Verifies networking configuration by performing firewall checks and a loopback test.
+        /// Verifies networking configuration by performing firewall checks and a loopback test asynchronously.
         /// </summary>
         /// <returns>True if diagnostics pass, otherwise false.</returns>
-        public bool VerifyNetworking()
+        public async Task<bool> VerifyNetworkingAsync()
         {
             Logger.LogInformation("Performing Network Diagnostics...");
             NetworkDiagnostics.LogFirewallStatus(_socketOptions.Port, Logger);
 
-            bool success = NetworkDiagnostics.PerformLoopbackTest(this);
+            bool success = await NetworkDiagnostics.PerformLoopbackTestAsync(this);
             if (success)
             {
                 Logger.LogInformation(
@@ -188,9 +188,13 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         }
 
         /// <summary>
-        /// Sends a message of type T over the multicast socket.
+        /// Sends a message of type T over the multicast socket asynchronously.
         /// </summary>
-        public AckSession Send<T>(T content, SendOptions? options = null)
+        /// <param name="content">The message content to send.</param>
+        /// <param name="options">Optional send options.</param>
+        /// <typeparam name="T">The type of the message content.</typeparam>
+        /// <returns>A task that completes with an <see cref="AckSession"/> for tracking acknowledgements.</returns>
+        public async Task<AckSession> SendAsync<T>(T content, SendOptions? options = null)
             where T : class
         {
             int messageType;
@@ -210,10 +214,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 RequestAck = options?.RequestAck ?? false
             };
 
-            return SendInternal(message, options?.AckTimeout);
+            return await SendInternalAsync(message, options?.AckTimeout);
         }
 
-        private AckSession SendInternal(
+        private async Task<AckSession> SendInternalAsync(
             TransportMessage message,
             TimeSpan? ackTimeout)
         {
@@ -235,7 +239,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 json = JsonConvert.SerializeObject(message, _jsonSettings);
             }
 
-            _socket?.Send(json);
+            if (_socket != null)
+            {
+                await _socket.SendAsync(json);
+            }
 
             if (!message.RequestAck)
             {
@@ -246,14 +253,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         }
 
         /// <summary>
-        /// Sends an acknowledgement for the message associated with the given context.
+        /// Sends an acknowledgement for the message associated with the given context asynchronously.
         /// </summary>
-        public void SendAck(MessageContext context)
+        public Task SendAckAsync(MessageContext context)
         {
-            SendAck(context.MessageId);
+            return SendAckAsync(context.MessageId);
         }
 
-        private void SendAck(Guid originalMessageId)
+        private Task SendAckAsync(Guid originalMessageId)
         {
             var ackContent = new AckMessageContent
             {
@@ -265,7 +272,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 RequestAck = false
             };
 
-            SendInternal(ackMessage, null);
+            return SendInternalAsync(ackMessage, null);
         }
 
         internal void HandleSocketMessage(SocketMessage msg)
@@ -426,7 +433,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 Logger.LogTrace(
                     "Automatically sending Ack for message {0}",
                     tMessage.MessageId);
-                SendAck(tMessage.MessageId);
+                _ = SendAckAsync(tMessage.MessageId);
             }
         }
 

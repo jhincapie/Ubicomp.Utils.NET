@@ -18,7 +18,7 @@ namespace Ubicomp.Utils.NET.Tests
         }
 
         [Fact]
-        public void MessageContext_ShouldReflectRequestAck()
+        public async Task MessageContext_ShouldReflectRequestAck()
         {
             // Arrange
             int msgType = 1001;
@@ -46,7 +46,7 @@ namespace Ubicomp.Utils.NET.Tests
             try
             {
                 // Act
-                transport.Send(new TestContent { Text = "Ping" }, new SendOptions { RequestAck = true, MessageType = msgType });
+                await transport.SendAsync(new TestContent { Text = "Ping" }, new SendOptions { RequestAck = true, MessageType = msgType });
 
                 // Assert
                 bool received = receivedEvent.WaitOne(2000);
@@ -94,7 +94,7 @@ namespace Ubicomp.Utils.NET.Tests
             try
             {
                 // Act
-                var session = transportA.Send(new TestContent { Text = "Ping" }, new SendOptions { RequestAck = true, MessageType = msgType });
+                var session = await transportA.SendAsync(new TestContent { Text = "Ping" }, new SendOptions { RequestAck = true, MessageType = msgType });
 
                 // Assert
                 bool ackReceived = await session.WaitAsync(TimeSpan.FromSeconds(3));
@@ -139,7 +139,7 @@ namespace Ubicomp.Utils.NET.Tests
             try
             {
                 // Act
-                var session = transportA.Send(new TestContent { Text = "Ping" }, new SendOptions { RequestAck = true, MessageType = msgType });
+                var session = await transportA.SendAsync(new TestContent { Text = "Ping" }, new SendOptions { RequestAck = true, MessageType = msgType });
 
                 // Assert
                 bool ackReceived = await session.WaitAsync(TimeSpan.FromSeconds(1));

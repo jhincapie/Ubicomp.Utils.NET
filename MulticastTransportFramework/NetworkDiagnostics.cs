@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Ubicomp.Utils.NET.Sockets;
 
@@ -173,16 +174,16 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         /// <summary>
         /// Performs a loopback test by sending a multicast message and waiting
-        /// for it.
+        /// for it asynchronously.
         /// </summary>
         /// <param name="transport">The transport component to test.</param>
         /// <param name="timeoutMs">The timeout in milliseconds.</param>
         /// <returns>True if the message was received, otherwise
         /// false.</returns>
-        public static bool PerformLoopbackTest(TransportComponent transport,
+        public static async Task<bool> PerformLoopbackTestAsync(TransportComponent transport,
                                                int timeoutMs = 2000)
         {
-            bool received = false;
+            var tcs = new TaskCompletionSource<bool>();
             var testId = Guid.NewGuid();
             const int TestMessageType = 998; // Changed to avoid collision if any
 
@@ -190,21 +191,18 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             {
                 if (data.Id == testId)
                 {
-                    received = true;
+                    tcs.TrySetResult(true);
                 }
             });
 
             var content = new LoopbackTestData { Id = testId };
-            transport.Send(content, new SendOptions { MessageType = TestMessageType });
+            await transport.SendAsync(content, new SendOptions { MessageType = TestMessageType });
 
-            var start = DateTime.Now;
-            while (!received &&
-                   (DateTime.Now - start).TotalMilliseconds < timeoutMs)
+            using var cts = new CancellationTokenSource(timeoutMs);
+            using (cts.Token.Register(() => tcs.TrySetResult(false)))
             {
-                Thread.Sleep(100);
+                return await tcs.Task;
             }
-
-            return received;
         }
 
         /// <summary>Placeholder data for loopback diagnostics.</summary>
