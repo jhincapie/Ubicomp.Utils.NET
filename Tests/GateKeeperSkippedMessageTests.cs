@@ -11,7 +11,7 @@ namespace Ubicomp.Utils.NET.Tests
     public class GateKeeperSkippedMessageTests
     {
         [Fact]
-        public async Task GateKeeper_ShouldNotHangForever_WhenMessageIsSkipped()
+        public void GateKeeper_ShouldNotHangForever_WhenMessageIsSkipped()
         {
             // Arrange
             var options = MulticastSocketOptions.LocalNetwork();
