@@ -104,7 +104,7 @@ namespace Ubicomp.Utils.NET.Sockets
                 Logger.LogInformation("Joining specific interface: {LocalIP}", _options.LocalIP);
                 JoinSpecificInterface(mcastAddr, IPAddress.Parse(_options.LocalIP));
             }
-            else if (_options.AutoJoin)
+            else
             {
                 Logger.LogInformation("Auto-joining all valid interfaces for group {GroupAddress}", _options.GroupAddress);
                 JoinAllInterfaces(mcastAddr);
