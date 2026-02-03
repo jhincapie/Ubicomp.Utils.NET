@@ -32,7 +32,7 @@ namespace Ubicomp.Utils.NET.Tests
             // Arrange
             var logger = new TestLogger();
             var options = MulticastSocketOptions.LocalNetwork("239.0.0.60", 5200);
-            
+
             // Act
             using var socket = new MulticastSocketBuilder()
                 .WithOptions(options)

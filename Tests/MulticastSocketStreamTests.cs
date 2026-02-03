@@ -19,7 +19,7 @@ namespace Ubicomp.Utils.NET.Tests
             string groupAddress = "239.0.0.50";
             int port = 5100;
             var options = MulticastSocketOptions.LocalNetwork(groupAddress, port);
-            
+
             // For tests, use loopback if on Linux
             if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
             {
@@ -35,23 +35,23 @@ namespace Ubicomp.Utils.NET.Tests
                 .Build();
 
             receiver.StartReceiving();
-            
+
             var cts = new CancellationTokenSource();
             var stream = receiver.GetMessageStream(cts.Token);
 
             string testMessage = "Stream Test";
-            
+
             // Act
             await sender.SendAsync(testMessage);
 
             // Assert
             var enumerator = stream.GetAsyncEnumerator();
             bool hasMessage = await enumerator.MoveNextAsync();
-            
+
             Assert.True(hasMessage);
             Assert.NotNull(enumerator.Current);
             Assert.Equal(testMessage, Encoding.UTF8.GetString(enumerator.Current.Data));
-            
+
             cts.Cancel();
         }
 
@@ -62,7 +62,7 @@ namespace Ubicomp.Utils.NET.Tests
             string groupAddress = "239.0.0.51";
             int port = 5101;
             var options = MulticastSocketOptions.LocalNetwork(groupAddress, port);
-            
+
             if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
             {
                 options.LocalIP = "127.0.0.1";
@@ -77,7 +77,7 @@ namespace Ubicomp.Utils.NET.Tests
                 .Build();
 
             receiver.StartReceiving();
-            
+
             var stream = receiver.GetMessageStream();
 
             // Act
@@ -92,10 +92,11 @@ namespace Ubicomp.Utils.NET.Tests
                 count++;
                 string content = Encoding.UTF8.GetString(msg.Data);
                 Assert.Equal($"Msg {count}", content);
-                
-                if (count == 3) break;
+
+                if (count == 3)
+                    break;
             }
-            
+
             Assert.Equal(3, count);
         }
     }

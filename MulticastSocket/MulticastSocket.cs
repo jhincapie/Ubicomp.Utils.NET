@@ -263,7 +263,7 @@ namespace Ubicomp.Utils.NET.Sockets
         {
             if (_udpSocket == null)
                 throw new ApplicationException("Socket is not initialized.");
-            
+
             Logger.LogInformation("Starting receive loop...");
             Receive(new StateObject { WorkSocket = _udpSocket });
         }
@@ -288,9 +288,9 @@ namespace Ubicomp.Utils.NET.Sockets
 
                 int seqId = Interlocked.Increment(ref _mConsecutive);
                 var msg = new SocketMessage(bufferCopy, seqId);
-                
+
                 Logger.LogTrace("Received message with SeqId {SeqId}, Length {Length}", seqId, bytesRead);
-                
+
                 OnMessageReceivedAction?.Invoke(msg);
                 _messageChannel.Writer.TryWrite(msg);
 
@@ -358,7 +358,7 @@ namespace Ubicomp.Utils.NET.Sockets
         {
             if (_udpSocket == null)
                 return Task.CompletedTask;
-            
+
             Logger.LogTrace("Sending string data: {Length} characters", sendData.Length);
             byte[] bytesToSend = Encoding.UTF8.GetBytes(sendData);
             return SendAsync(bytesToSend);
