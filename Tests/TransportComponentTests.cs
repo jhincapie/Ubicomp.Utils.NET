@@ -34,6 +34,10 @@ namespace Ubicomp.Utils.NET.Tests
             MessageContext? receivedContext = null;
 
             var options = MulticastSocketOptions.WideAreaNetwork("239.1.2.6", 5005, 1);
+            if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
+            {
+                options.LocalIP = "127.0.0.1";
+            }
             
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)

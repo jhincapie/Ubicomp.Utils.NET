@@ -23,6 +23,11 @@ namespace Ubicomp.Utils.NET.Tests
             bool? requestAckValue = null;
 
             var options = MulticastSocketOptions.WideAreaNetwork("239.1.2.7", 5006, 1);
+            if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
+            {
+                options.LocalIP = "127.0.0.1";
+            }
+
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
                 .IgnoreLocalMessages(false)
@@ -58,6 +63,11 @@ namespace Ubicomp.Utils.NET.Tests
             int msgType = 1002;
             var options1 = MulticastSocketOptions.WideAreaNetwork("239.1.2.8", 5007, 1);
             var options2 = MulticastSocketOptions.WideAreaNetwork("239.1.2.8", 5007, 1);
+            if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
+            {
+                options1.LocalIP = "127.0.0.1";
+                options2.LocalIP = "127.0.0.1";
+            }
 
             // Transport A: Sends message with AckRequest
             var transportA = new TransportBuilder()
@@ -102,6 +112,11 @@ namespace Ubicomp.Utils.NET.Tests
             int msgType = 1003;
             var options1 = MulticastSocketOptions.WideAreaNetwork("239.1.2.9", 5008, 1);
             var options2 = MulticastSocketOptions.WideAreaNetwork("239.1.2.9", 5008, 1);
+            if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
+            {
+                options1.LocalIP = "127.0.0.1";
+                options2.LocalIP = "127.0.0.1";
+            }
 
             var transportA = new TransportBuilder()
                 .WithMulticastOptions(options1)
