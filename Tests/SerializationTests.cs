@@ -34,8 +34,9 @@ namespace Ubicomp.Utils.NET.Tests
             var content = new MockContent { Content = "Hello" };
             var message = new TransportMessage(source, typeId, content);
 
+            var knownTypes = new System.Collections.Generic.Dictionary<int, Type>();
             var settings = new JsonSerializerSettings();
-            settings.Converters.Add(new TransportMessageConverter());
+            settings.Converters.Add(new TransportMessageConverter(knownTypes));
 
             // Export
             string json = JsonConvert.SerializeObject(message, settings);
@@ -59,14 +60,15 @@ namespace Ubicomp.Utils.NET.Tests
             int typeId = 100;
 
             // Register the type mapping
-            TransportMessageConverter.KnownTypes[typeId] = typeof(MockContent);
+            var knownTypes = new System.Collections.Generic.Dictionary<int, Type>();
+            knownTypes[typeId] = typeof(MockContent);
 
             var source = new EventSource(Guid.NewGuid(), "Host", "Desc");
             var content = new MockContent { Content = "Polymorphic Hello" };
             var message = new TransportMessage(source, typeId, content);
 
             var settings = new JsonSerializerSettings();
-            settings.Converters.Add(new TransportMessageConverter());
+            settings.Converters.Add(new TransportMessageConverter(knownTypes));
 
             // Export
             string json = JsonConvert.SerializeObject(message, settings);

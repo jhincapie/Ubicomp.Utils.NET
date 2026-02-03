@@ -39,6 +39,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private MulticastSocket? _socket;
         private readonly MulticastSocketOptions _socketOptions;
 
+        private readonly ConcurrentDictionary<int, Type> _knownTypes = new ConcurrentDictionary<int, Type>();
         private readonly ConcurrentDictionary<int, Delegate> _genericHandlers = new ConcurrentDictionary<int, Delegate>();
         private readonly ConcurrentDictionary<Type, int> _typeToIdMap = new ConcurrentDictionary<Type, int>();
 
@@ -85,17 +86,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             _socketOptions = options;
             _jsonSettings = new JsonSerializerSettings();
-            _jsonSettings.Converters.Add(new TransportMessageConverter());
+            _jsonSettings.Converters.Add(new TransportMessageConverter(_knownTypes));
 
             RegisterInternalTypes();
         }
 
         private void RegisterInternalTypes()
         {
-            if (!TransportMessageConverter.KnownTypes.ContainsKey(AckMessageType))
-            {
-                TransportMessageConverter.KnownTypes.Add(AckMessageType, typeof(AckMessageContent));
-            }
+            _knownTypes.TryAdd(AckMessageType, typeof(AckMessageContent));
         }
 
         /// <summary>
@@ -105,10 +103,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             _genericHandlers[id] = handler;
             _typeToIdMap[typeof(T)] = id;
-            if (!TransportMessageConverter.KnownTypes.ContainsKey(id))
-            {
-                TransportMessageConverter.KnownTypes.Add(id, typeof(T));
-            }
+            _knownTypes[id] = typeof(T);
         }
 
         /// <summary>

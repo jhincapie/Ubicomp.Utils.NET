@@ -32,7 +32,7 @@ namespace Ubicomp.Utils.NET.Tests
             Assert.False(msg.RequestAck);
 
             var settings = new JsonSerializerSettings();
-            settings.Converters.Add(new TransportMessageConverter());
+            settings.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()));
             var jsonFalse = JsonConvert.SerializeObject(msg, settings);
             Assert.DoesNotContain("RequestAck", jsonFalse);
 
@@ -114,7 +114,7 @@ namespace Ubicomp.Utils.NET.Tests
             var ackMsg = new TransportMessage(ackSource, TransportComponent.AckMessageType, ackContent);
 
             var settings = new JsonSerializerSettings();
-            settings.Converters.Add(new TransportMessageConverter());
+            settings.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()));
             string ackJson = JsonConvert.SerializeObject(ackMsg, settings);
             byte[] ackData = Encoding.UTF8.GetBytes(ackJson);
 
@@ -142,7 +142,7 @@ namespace Ubicomp.Utils.NET.Tests
             var msg = new TransportMessage(tc.LocalSource, msgType, content);
 
             var settings = new JsonSerializerSettings();
-            settings.Converters.Add(new TransportMessageConverter());
+            settings.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()));
             string json = JsonConvert.SerializeObject(msg, settings);
             byte[] data = Encoding.UTF8.GetBytes(json);
 

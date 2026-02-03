@@ -35,7 +35,7 @@ namespace Ubicomp.Utils.NET.Tests
             var transportMsg = new TransportMessage(source, msgType, "msg2");
             string json = Newtonsoft.Json.JsonConvert.SerializeObject(transportMsg, new Newtonsoft.Json.JsonSerializerSettings
             {
-                Converters = { new TransportMessageConverter() }
+                Converters = { new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()) }
             });
             byte[] data = System.Text.Encoding.UTF8.GetBytes(json);
 
@@ -72,7 +72,7 @@ namespace Ubicomp.Utils.NET.Tests
             var transportMsg = new TransportMessage(source, msgType, "msg2");
             string json = Newtonsoft.Json.JsonConvert.SerializeObject(transportMsg, new Newtonsoft.Json.JsonSerializerSettings
             {
-                Converters = { new TransportMessageConverter() }
+                Converters = { new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()) }
             });
             byte[] data = System.Text.Encoding.UTF8.GetBytes(json);
 

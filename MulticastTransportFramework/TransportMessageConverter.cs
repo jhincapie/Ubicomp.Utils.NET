@@ -13,14 +13,16 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     /// </summary>
     public class TransportMessageConverter : JsonConverter
     {
+        private readonly IDictionary<int, Type> _knownTypes;
+
         /// <summary>
-        /// A dictionary mapping message type IDs to their concrete .NET types.
-        /// Used for deserializing the polymorphic MessageData property.
+        /// Initializes a new instance of the <see cref="TransportMessageConverter"/> class.
         /// </summary>
-        public static Dictionary<int, Type> KnownTypes
+        /// <param name="knownTypes">The dictionary of known message types for deserialization.</param>
+        public TransportMessageConverter(IDictionary<int, Type> knownTypes)
         {
-            get;
-        } = new Dictionary<int, Type>();
+            _knownTypes = knownTypes;
+        }
 
         /// <inheritdoc />
         public override bool CanConvert(Type objectType)
@@ -87,7 +89,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             if (dataToken == null || dataToken.Type == JTokenType.Null)
                 return message;
 
-            if (KnownTypes.TryGetValue(message.MessageType,
+            if (_knownTypes.TryGetValue(message.MessageType,
                                        out Type? targetType) &&
                 targetType != null)
             {

@@ -37,7 +37,8 @@ namespace Ubicomp.Utils.NET.Tests
             var validMsg = new TransportMessage(source, msgType, new EmptyContent());
 
             var settings = new JsonSerializerSettings();
-            settings.Converters.Add(new TransportMessageConverter());
+            var knownTypes = new System.Collections.Generic.Dictionary<int, Type>();
+            settings.Converters.Add(new TransportMessageConverter(knownTypes));
             string validJson = JsonConvert.SerializeObject(validMsg, settings);
             byte[] validData = Encoding.UTF8.GetBytes(validJson);
 
