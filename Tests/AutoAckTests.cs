@@ -12,7 +12,10 @@ namespace Ubicomp.Utils.NET.Tests
     [Collection("SharedTransport")]
     public class AutoAckTests
     {
-        private class TestContent { public string Text { get; set; } = ""; }
+        private class TestContent
+        {
+            public string Text { get; set; } = "";
+        }
 
         [Fact]
         public void MessageContext_ShouldReflectRequestAck()
@@ -31,7 +34,7 @@ namespace Ubicomp.Utils.NET.Tests
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
                 .IgnoreLocalMessages(false)
-                .RegisterHandler<TestContent>(msgType, (content, context) => 
+                .RegisterHandler<TestContent>(msgType, (content, context) =>
                 {
                     requestAckValue = context.RequestAck;
                     receivedEvent.Set();

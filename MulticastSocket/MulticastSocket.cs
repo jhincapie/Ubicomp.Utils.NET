@@ -24,9 +24,18 @@ namespace Ubicomp.Utils.NET.Sockets
         private readonly MulticastSocketOptions _options;
         private readonly List<IPAddress> _joinedAddresses = new List<IPAddress>();
 
-        internal Action<SocketMessage>? OnMessageReceivedAction { get; set; }
-        internal Action<SocketErrorContext>? OnErrorAction { get; set; }
-        internal Action? OnStartedAction { get; set; }
+        internal Action<SocketMessage>? OnMessageReceivedAction
+        {
+            get; set;
+        }
+        internal Action<SocketErrorContext>? OnErrorAction
+        {
+            get; set;
+        }
+        internal Action? OnStartedAction
+        {
+            get; set;
+        }
 
         /// <summary>
         /// Gets the collection of IP addresses that have successfully joined the multicast group.
@@ -48,8 +57,10 @@ namespace Ubicomp.Utils.NET.Sockets
 
         private void SetupSocket()
         {
-            if (_udpSocket == null) return;
-            if (_udpSocket.IsBound) throw new ApplicationException("The socket is already bound.");
+            if (_udpSocket == null)
+                return;
+            if (_udpSocket.IsBound)
+                throw new ApplicationException("The socket is already bound.");
 
             _localIPEndPoint = new IPEndPoint(IPAddress.Any, _options.Port);
             _localEndPoint = (EndPoint)_localIPEndPoint;
@@ -72,7 +83,8 @@ namespace Ubicomp.Utils.NET.Sockets
 
         private void SetDefaultSocketOptions()
         {
-            if (_udpSocket == null) return;
+            if (_udpSocket == null)
+                return;
 
             try
             {
@@ -99,7 +111,8 @@ namespace Ubicomp.Utils.NET.Sockets
 
         private void JoinSpecificInterface(IPAddress mcastAddr, IPAddress localAddr)
         {
-            if (_udpSocket == null) return;
+            if (_udpSocket == null)
+                return;
 
             _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, localAddr));
             _joinedAddresses.Add(localAddr);
@@ -122,7 +135,8 @@ namespace Ubicomp.Utils.NET.Sockets
 
             foreach (var addr in validAddresses)
             {
-                if (_options.InterfaceFilter != null && !_options.InterfaceFilter(addr)) continue;
+                if (_options.InterfaceFilter != null && !_options.InterfaceFilter(addr))
+                    continue;
 
                 try
                 {
@@ -161,19 +175,22 @@ namespace Ubicomp.Utils.NET.Sockets
 
         public void StartReceiving()
         {
-            if (_udpSocket == null) throw new ApplicationException("Socket is not initialized.");
+            if (_udpSocket == null)
+                throw new ApplicationException("Socket is not initialized.");
             Receive(new StateObject { WorkSocket = _udpSocket });
         }
 
         private void Receive(StateObject state)
         {
-            if (_udpSocket == null) return;
+            if (_udpSocket == null)
+                return;
             state.WorkSocket.BeginReceiveFrom(state.Buffer, 0, StateObject.BufferSize, 0, ref _localEndPoint, ReceiveCallback, state);
         }
 
         private void ReceiveCallback(IAsyncResult ar)
         {
-            if (!(ar.AsyncState is StateObject state)) return;
+            if (!(ar.AsyncState is StateObject state))
+                return;
 
             try
             {
@@ -192,20 +209,26 @@ namespace Ubicomp.Utils.NET.Sockets
             catch (Exception e)
             {
                 OnErrorAction?.Invoke(new SocketErrorContext("Error during receive.", e));
-                try { Receive(state); } catch { }
+                try
+                {
+                    Receive(state);
+                }
+                catch { }
             }
         }
 
         public void Send(string sendData)
         {
-            if (_udpSocket == null) return;
+            if (_udpSocket == null)
+                return;
             byte[] bytesToSend = Encoding.UTF8.GetBytes(sendData);
             Send(bytesToSend);
         }
 
         public void Send(byte[] bytesToSend)
         {
-            if (_udpSocket == null) return;
+            if (_udpSocket == null)
+                return;
             var remoteEndPoint = new IPEndPoint(IPAddress.Parse(_options.GroupAddress), _options.Port);
             _udpSocket.BeginSendTo(bytesToSend, 0, bytesToSend.Length, SocketFlags.None, remoteEndPoint, SendCallback, _udpSocket);
         }
@@ -214,7 +237,8 @@ namespace Ubicomp.Utils.NET.Sockets
         {
             try
             {
-                if (!(ar.AsyncState is Socket client)) return;
+                if (!(ar.AsyncState is Socket client))
+                    return;
                 client.EndSendTo(ar);
             }
             catch (Exception e)
@@ -225,7 +249,11 @@ namespace Ubicomp.Utils.NET.Sockets
 
         public void Close()
         {
-            try { _udpSocket?.Close(); } catch { }
+            try
+            {
+                _udpSocket?.Close();
+            }
+            catch { }
         }
 
         public void Dispose()

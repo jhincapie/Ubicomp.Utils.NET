@@ -38,11 +38,11 @@ namespace Ubicomp.Utils.NET.Tests
             {
                 options.LocalIP = "127.0.0.1";
             }
-            
+
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
                 .IgnoreLocalMessages(false)
-                .RegisterHandler<TestContent>(msgType, (content, context) => 
+                .RegisterHandler<TestContent>(msgType, (content, context) =>
                 {
                     receivedContent = content;
                     receivedContext = context;

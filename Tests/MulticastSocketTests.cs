@@ -78,7 +78,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             using var receiver = new MulticastSocketBuilder()
                 .WithOptions(receiverOptions)
-                .OnMessageReceived(msg => 
+                .OnMessageReceived(msg =>
                 {
                     receivedMessage = Encoding.UTF8.GetString(msg.Data);
                     signal.Set();
@@ -110,14 +110,14 @@ namespace Ubicomp.Utils.NET.Tests
             string testMessage = "Héllø Wørld 🛡️";
             string? receivedMessage = null;
             var receivedEvent = new ManualResetEvent(false);
-            
+
             string? localIP = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux) ? "127.0.0.1" : null;
             var options = MulticastSocketOptions.LocalNetwork(ip, port);
             options.LocalIP = localIP;
 
             using var socket = new MulticastSocketBuilder()
                 .WithOptions(options)
-                .OnMessageReceived(msg => 
+                .OnMessageReceived(msg =>
                 {
                     receivedMessage = Encoding.UTF8.GetString(msg.Data);
                     receivedEvent.Set();

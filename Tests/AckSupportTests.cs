@@ -1,15 +1,14 @@
 #nullable enable
 using System;
 using System.Linq;
+using System.Reflection;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
-using Xunit;
-
-using System.Text;
-using System.Reflection;
 using Ubicomp.Utils.NET.Sockets;
+using Xunit;
 
 namespace Ubicomp.Utils.NET.Tests
 {
@@ -28,7 +27,7 @@ namespace Ubicomp.Utils.NET.Tests
         public void TransportMessage_RequestAck_ShouldSerializeOnlyWhenTrue()
         {
             var msg = new TransportMessage();
-            
+
             // Default should be false
             Assert.False(msg.RequestAck);
 
@@ -47,11 +46,12 @@ namespace Ubicomp.Utils.NET.Tests
         {
             var originalId = Guid.NewGuid();
             var session = new AckSession(originalId);
-            
+
             var source = new EventSource(Guid.NewGuid(), "Tester", "127.0.0.1");
-            
+
             bool eventFired = false;
-            session.OnAckReceived += (s, src) => {
+            session.OnAckReceived += (s, src) =>
+            {
                 eventFired = true;
                 Assert.Equal(source, src);
             };
@@ -60,7 +60,7 @@ namespace Ubicomp.Utils.NET.Tests
             session.ReportAck(source);
 
             var result = await session.WaitAsync(TimeSpan.FromSeconds(1));
-            
+
             Assert.True(result);
             Assert.True(session.IsAnyAckReceived);
             Assert.Contains(source, session.ReceivedAcks);
@@ -74,7 +74,7 @@ namespace Ubicomp.Utils.NET.Tests
             var session = new AckSession(originalId);
 
             var result = await session.WaitAsync(TimeSpan.FromMilliseconds(100));
-            
+
             Assert.False(result);
             Assert.False(session.IsAnyAckReceived);
             Assert.Empty(session.ReceivedAcks);
@@ -85,12 +85,12 @@ namespace Ubicomp.Utils.NET.Tests
         {
             var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1);
             var tc = new TransportComponent(options);
-            
+
             // Register a dummy type for sending
-            tc.RegisterHandler<AckMessageContent>(1, (c, ctx) => {});
+            tc.RegisterHandler<AckMessageContent>(1, (c, ctx) => { });
 
             var session = tc.Send(new AckMessageContent(), new SendOptions { RequestAck = true });
-            
+
             Assert.NotNull(session);
         }
 
@@ -101,14 +101,14 @@ namespace Ubicomp.Utils.NET.Tests
             var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1);
             var tc = new TransportComponent(options);
             tc.IgnoreLocalMessages = false;
-            
+
             // Register a dummy type for sending
-            tc.RegisterHandler<AckMessageContent>(1, (c, ctx) => {});
+            tc.RegisterHandler<AckMessageContent>(1, (c, ctx) => { });
             var session = tc.Send(new AckMessageContent(), new SendOptions { RequestAck = true });
 
             // Create an Ack message for this msg
             var manualSession = tc.Send(new AckMessageContent(), new SendOptions { RequestAck = true });
-            
+
             var ackContent = new AckMessageContent { OriginalMessageId = manualSession.OriginalMessageId };
             var ackSource = new EventSource(Guid.NewGuid(), "Responder");
             var ackMsg = new TransportMessage(ackSource, TransportComponent.AckMessageType, ackContent);
@@ -135,12 +135,12 @@ namespace Ubicomp.Utils.NET.Tests
             var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1);
             var tc = new TransportComponent(options);
             tc.IgnoreLocalMessages = true;
-            
+
             // Create a message from LocalSource
             int msgType = 123;
             var content = new AckMessageContent();
             var msg = new TransportMessage(tc.LocalSource, msgType, content);
-            
+
             var settings = new JsonSerializerSettings();
             settings.Converters.Add(new TransportMessageConverter());
             string json = JsonConvert.SerializeObject(msg, settings);

@@ -18,7 +18,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// <summary>
         /// Gets the original message identifier being tracked.
         /// </summary>
-        public Guid OriginalMessageId { get; }
+        public Guid OriginalMessageId
+        {
+            get;
+        }
 
         /// <summary>
         /// Gets a value indicating whether at least one acknowledgement has been received.

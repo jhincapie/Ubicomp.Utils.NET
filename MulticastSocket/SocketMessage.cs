@@ -9,13 +9,22 @@ namespace Ubicomp.Utils.NET.Sockets
     public class SocketMessage
     {
         /// <summary>Gets the raw data received.</summary>
-        public byte[] Data { get; }
+        public byte[] Data
+        {
+            get;
+        }
 
         /// <summary>Gets the sequence number of the message.</summary>
-        public int SequenceId { get; }
+        public int SequenceId
+        {
+            get;
+        }
 
         /// <summary>Gets the timestamp when the message was received.</summary>
-        public DateTime Timestamp { get; }
+        public DateTime Timestamp
+        {
+            get;
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SocketMessage"/> class.
@@ -34,10 +43,16 @@ namespace Ubicomp.Utils.NET.Sockets
     public class SocketErrorContext
     {
         /// <summary>Gets a descriptive error message.</summary>
-        public string Message { get; }
+        public string Message
+        {
+            get;
+        }
 
         /// <summary>Gets the exception associated with the error, if any.</summary>
-        public Exception? Exception { get; }
+        public Exception? Exception
+        {
+            get;
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SocketErrorContext"/> class.

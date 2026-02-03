@@ -14,6 +14,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// <summary>
         /// Gets or sets the original message identifier being acknowledged.
         /// </summary>
-        public Guid OriginalMessageId { get; set; }
+        public Guid OriginalMessageId
+        {
+            get; set;
+        }
     }
 }

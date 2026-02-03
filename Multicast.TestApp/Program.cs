@@ -29,11 +29,11 @@ namespace Ubicomp.Utils.NET.Muticast.TestApp
         public Program(string groupIP, int port, int timeToLive)
         {
             var options = MulticastSocketOptions.WideAreaNetwork(groupIP, port, timeToLive);
-            
+
             _transport = new TransportBuilder()
                 .WithMulticastOptions(options)
                 .WithLocalSource(Environment.MachineName)
-                .RegisterHandler<MockMessage>(ProgramID, (message, context) => 
+                .RegisterHandler<MockMessage>(ProgramID, (message, context) =>
                 {
                     Console.WriteLine("MessageReceived: {0}", message.Message);
                 })

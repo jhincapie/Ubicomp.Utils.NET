@@ -26,13 +26,22 @@ namespace Ubicomp.Utils.NET.Sockets
     public class NotifyMulticastSocketListenerEventArgs : EventArgs
     {
         /// <summary>Gets the type of notification.</summary>
-        public MulticastSocketMessageType Type { get; }
+        public MulticastSocketMessageType Type
+        {
+            get;
+        }
 
         /// <summary>Gets the object associated with the notification.</summary>
-        public object? NewObject { get; }
+        public object? NewObject
+        {
+            get;
+        }
 
         /// <summary>Gets the sequence number of the message.</summary>
-        public int Consecutive { get; }
+        public int Consecutive
+        {
+            get;
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="NotifyMulticastSocketListenerEventArgs"/> class.

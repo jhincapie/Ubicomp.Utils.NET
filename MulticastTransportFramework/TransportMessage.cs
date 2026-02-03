@@ -34,7 +34,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         /// <summary>Gets or sets a value indicating whether an acknowledgement is requested.</summary>
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public bool RequestAck { get; set; }
+        public bool RequestAck
+        {
+            get; set;
+        }
 
         /// <summary>Gets or sets the actual content of the message.</summary>
         public object MessageData { get; set; } = null!;
