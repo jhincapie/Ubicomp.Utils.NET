@@ -31,7 +31,6 @@ namespace Ubicomp.Utils.NET.Tests
             Assert.Null(options.InterfaceFilter);
 
             // Lifecycle
-            Assert.True(options.AutoJoin);
         }
 
 

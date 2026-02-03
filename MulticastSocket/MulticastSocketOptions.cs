@@ -70,12 +70,6 @@ namespace Ubicomp.Utils.NET.Sockets
         }
 
         /// <summary>
-        /// Whether to automatically join the multicast group upon 
-        /// socket startup.
-        /// </summary>
-        public bool AutoJoin { get; set; } = true;
-
-        /// <summary>
         /// Whether to enforce strict message ordering via the GateKeeper.
         /// When true, messages are processed sequentially based on sequence IDs.
         /// When false (default), messages are processed immediately as they arrive.
