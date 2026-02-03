@@ -37,9 +37,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// component.</summary>
         public static TransportComponent Instance = new TransportComponent();
 
-        private static object importLock = new object();
-        private static object exportLock = new object();
-
         private MulticastSocket _socket = null!;
         private IPAddress _multicastGroupAddress = null!;
         private IPAddress? _localAddress;
@@ -55,6 +52,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         } = new Dictionary<int, ITransportListener>();
 
         private readonly ConcurrentDictionary<Guid, AckSession> _activeSessions = new ConcurrentDictionary<Guid, AckSession>();
+        private readonly Dictionary<int, NotifyMulticastSocketListenerEventArgs> _pendingMessages = new Dictionary<int, NotifyMulticastSocketListenerEventArgs>();
 
         private readonly JsonSerializerSettings _jsonSettings;
 
@@ -218,10 +216,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 });
             }
 
-            string json;
-            lock (exportLock)
-                json =
-                JsonConvert.SerializeObject(message, _jsonSettings);
+            string json = JsonConvert.SerializeObject(message, _jsonSettings);
 
             _socket?.Send(json);
 
@@ -277,92 +272,96 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             if (e.NewObject == null)
                 return;
 
-            bool enteredGate = false;
-            try
+            lock (gate)
             {
-                // Enter the gate first based on socket sequence ID to ensure
-                // order, but we MUST exit it (nudge) even if deserialization
-                // fails.
-                GateKeeperMethod(e.Consecutive);
-                enteredGate = true;
-
-                string sMessage = GetMessageAsString((byte[])e.NewObject);
-                TransportMessage? tMessage = null;
-
-                lock (importLock)
+                // Check if this is the next expected message
+                if (e.Consecutive != _currentMessageCons)
                 {
-                    Logger.LogTrace("Importing message {0}", e.Consecutive);
-                    tMessage = JsonConvert.DeserializeObject<TransportMessage>(
-                        sMessage, _jsonSettings);
-                }
-
-                if (tMessage == null)
-                {
-                    Logger.LogWarning("Deserialization failed for message {0}",
-                                      e.Consecutive);
-                    return;
-                }
-
-                if (IgnoreLocalMessages && tMessage.MessageSource.ResourceId == LocalSource.ResourceId)
-                {
-                    Logger.LogTrace("Ignoring local message {0}", e.Consecutive);
-                    return;
-                }
-
-                if (tMessage.MessageType == AckMessageType && tMessage.MessageData is AckMessageContent ackContent)
-                {
-                    if (_activeSessions.TryGetValue(ackContent.OriginalMessageId, out var session))
+                    // If it's a future message (considering wrap-around), buffer it
+                    if ((e.Consecutive - _currentMessageCons) > 0)
                     {
-                        Logger.LogTrace("Received Ack for message {0} from {1}",
-                                        ackContent.OriginalMessageId, tMessage.MessageSource.ResourceName);
-                        session.ReportAck(tMessage.MessageSource);
+                        _pendingMessages[e.Consecutive] = e;
+                    }
+                    else
+                    {
+                        Logger.LogWarning("Received duplicate or old message: {0} (Expected: {1})", e.Consecutive, _currentMessageCons);
+                    }
+                    return;
+                }
+            }
+
+            // Process the chain of messages
+            var currentEvent = e;
+            while (currentEvent != null)
+            {
+                try
+                {
+                    ProcessSingleMessage(currentEvent);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError("Error Processing Received Message {0}: {1}",
+                                    currentEvent.Consecutive, ex.Message);
+                }
+
+                lock (gate)
+                {
+                    _currentMessageCons++;
+                    if (!_pendingMessages.TryGetValue(_currentMessageCons, out currentEvent))
+                    {
+                        currentEvent = null;
+                    }
+                    else
+                    {
+                        _pendingMessages.Remove(_currentMessageCons);
                     }
                 }
-
-                Logger.LogTrace("Processing message {0}", e.Consecutive);
-                if (!TransportListeners.TryGetValue(tMessage.MessageType,
-                                                    out var listener))
-                {
-                    Logger.LogWarning(
-                        "No listener registered for message type {0}",
-                        tMessage.MessageType);
-                    return;
-                }
-
-                listener.MessageReceived(tMessage, sMessage);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError("Error Processing Received Message {0}: {1}",
-                                e.Consecutive, ex.Message);
-            }
-            finally
-            {
-                if (enteredGate)
-                    NudgeGate();
             }
         }
 
-        private void GateKeeperMethod(int consecutive)
+        private void ProcessSingleMessage(NotifyMulticastSocketListenerEventArgs e)
         {
-            lock (gate)
+            string sMessage = GetMessageAsString((byte[])e.NewObject!);
+            TransportMessage? tMessage = null;
+
+            Logger.LogTrace("Importing message {0}", e.Consecutive);
+            tMessage = JsonConvert.DeserializeObject<TransportMessage>(
+                sMessage, _jsonSettings);
+
+            if (tMessage == null)
             {
-                while (_currentMessageCons != consecutive)
+                Logger.LogWarning("Deserialization failed for message {0}",
+                                  e.Consecutive);
+                return;
+            }
+
+            if (IgnoreLocalMessages && tMessage.MessageSource.ResourceId == LocalSource.ResourceId)
+            {
+                Logger.LogTrace("Ignoring local message {0}", e.Consecutive);
+                return;
+            }
+
+            if (tMessage.MessageType == AckMessageType && tMessage.MessageData is AckMessageContent ackContent)
+            {
+                if (_activeSessions.TryGetValue(ackContent.OriginalMessageId, out var session))
                 {
-                    Monitor.Wait(gate);
+                    Logger.LogTrace("Received Ack for message {0} from {1}",
+                                    ackContent.OriginalMessageId, tMessage.MessageSource.ResourceName);
+                    session.ReportAck(tMessage.MessageSource);
                 }
             }
-        }
 
-
-
-        private void NudgeGate()
-        {
-            lock (gate)
+            Logger.LogTrace("Processing message {0}", e.Consecutive);
+            if (!TransportListeners.TryGetValue(tMessage.MessageType,
+                                                out var listener))
             {
-                _currentMessageCons++;
-                Monitor.PulseAll(gate);
+                Logger.LogWarning(
+                    "No listener registered for message type {0}",
+                    tMessage.MessageType);
+                return;
             }
+
+            listener.MessageReceived(tMessage, sMessage);
         }
 
         #region ITransportListener Members
@@ -392,8 +391,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             int length = Array.IndexOf<byte>(messageBytes, (byte)'\0');
             if (length == -1)
                 length = messageBytes.Length;
-            var encoding = new UTF8Encoding();
-            return encoding.GetString(messageBytes, 0, length);
+            return Encoding.UTF8.GetString(messageBytes, 0, length);
         }
     }
 
