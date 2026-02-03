@@ -120,11 +120,8 @@ namespace Ubicomp.Utils.NET.Sockets
 
             try
             {
-                if (_options.NoDelay)
-                {
-                    _udpSocket.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoDelay, 1);
-                    Logger.LogTrace("Socket option NoDelay set to true");
-                }
+                _udpSocket.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoDelay, _options.NoDelay ? 1 : 0);
+                Logger.LogTrace("Socket option NoDelay set to {Value}", _options.NoDelay);
             }
             catch (SocketException ex)
             {
@@ -136,17 +133,32 @@ namespace Ubicomp.Utils.NET.Sockets
                 _udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 1);
                 Logger.LogTrace("Socket option ReuseAddress set to true");
             }
+            else
+            {
+                _udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 0);
+                Logger.LogTrace("Socket option ReuseAddress set to false");
+            }
 
             if (_options.MulticastLoopback)
             {
                 _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, 1);
                 Logger.LogTrace("Socket option MulticastLoopback set to true");
             }
+            else
+            {
+                _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, 0);
+                Logger.LogTrace("Socket option MulticastLoopback set to false");
+            }
 
             if (_options.DontFragment)
             {
                 _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.DontFragment, 1);
                 Logger.LogTrace("Socket option DontFragment set to true");
+            }
+            else
+            {
+                _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.DontFragment, 0);
+                Logger.LogTrace("Socket option DontFragment set to false");
             }
 
             if (_options.ReceiveBufferSize > 0)
