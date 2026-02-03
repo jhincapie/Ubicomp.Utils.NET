@@ -64,13 +64,13 @@ namespace Ubicomp.Utils.NET.SampleApp
                 });
 
             var options = MulticastSocketOptions.WideAreaNetwork(groupAddress.ToString(), port, ttl);
+            options.MulticastLoopback = allowLocal;
 
             // 2. Use the new TransportBuilder
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
                 .WithLogging(loggerFactory)
                 .WithLocalSource("SampleApp")
-                .IgnoreLocalMessages(!allowLocal)
                 .WithAutoSendAcks(false)
                 .Build();
 

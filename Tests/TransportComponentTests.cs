@@ -42,7 +42,6 @@ namespace Ubicomp.Utils.NET.Tests
 
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
-                .IgnoreLocalMessages(false)
                 .RegisterHandler<TestContent>(msgType, (content, context) =>
                 {
                     receivedContent = content;
@@ -94,7 +93,6 @@ namespace Ubicomp.Utils.NET.Tests
 
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
-                .IgnoreLocalMessages(false)
                 .RegisterHandler<TestContent>(msgType, (content, context) =>
                 {
                     receivedContent = content;

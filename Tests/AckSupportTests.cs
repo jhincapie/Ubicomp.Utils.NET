@@ -100,7 +100,6 @@ namespace Ubicomp.Utils.NET.Tests
             // Arrange
             var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1);
             var tc = new TransportComponent(options);
-            tc.IgnoreLocalMessages = false;
 
             // Register a dummy type for sending
             tc.RegisterHandler<AckMessageContent>(1, (c, ctx) => { });
@@ -128,33 +127,5 @@ namespace Ubicomp.Utils.NET.Tests
             Assert.Contains(ackSource.ResourceId, manualSession.ReceivedAcks.Select(s => s.ResourceId));
         }
 
-        [Fact]
-        public void TransportComponent_IgnoreLocalMessages_ShouldFilter()
-        {
-            // Arrange
-            var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1);
-            var tc = new TransportComponent(options);
-            tc.IgnoreLocalMessages = true;
-
-            // Create a message from LocalSource
-            int msgType = 123;
-            var content = new AckMessageContent();
-            var msg = new TransportMessage(tc.LocalSource, msgType, content);
-
-            var settings = new JsonSerializerSettings();
-            settings.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()));
-            string json = JsonConvert.SerializeObject(msg, settings);
-            byte[] data = Encoding.UTF8.GetBytes(json);
-
-            // Register a handler to see if it gets called
-            bool handlerCalled = false;
-            tc.RegisterHandler<AckMessageContent>(msgType, (c, ctx) => handlerCalled = true);
-
-            // Act
-            tc.HandleSocketMessage(new SocketMessage(data, 1));
-
-            // Assert
-            Assert.False(handlerCalled, "Handler should not have been called for a local message when IgnoreLocalMessages is true");
-        }
     }
 }

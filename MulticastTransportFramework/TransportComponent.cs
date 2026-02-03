@@ -67,12 +67,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public EventSource LocalSource { get; set; } = new EventSource(Guid.NewGuid(), Environment.MachineName);
 
         /// <summary>
-        /// Gets or sets a value indicating whether messages received from the local source
-        /// should be ignored by this transport component.
-        /// </summary>
-        public bool IgnoreLocalMessages { get; set; } = true;
-
-        /// <summary>
         /// Gets or sets a value indicating whether acknowledgements should be sent automatically
         /// when a message requesting one is received and handled.
         /// </summary>
@@ -398,13 +392,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private void ProcessTransportMessage(TransportMessage tMessage, int sequenceId)
         {
-            if (IgnoreLocalMessages &&
-                tMessage.MessageSource.ResourceId == LocalSource.ResourceId)
-            {
-                Logger.LogTrace("Ignoring local message {0}", sequenceId);
-                return;
-            }
-
             if (tMessage.MessageType == AckMessageType &&
                 tMessage.MessageData is AckMessageContent ackContent)
             {

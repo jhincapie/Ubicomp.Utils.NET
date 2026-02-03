@@ -142,6 +142,11 @@ namespace Ubicomp.Utils.NET.Sockets
                 _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, 1);
                 Logger.LogTrace("Socket option MulticastLoopback set to true");
             }
+            else
+            {
+                _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, 0);
+                Logger.LogTrace("Socket option MulticastLoopback set to false");
+            }
 
             if (_options.DontFragment)
             {
