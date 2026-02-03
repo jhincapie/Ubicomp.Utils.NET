@@ -15,7 +15,7 @@ namespace Ubicomp.Utils.NET.Tests
         private class TestContent { public string Text { get; set; } = ""; }
 
         [Fact]
-        public async Task MessageContext_ShouldReflectRequestAck()
+        public void MessageContext_ShouldReflectRequestAck()
         {
             // Arrange
             int msgType = 1001;
