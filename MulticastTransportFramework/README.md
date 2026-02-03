@@ -13,6 +13,11 @@ The **MulticastTransportFramework** abstracts raw socket communication into a st
 *   **Ordered Messaging:** Guaranteed sequential processing via an internal GateKeeper.
 
 ## System Architecture
+
+### Class Diagram
+![MulticastTransportFramework Class Diagram](assets/class_diagram.png)
+
+### Message Flow
 ![MulticastTransportFramework Flow Diagram](assets/transport_flow_diagram.png)
 
 ## Usage

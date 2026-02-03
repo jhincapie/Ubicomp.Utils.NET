@@ -12,6 +12,10 @@ The **ContextAwarenessFramework** provides a standard structure for:
 ## Architecture
 The framework follows the **Monitor-Service-Entity (MSE)** pattern, designed to decouple data acquisition from business logic and data presentation.
 
+### Class Diagram
+![CAF Class Diagram](assets/class_diagram.png)
+
+### MSE Pattern Diagram
 ![MSE Pattern Diagram](assets/mse_pattern_diagram.png)
 
 ## Key Components
