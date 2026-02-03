@@ -14,7 +14,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private MulticastSocketOptions? _options;
         private ILoggerFactory? _loggerFactory;
         private EventSource? _localSource;
-        private bool _ignoreLocalMessages = true;
         private bool _autoSendAcks = false;
         private readonly List<Action<TransportComponent>> _registrations = new List<Action<TransportComponent>>();
 
@@ -42,15 +41,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public TransportBuilder WithLocalSource(string resourceName, Guid? resourceId = null)
         {
             _localSource = new EventSource(resourceId ?? Guid.NewGuid(), resourceName);
-            return this;
-        }
-
-        /// <summary>
-        /// Configures whether to ignore messages from the local source.
-        /// </summary>
-        public TransportBuilder IgnoreLocalMessages(bool ignore = true)
-        {
-            _ignoreLocalMessages = ignore;
             return this;
         }
 
@@ -92,7 +82,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 component.LocalSource = _localSource;
             }
 
-            component.IgnoreLocalMessages = _ignoreLocalMessages;
             component.AutoSendAcks = _autoSendAcks;
 
             foreach (var registration in _registrations)

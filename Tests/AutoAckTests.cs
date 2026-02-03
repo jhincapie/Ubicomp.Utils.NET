@@ -33,7 +33,6 @@ namespace Ubicomp.Utils.NET.Tests
 
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
-                .IgnoreLocalMessages(false)
                 .RegisterHandler<TestContent>(msgType, (content, context) =>
                 {
                     requestAckValue = context.RequestAck;
@@ -76,7 +75,6 @@ namespace Ubicomp.Utils.NET.Tests
             var transportA = new TransportBuilder()
                 .WithMulticastOptions(options1)
                 .WithLocalSource("SourceA")
-                .IgnoreLocalMessages(true)
                 .Build();
 
             // Transport B: Receives message and should Auto-Ack
@@ -84,7 +82,6 @@ namespace Ubicomp.Utils.NET.Tests
                 .WithMulticastOptions(options2)
                 .WithLocalSource("SourceB")
                 .WithAutoSendAcks(true)
-                .IgnoreLocalMessages(true)
                 .RegisterHandler<TestContent>(msgType, (c, ctx) => { /* Just handle it */ })
                 .Build();
 
