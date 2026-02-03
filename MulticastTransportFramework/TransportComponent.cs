@@ -45,7 +45,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private readonly JsonSerializerSettings _jsonSettings;
 
-        private int _currentMessageCons = 0;
+        private int _currentMessageCons = 1;
         private readonly object gate = new object();
 
         /// <summary>Gets or sets the default timeout for acknowledgements.</summary>
@@ -109,8 +109,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             Stop();
 
-            _socket = new MulticastSocket(_socketOptions);
-            _socket.OnNotifyMulticastSocketListener += socket_OnNotifyMulticastSocketListener;
+            _socket = new MulticastSocketBuilder()
+                .WithOptions(_socketOptions)
+                .OnMessageReceived(msg => HandleSocketMessage(msg))
+                .OnError(err => Logger.LogError("Socket Error: {0}. Exception: {1}", err.Message, err.Exception?.Message))
+                .Build();
 
             lock (gate)
             {
@@ -132,7 +135,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             if (_socket != null)
             {
-                _socket.OnNotifyMulticastSocketListener -= socket_OnNotifyMulticastSocketListener;
                 _socket.Close();
                 _socket.Dispose();
                 _socket = null;
@@ -235,48 +237,32 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             SendInternal(ackMessage, null);
         }
 
-        private void socket_OnNotifyMulticastSocketListener(object sender, NotifyMulticastSocketListenerEventArgs e)
+        internal void HandleSocketMessage(SocketMessage msg)
         {
-            if (sender != _socket) return;
-
-            if (e.Type == MulticastSocketMessageType.SendException)
-            {
-                Logger.LogError("Error Sending Message: {0}", e.NewObject);
-                return;
-            }
-
-            if (e.Type == MulticastSocketMessageType.ReceiveException)
-            {
-                Logger.LogError("Error Receiving Message: {0}", e.NewObject);
-                return;
-            }
-
-            if (e.Type != MulticastSocketMessageType.MessageReceived || e.NewObject == null) return;
-
             bool enteredGate = false;
             try
             {
-                GateKeeperMethod(e.Consecutive);
+                GateKeeperMethod(msg.SequenceId);
                 enteredGate = true;
 
-                string sMessage = GetMessageAsString((byte[])e.NewObject);
+                string sMessage = Encoding.UTF8.GetString(msg.Data);
                 TransportMessage? tMessage;
 
                 lock (importLock)
                 {
-                    Logger.LogTrace("Importing message {0}", e.Consecutive);
+                    Logger.LogTrace("Importing message {0}", msg.SequenceId);
                     tMessage = JsonConvert.DeserializeObject<TransportMessage>(sMessage, _jsonSettings);
                 }
 
                 if (tMessage == null)
                 {
-                    Logger.LogWarning("Deserialization failed for message {0}", e.Consecutive);
+                    Logger.LogWarning("Deserialization failed for message {0}", msg.SequenceId);
                     return;
                 }
 
                 if (IgnoreLocalMessages && tMessage.MessageSource.ResourceId == LocalSource.ResourceId)
                 {
-                    Logger.LogTrace("Ignoring local message {0}", e.Consecutive);
+                    Logger.LogTrace("Ignoring local message {0}", msg.SequenceId);
                     return;
                 }
 
@@ -289,7 +275,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     }
                 }
 
-                Logger.LogTrace("Processing message {0}", e.Consecutive);
+                Logger.LogTrace("Processing message {0}", msg.SequenceId);
 
                 bool handled = false;
 
@@ -309,7 +295,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
             catch (Exception ex)
             {
-                Logger.LogError("Error Processing Received Message {0}: {1}", e.Consecutive, ex.Message);
+                Logger.LogError("Error Processing Received Message {0}: {1}", msg.SequenceId, ex.Message);
             }
             finally
             {

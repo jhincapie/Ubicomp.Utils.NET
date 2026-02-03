@@ -1,19 +1,21 @@
 # MulticastSocket Context
 
 ## Project Scope
-**MulticastSocket** is the foundational networking library for the Ubicomp.Utils.NET solution. It wraps standard .NET UDP sockets to provide specific multicast capabilities.
+**MulticastSocket** is the foundational networking library for the Ubicomp.Utils.NET solution. It wraps standard .NET UDP sockets to provide specific multicast capabilities with a modern, fluent API.
 
 ## Key Components
-*   **`MulticastSocket`**: The main class. Handles socket creation, binding, joining multicast groups, and async I/O.
-    *   *Constructor*: Takes Target IP, Port, and TTL.
-    *   *Events*: Uses `NotifyMulticastSocketListener` delegate.
-*   **`IMulticastSocketListener`**: Interface for classes that want to listen to socket events (though the class uses a standard C# event `OnNotifyMulticastSocketListener`).
-*   **`MulticastSocketMessageType`**: Enum defining event types: `SocketStarted`, `MessageReceived`, `ReceiveException`, `MessageSent`, `SendException`.
+*   **`MulticastSocketBuilder`**: The primary entry point for configuration. Use this to set options, filters, and callbacks.
+*   **`MulticastSocket`**: The core engine. Handles socket creation, binding, joining multicast groups, and async I/O.
+    *   *Instantiation*: Via `MulticastSocketBuilder`.
+    *   *Callbacks*: Uses strongly-typed `Action` delegates (`OnMessageReceived`, `OnError`, `OnStarted`).
+*   **`SocketMessage`**: Represents a received packet with data, sequence ID, and timestamp.
+*   **`SocketErrorContext`**: Provides details about runtime exceptions.
 
 ## Implementation Details
-*   **Threading**: Incoming messages are offloaded to the `ThreadPool` before firing events. This ensures the receive loop (`Recieve` -> `ReceiveCallback`) remains responsive.
-*   **Buffer Management**: A `StateObject` class manages buffers. Buffers are copied before being passed to listeners to ensure thread safety.
-*   **Socket Options**: Sets `ReuseAddress` (SO_REUSEADDR) to allow multiple apps to bind the same port on the same machine (useful for testing).
+*   **Threading**: Incoming messages are offloaded to the `ThreadPool` before firing callbacks. This ensures the receive loop remains responsive.
+*   **Buffer Management**: A `StateObject` class manages internal buffers. Data is copied into `SocketMessage` objects before being passed to consumers.
+*   **Sequence ID**: Every received message is assigned a consecutive ID used by higher layers (e.g., `TransportComponent`) to maintain order.
+*   **Socket Options**: Sets `ReuseAddress` (SO_REUSEADDR) to allow multiple apps to bind the same port on the same machine.
 
 ## Usage
-This library is rarely used directly by the end-user application; it is primarily a dependency for the **MulticastTransportFramework**.
+This library is primarily a dependency for the **MulticastTransportFramework**, but can be used directly for low-level byte-based multicast communication.

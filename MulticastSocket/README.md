@@ -1,77 +1,69 @@
 # MulticastSocket
 
-A lightweight .NET wrapper around `System.Net.Sockets.Socket` to simplify multicast UDP communication.
+A lightweight .NET wrapper around `System.Net.Sockets.Socket` to simplify multicast UDP communication with a modern, fluent API.
 
 ## Overview
-The **MulticastSocket** library provides an easy-to-use interface for joining multicast groups, sending messages, and receiving data asynchronously. It abstracts the complexities of raw socket configuration, thread management for callbacks, and buffer handling.
+The **MulticastSocket** library provides a clean, asynchronous interface for joining multicast groups, sending byte arrays, and receiving data. It abstracts raw socket complexity while ensuring strict message ordering via sequence IDs.
 
 ## Class Diagram
 ![MulticastSocket Class Diagram](assets/class_diagram.png)
 
 ## Features
-- **Simplified Setup**: Configures TTL, Loopback, and Bind options automatically.
-- **Cross-Platform**: Handles platform-specific socket options gracefully (e.g., skips `NoDelay` on Linux/UDP where unsupported).
-- **Asynchronous I/O**: Uses `BeginReceiveFrom` and `BeginSendTo` for non-blocking operations.
-- **Threaded Events**: Dispatches events (`OnNotifyMulticastSocketListener`) on the `ThreadPool` to avoid blocking the network thread.
-- **Error Handling**: Captures and reports socket exceptions via events.
+- **Fluent Builder API**:guided setup for network options and callbacks.
+- **Strongly-Typed Callbacks**: Clean `Action` based events for messages, errors, and status.
+- **Ordered Metadata**: Every message carries a `SequenceId` and `Timestamp`.
+- **Cross-Platform**: Handles platform-specific socket options automatically.
+- **Asynchronous I/O**: High-performance, non-blocking receive and send loops.
 
 ## Usage
 
-### Initialization
+### Initialization & Receiving
+Use the `MulticastSocketBuilder` to configure your connection and register handlers.
+
 ```csharp
 using Ubicomp.Utils.NET.Sockets;
 
-// Initialize: GroupAddress (Optional, defaults to 239.0.0.1), Port (Optional, defaults to 5000)
-MulticastSocketOptions options = MulticastSocketOptions.LocalNetwork(port: 5000);
-MulticastSocket mSocket = new MulticastSocket(options);
-```
-
-### Receiving Messages
-```csharp
-mSocket.OnNotifyMulticastSocketListener += (sender, e) => {
-    switch (e.Type)
+var socket = new MulticastSocketBuilder()
+    .WithLocalNetwork(port: 5000)
+    .OnMessageReceived(msg => 
     {
-        case MulticastSocketMessageType.MessageReceived:
-            byte[] data = (byte[])e.NewObject;
-            Console.WriteLine($"Received {data.Length} bytes.");
-            break;
-        case MulticastSocketMessageType.SocketStarted:
-            Console.WriteLine("Listening...");
-            break;
-    }
-};
+        Console.WriteLine($"Received {msg.Data.Length} bytes. Seq: {msg.SequenceId}");
+    })
+    .OnError(err => Console.Error.WriteLine($"Socket Error: {err.Message}"))
+    .OnStarted(() => Console.WriteLine("Socket listening..."))
+    .Build();
 
-mSocket.StartReceiving();
+socket.StartReceiving();
 ```
 
 ### Sending Messages
 ```csharp
-mSocket.Send("Hello Multicast!");
+// Send raw bytes
+byte[] data = Encoding.UTF8.GetBytes("Hello Multicast!");
+socket.Send(data);
+
+// Or use the string overload
+socket.Send("Hello Multicast!");
 ```
 
 ### Advanced Configuration
-You can fine-tune the socket behavior using `MulticastSocketOptions`:
+Fine-tune behavior via `MulticastSocketOptions`:
 
 ```csharp
-// Factory methods validate basic settings (GroupAddress, Port) internally
-var options = MulticastSocketOptions.LocalNetwork("239.0.0.2", 5000);
-options.TimeToLive = 2;
-options.ReuseAddress = true;
-options.NoDelay = true;
+var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.2", 5000, ttl: 2);
 options.ReceiveBufferSize = 65536;
-
-// Join only the loopback interface for testing
 options.InterfaceFilter = addr => IPAddress.IsLoopback(addr);
 
-using var socket = new MulticastSocket(options);
+using var socket = new MulticastSocketBuilder()
+    .WithOptions(options)
+    .OnMessageReceived(msg => { /* ... */ })
+    .Build();
 ```
 
-The options object also provides a `Validate()` method (called automatically by factory methods and the `MulticastSocket` constructor) to ensure your settings are correct.
-
 ## Implementation Details
-- **Multicast Group Management**: Automatically joins all valid IPv4 interfaces by default.
-- **Buffer Management**: Uses a `StateObject` with a internal buffer to manage asynchronous receives.
-- **Socket Options**: Sets `ReuseAddress` to allow multiple applications to share the same port.
+- **Threading**: Callbacks are dispatched on the `ThreadPool` to keep the receive loop responsive.
+- **Sequence Management**: A monotonically increasing ID is assigned to each packet upon arrival.
+- **Interface Management**: Automatically joins all valid multicast-capable IPv4 interfaces unless a filter is provided.
 
 ## Dependencies
 - `System.Net`

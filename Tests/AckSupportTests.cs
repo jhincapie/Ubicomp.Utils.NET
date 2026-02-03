@@ -102,28 +102,6 @@ namespace Ubicomp.Utils.NET.Tests
             var tc = new TransportComponent(options);
             tc.IgnoreLocalMessages = false;
             
-            // Reflection to setup tc
-            var socketField = typeof(TransportComponent).GetField("_socket", BindingFlags.Instance | BindingFlags.NonPublic);
-            var mockSocket = new MulticastSocket(options);
-            socketField?.SetValue(tc, mockSocket);
-
-            var currentConsField = typeof(TransportComponent).GetField("_currentMessageCons", BindingFlags.Instance | BindingFlags.NonPublic);
-            var gateField = typeof(TransportComponent).GetField("gate", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (currentConsField != null && gateField != null)
-            {
-                var gateObj = gateField.GetValue(tc);
-                if (gateObj != null)
-                {
-                    lock (gateObj)
-                    {
-                        currentConsField.SetValue(tc, 1);
-                        Monitor.PulseAll(gateObj);
-                    }
-                }
-            }
-
-            var handlerMethod = typeof(TransportComponent).GetMethod("socket_OnNotifyMulticastSocketListener", BindingFlags.Instance | BindingFlags.NonPublic);
-
             // Register a dummy type for sending
             tc.RegisterHandler<AckMessageContent>(1, (c, ctx) => {});
             var session = tc.Send(new AckMessageContent(), new SendOptions { RequestAck = true });
@@ -140,10 +118,8 @@ namespace Ubicomp.Utils.NET.Tests
             string ackJson = JsonConvert.SerializeObject(ackMsg, settings);
             byte[] ackData = Encoding.UTF8.GetBytes(ackJson);
 
-            var args = new NotifyMulticastSocketListenerEventArgs(MulticastSocketMessageType.MessageReceived, ackData, 1);
-
             // Act
-            handlerMethod?.Invoke(tc, new object[] { mockSocket, args });
+            tc.HandleSocketMessage(new SocketMessage(ackData, 1));
 
             // Assert
             var result = await manualSession.WaitAsync(TimeSpan.FromSeconds(2));
@@ -160,28 +136,6 @@ namespace Ubicomp.Utils.NET.Tests
             var tc = new TransportComponent(options);
             tc.IgnoreLocalMessages = true;
             
-            // Reflection to setup tc
-            var socketField = typeof(TransportComponent).GetField("_socket", BindingFlags.Instance | BindingFlags.NonPublic);
-            var mockSocket = new MulticastSocket(options);
-            socketField?.SetValue(tc, mockSocket);
-
-            var currentConsField = typeof(TransportComponent).GetField("_currentMessageCons", BindingFlags.Instance | BindingFlags.NonPublic);
-            var gateField = typeof(TransportComponent).GetField("gate", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (currentConsField != null && gateField != null)
-            {
-                var gateObj = gateField.GetValue(tc);
-                if (gateObj != null)
-                {
-                    lock (gateObj)
-                    {
-                        currentConsField.SetValue(tc, 1);
-                        Monitor.PulseAll(gateObj);
-                    }
-                }
-            }
-
-            var handlerMethod = typeof(TransportComponent).GetMethod("socket_OnNotifyMulticastSocketListener", BindingFlags.Instance | BindingFlags.NonPublic);
-
             // Create a message from LocalSource
             int msgType = 123;
             var content = new AckMessageContent();
@@ -192,14 +146,12 @@ namespace Ubicomp.Utils.NET.Tests
             string json = JsonConvert.SerializeObject(msg, settings);
             byte[] data = Encoding.UTF8.GetBytes(json);
 
-            var args = new NotifyMulticastSocketListenerEventArgs(MulticastSocketMessageType.MessageReceived, data, 1);
-
             // Register a handler to see if it gets called
             bool handlerCalled = false;
             tc.RegisterHandler<AckMessageContent>(msgType, (c, ctx) => handlerCalled = true);
 
             // Act
-            handlerMethod?.Invoke(tc, new object[] { mockSocket, args });
+            tc.HandleSocketMessage(new SocketMessage(data, 1));
 
             // Assert
             Assert.False(handlerCalled, "Handler should not have been called for a local message when IgnoreLocalMessages is true");

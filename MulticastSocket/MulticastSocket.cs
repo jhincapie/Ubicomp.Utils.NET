@@ -17,51 +17,30 @@ namespace Ubicomp.Utils.NET.Sockets
     /// </summary>
     public class MulticastSocket : IDisposable
     {
-        /// <summary>
-        /// Occurs when the socket status changes or a message is received.
-        /// </summary>
-        public event
-            NotifyMulticastSocketListener? OnNotifyMulticastSocketListener;
-
-        /// <summary>The underlying UDP socket.</summary>
         private Socket? _udpSocket;
-
-        /// <summary>A counter for received messages to maintain
-        /// order.</summary>
         private int _mConsecutive;
-
-        /// <summary>The local endpoint used for receiving data.</summary>
         private EndPoint _localEndPoint = null!;
-
-        /// <summary>The local IP endpoint representation.</summary>
         private IPEndPoint _localIPEndPoint = null!;
-
-        /// <summary>The configuration options for this socket.</summary>
         private readonly MulticastSocketOptions _options;
+        private readonly List<IPAddress> _joinedAddresses = new List<IPAddress>();
 
-        /// <summary>The list of IP addresses successfully joined.</summary>
-        private readonly List<IPAddress> _joinedAddresses =
-            new List<IPAddress>();
+        internal Action<SocketMessage>? OnMessageReceivedAction { get; set; }
+        internal Action<SocketErrorContext>? OnErrorAction { get; set; }
+        internal Action? OnStartedAction { get; set; }
 
         /// <summary>
-        /// Gets the collection of IP addresses that have successfully joined
-        /// the multicast group.
+        /// Gets the collection of IP addresses that have successfully joined the multicast group.
         /// </summary>
         public IEnumerable<IPAddress> JoinedAddresses => _joinedAddresses;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="MulticastSocket"/>
-        /// class using specific options.
+        /// Initializes a new instance of the <see cref="MulticastSocket"/> class.
         /// </summary>
-        /// <param name="options">The configuration options.</param>
-        public MulticastSocket(MulticastSocketOptions options)
+        internal MulticastSocket(MulticastSocketOptions options)
         {
             options.Validate();
-
-            _udpSocket = new Socket(AddressFamily.InterNetwork,
-                                    SocketType.Dgram, ProtocolType.Udp);
+            _udpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             _mConsecutive = 0;
-
             _options = options;
 
             SetupSocket();
@@ -69,12 +48,8 @@ namespace Ubicomp.Utils.NET.Sockets
 
         private void SetupSocket()
         {
-            if (_udpSocket == null)
-                return;
-
-            if (_udpSocket.IsBound)
-                throw new ApplicationException(
-                    "The socket is already bound and receiving.");
+            if (_udpSocket == null) return;
+            if (_udpSocket.IsBound) throw new ApplicationException("The socket is already bound.");
 
             _localIPEndPoint = new IPEndPoint(IPAddress.Any, _options.Port);
             _localEndPoint = (EndPoint)_localIPEndPoint;
@@ -82,9 +57,7 @@ namespace Ubicomp.Utils.NET.Sockets
             SetDefaultSocketOptions();
 
             _udpSocket.Bind(_localIPEndPoint);
-            _udpSocket.SetSocketOption(SocketOptionLevel.IP,
-                                       SocketOptionName.MulticastTimeToLive,
-                                       _options.TimeToLive);
+            _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, _options.TimeToLive);
 
             IPAddress mcastAddr = IPAddress.Parse(_options.GroupAddress);
             _joinedAddresses.Clear();
@@ -94,105 +67,69 @@ namespace Ubicomp.Utils.NET.Sockets
             else if (_options.AutoJoin)
                 JoinAllInterfaces(mcastAddr);
 
-            NotifyListener(MulticastSocketMessageType.SocketStarted);
+            OnStartedAction?.Invoke();
         }
 
         private void SetDefaultSocketOptions()
         {
-            if (_udpSocket == null)
-                return;
+            if (_udpSocket == null) return;
 
             try
             {
                 if (_options.NoDelay)
-                {
-                    _udpSocket.SetSocketOption(SocketOptionLevel.Udp,
-                                               SocketOptionName.NoDelay, 1);
-                }
+                    _udpSocket.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoDelay, 1);
             }
-            catch (SocketException)
-            {
-            }
+            catch (SocketException) { }
 
             if (_options.ReuseAddress)
-            {
-                _udpSocket.SetSocketOption(SocketOptionLevel.Socket,
-                                           SocketOptionName.ReuseAddress, 1);
-            }
+                _udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 1);
 
             if (_options.MulticastLoopback)
-            {
-                _udpSocket.SetSocketOption(SocketOptionLevel.IP,
-                                           SocketOptionName.MulticastLoopback, 1);
-            }
+                _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, 1);
 
             if (_options.DontFragment)
-            {
-                _udpSocket.SetSocketOption(SocketOptionLevel.IP,
-                                           SocketOptionName.DontFragment, 1);
-            }
+                _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.DontFragment, 1);
 
             if (_options.ReceiveBufferSize > 0)
-            {
                 _udpSocket.ReceiveBufferSize = _options.ReceiveBufferSize;
-            }
 
             if (_options.SendBufferSize > 0)
-            {
                 _udpSocket.SendBufferSize = _options.SendBufferSize;
-            }
         }
 
-        private void JoinSpecificInterface(IPAddress mcastAddr,
-                                           IPAddress localAddr)
+        private void JoinSpecificInterface(IPAddress mcastAddr, IPAddress localAddr)
         {
-            if (_udpSocket == null)
-                return;
+            if (_udpSocket == null) return;
 
-            _udpSocket.SetSocketOption(
-                SocketOptionLevel.IP, SocketOptionName.AddMembership,
-                new MulticastOption(mcastAddr, localAddr));
+            _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, localAddr));
             _joinedAddresses.Add(localAddr);
 
             try
             {
-                _udpSocket.SetSocketOption(SocketOptionLevel.IP,
-                                           SocketOptionName.MulticastInterface,
-                                           localAddr.GetAddressBytes());
+                _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, localAddr.GetAddressBytes());
             }
-            catch (SocketException)
-            {
-            }
+            catch (SocketException) { }
         }
 
         private void JoinAllInterfaces(IPAddress mcastAddr)
         {
-            var validAddresses =
-                NetworkInterface.GetAllNetworkInterfaces()
+            var validAddresses = NetworkInterface.GetAllNetworkInterfaces()
                     .Where(ni => ni.OperationalStatus == OperationalStatus.Up &&
-                                 (ni.SupportsMulticast ||
-                                  ni.NetworkInterfaceType ==
-                                      NetworkInterfaceType.Loopback))
+                                 (ni.SupportsMulticast || ni.NetworkInterfaceType == NetworkInterfaceType.Loopback))
                     .SelectMany(ni => ni.GetIPProperties().UnicastAddresses)
-                    .Where(addr => addr.Address.AddressFamily ==
-                                   AddressFamily.InterNetwork)
+                    .Where(addr => addr.Address.AddressFamily == AddressFamily.InterNetwork)
                     .Select(addr => addr.Address);
 
             foreach (var addr in validAddresses)
             {
-                if (_options.InterfaceFilter != null && !_options.InterfaceFilter(addr))
-                    continue;
+                if (_options.InterfaceFilter != null && !_options.InterfaceFilter(addr)) continue;
 
                 try
                 {
-                    _udpSocket?.SetSocketOption(
-                        SocketOptionLevel.IP, SocketOptionName.AddMembership,
-                        new MulticastOption(mcastAddr, addr));
+                    _udpSocket?.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, addr));
                     _joinedAddresses.Add(addr);
                 }
-                catch (SocketException)
-                {
-                }
+                catch (SocketException) { }
             }
 
             if (_options.InterfaceFilter == null || _options.InterfaceFilter(IPAddress.Any))
@@ -206,178 +143,90 @@ namespace Ubicomp.Utils.NET.Sockets
         {
             try
             {
-                _udpSocket?.SetSocketOption(
-                    SocketOptionLevel.IP, SocketOptionName.AddMembership,
-                    new MulticastOption(mcastAddr, IPAddress.Any));
+                _udpSocket?.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, IPAddress.Any));
                 if (!_joinedAddresses.Any(a => a.Equals(IPAddress.Any)))
                     _joinedAddresses.Add(IPAddress.Any);
             }
-            catch (SocketException)
-            {
-            }
+            catch (SocketException) { }
         }
 
         private void SetMulticastInterfaceToAny()
         {
             try
             {
-                _udpSocket?.SetSocketOption(SocketOptionLevel.IP,
-                                           SocketOptionName.MulticastInterface,
-                                           IPAddress.Any.GetAddressBytes());
+                _udpSocket?.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, IPAddress.Any.GetAddressBytes());
             }
-            catch (SocketException)
-            {
-            }
+            catch (SocketException) { }
         }
 
         public void StartReceiving()
         {
-            if (OnNotifyMulticastSocketListener == null)
-                throw new ApplicationException(
-                    "No socket listener has been specified.");
-
-            if (_udpSocket == null)
-                throw new ApplicationException("Socket is not initialized.");
-
+            if (_udpSocket == null) throw new ApplicationException("Socket is not initialized.");
             Receive(new StateObject { WorkSocket = _udpSocket });
         }
 
         private void Receive(StateObject state)
         {
-            if (_udpSocket == null)
-                return;
-
-            state.WorkSocket.BeginReceiveFrom(
-                state.Buffer, 0, StateObject.BufferSize, 0, ref _localEndPoint,
-                ReceiveCallback, state);
+            if (_udpSocket == null) return;
+            state.WorkSocket.BeginReceiveFrom(state.Buffer, 0, StateObject.BufferSize, 0, ref _localEndPoint, ReceiveCallback, state);
         }
 
         private void ReceiveCallback(IAsyncResult ar)
         {
-            if (!(ar.AsyncState is StateObject state))
-                return;
+            if (!(ar.AsyncState is StateObject state)) return;
 
             try
             {
-                int bytesRead =
-                    state.WorkSocket.EndReceiveFrom(ar, ref _localEndPoint);
-
+                int bytesRead = state.WorkSocket.EndReceiveFrom(ar, ref _localEndPoint);
                 byte[] bufferCopy = new byte[bytesRead];
                 Array.Copy(state.Buffer, 0, bufferCopy, 0, bytesRead);
 
-                NotifyListener(MulticastSocketMessageType.MessageReceived,
-                               bufferCopy, ++_mConsecutive);
+                var msg = new SocketMessage(bufferCopy, ++_mConsecutive);
+                OnMessageReceivedAction?.Invoke(msg);
+
                 Receive(state);
             }
-            catch (SocketException se) when (se.SocketErrorCode == SocketError.OperationAborted ||
-                                             se.SocketErrorCode == SocketError.Interrupted)
-            {
-                // Expected when socket is closed
-            }
-            catch (ObjectDisposedException)
-            {
-                // Expected when socket is closed
-            }
+            catch (SocketException se) when (se.SocketErrorCode == SocketError.OperationAborted || se.SocketErrorCode == SocketError.Interrupted) { }
+            catch (ObjectDisposedException) { }
             catch (Exception e)
             {
-                Console.Error.WriteLine(e);
-                NotifyListener(MulticastSocketMessageType.ReceiveException, e);
-                if (state != null)
-                {
-                    try
-                    {
-                        Receive(state);
-                    }
-                    catch
-                    {
-                    }
-                }
-                else
-                {
-                    try
-                    {
-                        StartReceiving();
-                    }
-                    catch
-                    {
-                    }
-                }
+                OnErrorAction?.Invoke(new SocketErrorContext("Error during receive.", e));
+                try { Receive(state); } catch { }
             }
         }
 
         public void Send(string sendData)
         {
-            if (_udpSocket == null)
-                return;
-
+            if (_udpSocket == null) return;
             byte[] bytesToSend = Encoding.UTF8.GetBytes(sendData);
-            var remoteEndPoint =
-                new IPEndPoint(IPAddress.Parse(_options.GroupAddress), _options.Port);
+            Send(bytesToSend);
+        }
 
-            _udpSocket.BeginSendTo(bytesToSend, 0, bytesToSend.Length,
-                                   SocketFlags.None, remoteEndPoint,
-                                   SendCallback, _udpSocket);
+        public void Send(byte[] bytesToSend)
+        {
+            if (_udpSocket == null) return;
+            var remoteEndPoint = new IPEndPoint(IPAddress.Parse(_options.GroupAddress), _options.Port);
+            _udpSocket.BeginSendTo(bytesToSend, 0, bytesToSend.Length, SocketFlags.None, remoteEndPoint, SendCallback, _udpSocket);
         }
 
         private void SendCallback(IAsyncResult ar)
         {
             try
             {
-                if (!(ar.AsyncState is Socket client))
-                    return;
-
-                int bytesSent = client.EndSendTo(ar);
-                NotifyListener(MulticastSocketMessageType.MessageSent,
-                               bytesSent);
+                if (!(ar.AsyncState is Socket client)) return;
+                client.EndSendTo(ar);
             }
             catch (Exception e)
             {
-                Console.Error.WriteLine(e);
-                NotifyListener(MulticastSocketMessageType.SendException, e);
+                OnErrorAction?.Invoke(new SocketErrorContext("Error during send.", e));
             }
         }
 
-        private void NotifyListener(MulticastSocketMessageType type,
-                                    object? obj = null, int consecutive = 0)
-        {
-            ThreadPool.QueueUserWorkItem(
-                _ =>
-                {
-                    try
-                    {
-                        var handler = OnNotifyMulticastSocketListener;
-                        if (handler == null)
-                            return;
-
-                        handler(this,
-                                new NotifyMulticastSocketListenerEventArgs(
-                                    type, obj, consecutive));
-                    }
-                    catch (Exception e)
-                    {
-                        Console.Error.WriteLine(e);
-                    }
-                });
-        }
-
-        /// <summary>
-        /// Closes the underlying socket and stops any ongoing operations.
-        /// </summary>
         public void Close()
         {
-            try
-            {
-                _udpSocket?.Close();
-            }
-            catch (Exception e)
-            {
-                Console.Error.WriteLine(e);
-            }
+            try { _udpSocket?.Close(); } catch { }
         }
 
-        /// <summary>
-        /// Disposes the socket resources.
-        /// </summary>
         public void Dispose()
         {
             Close();

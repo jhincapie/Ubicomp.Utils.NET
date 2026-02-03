@@ -2,7 +2,6 @@
 using System;
 using System.IO;
 using System.Net;
-using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using Microsoft.Extensions.Logging;
@@ -19,15 +18,10 @@ namespace Ubicomp.Utils.NET.Tests
     {
         private const int TestPort = 5000;
 
-        /// <summary>
-        /// Diagnostic test to report firewall status before other tests.
-        /// </summary>
         [Fact]
         [Trait("Category", "Diagnostic")]
         public void A_FirewallCheck()
         {
-            // We name it starting with A_ to encourage alphabetical order in
-            // some runners, or just rely on it being the first one.
             using var factory = Microsoft.Extensions.Logging.LoggerFactory.Create(builder => builder.AddConsole());
             var logger = factory.CreateLogger("FirewallCheck");
 
@@ -35,61 +29,30 @@ namespace Ubicomp.Utils.NET.Tests
             Ubicomp.Utils.NET.MulticastTransportFramework.NetworkDiagnostics.LogFirewallStatus(TestPort, logger);
             logger.LogInformation("-----------------------------------------");
 
-            // This test is for reporting, so we just pass unless we want to
-            // enforce it.
             Assert.True(true);
         }
 
-        /// <summary>
-        /// Validates that the constructor initializes the socket correctly.
-        /// </summary>
         [Fact]
-        public void Constructor_WithOptions_ShouldInitializeCorrectly()
+        public void Builder_ShouldInitializeCorrectly()
         {
-            var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.10", TestPort, 2);
-            options.ReuseAddress = true;
-
-            var socket = new MulticastSocket(options);
-
+            var socket = new MulticastSocketBuilder()
+                .WithWideAreaNetwork("239.0.0.10", TestPort, 2)
+                .OnMessageReceived(_ => { })
+                .Build();
 
             Assert.NotNull(socket);
         }
 
         [Fact]
-        public void Constructor_WithOptions_ShouldApplyOptionsToSocket()
-        {
-            var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.11", TestPort + 1, 5);
-            options.ReuseAddress = true;
-            options.MulticastLoopback = false;
-
-            using var socket = new MulticastSocket(options);
-
-
-            // We can't easily inspect the underlying socket without reflection
-            // But we can verify it was initialized without error.
-            Assert.NotNull(socket);
-        }
-
-        [Fact]
-        public void Constructor_WithOptions_ShouldApplyBufferSizes()
-        {
-            var options = MulticastSocketOptions.LocalNetwork("239.0.0.12", TestPort + 2);
-            options.ReceiveBufferSize = 8192;
-            options.SendBufferSize = 8192;
-
-            using var socket = new MulticastSocket(options);
-
-            Assert.NotNull(socket);
-        }
-
-        [Fact]
-        public void Constructor_WithOptions_ShouldApplyInterfaceFilter()
+        public void Builder_ShouldApplyInterfaceFilter()
         {
             var options = MulticastSocketOptions.LocalNetwork("239.0.0.13", TestPort + 3);
-            // Only join loopback interfaces
             options.InterfaceFilter = addr => IPAddress.IsLoopback(addr);
 
-            using var socket = new MulticastSocket(options);
+            var socket = new MulticastSocketBuilder()
+                .WithOptions(options)
+                .OnMessageReceived(_ => { })
+                .Build();
 
             Assert.NotNull(socket);
             foreach (var joined in socket.JoinedAddresses)
@@ -98,205 +61,76 @@ namespace Ubicomp.Utils.NET.Tests
             }
         }
 
-        /// <summary>
-        /// Validates that StartReceiving throws an exception if no listener is
-        /// registered.
-        /// </summary>
-        [Fact]
-        public void StartReceiving_ShouldThrowIfNoListener()
-        {
-            var options = MulticastSocketOptions.LocalNetwork("239.0.0.2", TestPort);
-            var socket = new MulticastSocket(options);
-
-            Assert.Throws<ApplicationException>(() => socket.StartReceiving());
-        }
-
-        /// <summary>
-        /// Validates that sending and receiving messages via the socket works
-        /// correctly.
-        /// </summary>
         [Fact]
         public void SendAndReceive_ShouldWork()
         {
             string groupAddress = "239.0.0.3";
-            int port = TestPort;
+            int port = TestPort + 10;
             int ttl = 0;
 
-            // Use loopback on Linux for reliable local tests without firewall
-            // interference
-            string? localIP =
-                System.Runtime.InteropServices.RuntimeInformation
-                        .IsOSPlatform(System.Runtime.InteropServices
-                                          .OSPlatform.Linux)
-                    ? "127.0.0.1"
-                    : null;
+            string? localIP = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux) ? "127.0.0.1" : null;
 
             var receiverOptions = MulticastSocketOptions.WideAreaNetwork(groupAddress, port, ttl);
             receiverOptions.LocalIP = localIP;
 
-            using var receiver = new MulticastSocket(receiverOptions);
             string? receivedMessage = null;
             var signal = new ManualResetEvent(false);
 
-            receiver.OnNotifyMulticastSocketListener += (s, e) =>
-            {
-                if (e.Type == MulticastSocketMessageType.MessageReceived)
+            using var receiver = new MulticastSocketBuilder()
+                .WithOptions(receiverOptions)
+                .OnMessageReceived(msg => 
                 {
-                    byte[] data = (byte[])e.NewObject!;
-                    receivedMessage = Encoding.ASCII.GetString(data);
+                    receivedMessage = Encoding.UTF8.GetString(msg.Data);
                     signal.Set();
-                }
-            };
+                })
+                .Build();
 
             receiver.StartReceiving();
-            Thread.Sleep(500); // Wait for bind
+            Thread.Sleep(500);
 
             var senderOptions = MulticastSocketOptions.WideAreaNetwork(groupAddress, port, ttl);
             senderOptions.LocalIP = localIP;
 
-            using var sender = new MulticastSocket(senderOptions);
-            string msg = "Hello World";
-            sender.Send(msg);
+            using var sender = new MulticastSocketBuilder()
+                .WithOptions(senderOptions)
+                .Build();
+
+            string msgStr = "Hello World";
+            sender.Send(msgStr);
 
             Assert.True(signal.WaitOne(2000), "Timed out waiting for message");
-            Assert.Equal(msg, receivedMessage);
+            Assert.Equal(msgStr, receivedMessage);
         }
 
-        /// <summary>
-        /// Validates that UTF-8 messages are correctly received and decoded.
-        /// </summary>
         [Fact]
         public void Send_UTF8Message_ReceivedCorrectly()
         {
-            // Arrange
             string ip = "239.1.2.3";
-            int port = TestPort;
+            int port = TestPort + 11;
             string testMessage = "Héllø Wørld 🛡️";
             string? receivedMessage = null;
             var receivedEvent = new ManualResetEvent(false);
-            // Use 127.0.0.1 for loopback tests on Linux/multi-homed systems, null
-            // for Windows
-            string? localIP =
-                System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
-                    System.Runtime.InteropServices.OSPlatform.Linux)
-                    ? "127.0.0.1"
-                    : null;
+            
+            string? localIP = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux) ? "127.0.0.1" : null;
             var options = MulticastSocketOptions.LocalNetwork(ip, port);
             options.LocalIP = localIP;
 
-            var socket = new MulticastSocket(options);
-
-
-            socket.OnNotifyMulticastSocketListener += (sender, e) =>
-            {
-                Console.WriteLine($"Test Event: {e.Type}");
-                if (e.Type == MulticastSocketMessageType.MessageReceived)
+            using var socket = new MulticastSocketBuilder()
+                .WithOptions(options)
+                .OnMessageReceived(msg => 
                 {
-                    byte[] receivedBytes = (byte[])e.NewObject!;
-                    // Decoding using UTF8 as per our fix
-                    receivedMessage =
-                        Encoding.UTF8.GetString(receivedBytes).Trim('\0');
+                    receivedMessage = Encoding.UTF8.GetString(msg.Data);
                     receivedEvent.Set();
-                }
-                else if (e.Type ==
-                             MulticastSocketMessageType.ReceiveException ||
-                         e.Type == MulticastSocketMessageType.SendException)
-                {
-                    Console.WriteLine(
-                        $"Socket Exception in test: {e.NewObject}");
-                }
-            };
+                })
+                .Build();
 
-            try
-            {
-                socket.StartReceiving();
-            }
-            catch (SocketException)
-            {
-                // Ignore potential NoDelay error for the sake of this test
-            }
+            socket.StartReceiving();
 
-            // Act
             socket.Send(testMessage);
             bool signalReceived = receivedEvent.WaitOne(2000);
 
-            // Assert
             Assert.True(signalReceived, "Timeout waiting for message");
             Assert.Equal(testMessage, receivedMessage);
-        }
-
-        /// <summary>
-        /// Validates that exceptions in listeners are logged to the console
-        /// error stream.
-        /// </summary>
-        [Fact]
-        public void Listener_Exception_IsLoggedToConsoleError()
-        {
-            // Arrange
-            string ip = "239.1.2.4";
-            int port = TestPort;
-
-            // Use 127.0.0.1 for loopback tests on Linux/multi-homed systems, null
-            // for Windows
-            string? localIP =
-                System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
-                    System.Runtime.InteropServices.OSPlatform.Linux)
-                    ? "127.0.0.1"
-                    : null;
-            var options = MulticastSocketOptions.LocalNetwork(ip, port);
-            options.LocalIP = localIP;
-
-            var socket = new MulticastSocket(options);
-
-            // Capture Console.Error
-            var stringWriter = new StringWriter();
-            TextWriter originalError = Console.Error;
-            Console.SetError(stringWriter);
-
-            try
-            {
-                socket.OnNotifyMulticastSocketListener += (sender, e) =>
-                {
-                    if (e.Type == MulticastSocketMessageType.MessageReceived)
-                    {
-                        throw new Exception("Test Exception Swallowing");
-                    }
-                };
-
-                try
-                {
-                    socket.StartReceiving();
-                }
-                catch (SocketException)
-                {
-                }
-
-                // Act
-                socket.Send("Trigger");
-
-                // We need to wait a bit because the log happens in the catch
-                // block of the background thread
-                int retries = 10;
-                while (retries > 0)
-                {
-                    if (stringWriter.ToString().Contains(
-                            "Test Exception Swallowing"))
-                    {
-                        break;
-                    }
-                    Thread.Sleep(200);
-                    retries--;
-                }
-
-                // Assert
-                string errorOutput = stringWriter.ToString();
-                Assert.Contains("Test Exception Swallowing", errorOutput);
-            }
-            finally
-            {
-                Console.SetError(originalError);
-                stringWriter.Dispose();
-            }
         }
     }
 }
