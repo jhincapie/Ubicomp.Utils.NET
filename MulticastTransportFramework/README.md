@@ -42,11 +42,13 @@ var transport = new TransportBuilder()
 transport.Start();
 ```
 
-To disable ordered messaging (e.g., for performance-critical applications that handle their own sequencing), set `EnforceOrdering` to `false` in the options:
+To enable ordered messaging (guaranteeing that messages are dispatched to handlers in the exact order they were assigned by the socket layer), set `EnforceOrdering` to `true` in the options:
 
 ```csharp
-options.EnforceOrdering = false;
+options.EnforceOrdering = true;
 ```
+
+When enabled, the internal **GateKeeper** uses a buffering strategy and a recovery timeout (defaulting to 500ms) to handle out-of-order arrivals and sequence gaps.
 
 ### 2. Sending Messages
 Send any object directly. The framework handles the envelope and ID mapping.

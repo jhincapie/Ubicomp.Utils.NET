@@ -15,6 +15,7 @@ namespace Ubicomp.Utils.NET.Tests
         {
             // Arrange
             var options = MulticastSocketOptions.LocalNetwork();
+            options.EnforceOrdering = true;
             var transport = new TransportComponent(options);
             transport.GateKeeperTimeout = TimeSpan.FromMilliseconds(200);
             

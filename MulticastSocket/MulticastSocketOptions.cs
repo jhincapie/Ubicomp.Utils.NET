@@ -59,10 +59,10 @@ namespace Ubicomp.Utils.NET.Sockets
 
         /// <summary>
         /// Whether to enforce strict message ordering via the GateKeeper.
-        /// When true (default), messages are processed sequentially based on sequence IDs.
-        /// When false, messages are processed immediately as they arrive.
+        /// When true, messages are processed sequentially based on sequence IDs.
+        /// When false (default), messages are processed immediately as they arrive.
         /// </summary>
-        public bool EnforceOrdering { get; set; } = true;
+        public bool EnforceOrdering { get; set; } = false;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="MulticastSocketOptions"/> class.
