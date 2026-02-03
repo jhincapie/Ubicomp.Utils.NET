@@ -15,7 +15,7 @@
 2.  **Conversion**: Bytes are converted to a UTF-8 string.
 3.  **Deserialization**: `Newtonsoft.Json` deserializes the string into a `TransportMessage` "envelope" object.
     *   **Polymorphism**: The internal `TransportMessageConverter` handles the concrete type of the `MessageData` property based on the registered ID.
-4.  **GateKeeper**: A synchronization mechanism (`GateKeeperMethod`) ensures strict sequential processing of messages, preserving the order assigned by the socket layer.
+4.  **GateKeeper**: A synchronization mechanism ensures sequential processing of messages, preserving the order assigned by the socket layer. It employs a buffering strategy for out-of-order messages and a recovery timeout (`GateKeeperTimeout`) to automatically advance the sequence if a message is lost, preventing deadlocks.
 5.  **Dispatch**:
     *   Strongly-typed handlers receive the data POCO and a `MessageContext`.
     *   Legacy `ITransportListener`s receive the full `TransportMessage`.

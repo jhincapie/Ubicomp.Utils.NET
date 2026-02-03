@@ -81,7 +81,7 @@ A lightweight object passed to handlers that contains metadata about the message
 - `RequestAck`: Whether the sender expects a confirmation.
 
 ### Ordered Messaging (GateKeeper)
-UDP multicast does not guarantee packet order. The framework ensures that messages are dispatched to handlers in the exact order they were assigned by the socket layer, preventing race conditions in state-sensitive applications.
+UDP multicast does not guarantee packet order. The framework ensures that messages are dispatched to handlers in the exact order they were assigned by the socket layer. The internal **GateKeeper** uses a buffering strategy and a recovery timeout (defaulting to 500ms) to handle out-of-order arrivals and sequence gaps, ensuring robustness against packet loss while maintaining state consistency.
 
 ## Dependencies
 - `MulticastSocket`
