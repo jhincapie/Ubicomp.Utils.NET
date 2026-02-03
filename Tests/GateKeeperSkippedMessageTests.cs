@@ -43,9 +43,37 @@ namespace Ubicomp.Utils.NET.Tests
             // Assert
             bool received = msg2Processed.WaitOne(2000);
             
-            // This is EXPECTED to fail (received == false) with the current implementation.
-            // We use this test to confirm the vulnerability.
             Assert.True(received, "GateKeeper hung because message 1 was skipped.");
+        }
+
+        [Fact]
+        public void GateKeeper_ShouldProcessImmediately_WhenOrderingDisabled()
+        {
+            // Arrange
+            var options = MulticastSocketOptions.LocalNetwork();
+            options.EnforceOrdering = false;
+            var transport = new TransportComponent(options);
+            
+            var msg2Processed = new ManualResetEvent(false);
+            int msgType = 101;
+            transport.RegisterHandler<string>(msgType, (data, ctx) => {
+                if (data == "msg2") msg2Processed.Set();
+            });
+
+            // Act
+            var source = new EventSource(Guid.NewGuid(), "TestSource");
+            var transportMsg = new TransportMessage(source, msgType, "msg2");
+            string json = Newtonsoft.Json.JsonConvert.SerializeObject(transportMsg, new Newtonsoft.Json.JsonSerializerSettings {
+                Converters = { new TransportMessageConverter() }
+            });
+            byte[] data = System.Text.Encoding.UTF8.GetBytes(json);
+
+            // We send message 2 immediately. It should be processed without waiting for 1.
+            transport.HandleSocketMessage(new SocketMessage(data, 2));
+
+            // Assert
+            bool received = msg2Processed.WaitOne(100); // Should be almost instant
+            Assert.True(received, "Message 2 was not processed immediately when ordering was disabled.");
         }
     }
 }

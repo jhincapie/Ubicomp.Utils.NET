@@ -58,6 +58,13 @@ namespace Ubicomp.Utils.NET.Sockets
         public bool AutoJoin { get; set; } = true;
 
         /// <summary>
+        /// Whether to enforce strict message ordering via the GateKeeper.
+        /// When true (default), messages are processed sequentially based on sequence IDs.
+        /// When false, messages are processed immediately as they arrive.
+        /// </summary>
+        public bool EnforceOrdering { get; set; } = true;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="MulticastSocketOptions"/> class.
         /// </summary>
         /// <param name="groupAddress">The multicast group IP address.</param>

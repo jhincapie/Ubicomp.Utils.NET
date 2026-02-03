@@ -254,100 +254,107 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             SendInternal(ackMessage, null);
         }
 
-        internal void HandleSocketMessage(SocketMessage msg)
-        {
-            bool shouldStartTimeout;
-            bool shouldProcessNow;
-
-            lock (gate)
-            {
-                if (_isStopping) return;
-
-                if (msg.SequenceId > _currentMessageCons)
+                internal void HandleSocketMessage(SocketMessage msg)
                 {
-                    _waitingMessages[msg.SequenceId] = msg;
-                    shouldStartTimeout = true;
-                    shouldProcessNow = false;
-                }
-                else if (msg.SequenceId == _currentMessageCons)
-                {
-                    shouldStartTimeout = false;
-                    shouldProcessNow = true;
-                }
-                else
-                {
-                    Logger.LogWarning("Received late message {0} (current is {1}). Ignoring.", msg.SequenceId, _currentMessageCons);
-                    return;
-                }
-            }
-
-            if (shouldProcessNow)
-            {
-                ProcessMessageAndSequence(msg);
-            }
-            else if (shouldStartTimeout)
-            {
-                // Start a task to wait and then jump if necessary
-                _ = Task.Run(async () =>
-                {
-                    await Task.Delay(GateKeeperTimeout);
-                    SocketMessage? nextToProcess = null;
+                    if (!_socketOptions.EnforceOrdering)
+                    {
+                        ProcessSingleMessage(msg);
+                        return;
+                    }
+        
+                    bool shouldStartTimeout;
+                    bool shouldProcessNow;
+        
                     lock (gate)
                     {
                         if (_isStopping) return;
-                        
-                        // If the message we were waiting for still hasn't arrived
+        
                         if (msg.SequenceId > _currentMessageCons)
                         {
-                            Logger.LogWarning("Sequence gap detected. Timed out waiting for message {0}. Jumping to {1}.", _currentMessageCons, msg.SequenceId);
-                            _currentMessageCons = msg.SequenceId;
-                            if (_waitingMessages.TryGetValue(_currentMessageCons, out nextToProcess))
-                            {
-                                _waitingMessages.Remove(_currentMessageCons);
-                            }
+                            _waitingMessages[msg.SequenceId] = msg;
+                            shouldStartTimeout = true;
+                            shouldProcessNow = false;
+                        }
+                        else if (msg.SequenceId == _currentMessageCons)
+                        {
+                            shouldStartTimeout = false;
+                            shouldProcessNow = true;
+                        }
+                        else
+                        {
+                            Logger.LogWarning("Received late message {0} (current is {1}). Ignoring.", msg.SequenceId, _currentMessageCons);
+                            return;
                         }
                     }
-                    if (nextToProcess != null)
+        
+                    if (shouldProcessNow)
                     {
-                        ProcessMessageAndSequence(nextToProcess);
+                        ProcessMessageAndSequence(msg);
                     }
-                });
-            }
-        }
-
-        private void ProcessMessageAndSequence(SocketMessage initialMsg)
-        {
-            SocketMessage? currentMsg = initialMsg;
-
-            while (currentMsg != null)
-            {
-                try
-                {
-                    string sMessage = Encoding.UTF8.GetString(currentMsg.Data);
-                    TransportMessage? tMessage;
-
-                    lock (importLock)
+                    else if (shouldStartTimeout)
                     {
-                        Logger.LogTrace("Importing message {0}", currentMsg.SequenceId);
-                        tMessage = JsonConvert.DeserializeObject<TransportMessage>(sMessage, _jsonSettings);
-                    }
-
-                    if (tMessage != null)
-                    {
-                        ProcessTransportMessage(tMessage, currentMsg.SequenceId);
+                        // Start a task to wait and then jump if necessary
+                        _ = Task.Run(async () =>
+                        {
+                            await Task.Delay(GateKeeperTimeout);
+                            SocketMessage? nextToProcess = null;
+                            lock (gate)
+                            {
+                                if (_isStopping) return;
+        
+                                // If the message we were waiting for still hasn't arrived
+                                if (msg.SequenceId > _currentMessageCons)
+                                {
+                                    Logger.LogWarning("Sequence gap detected. Timed out waiting for message {0}. Jumping to {1}.", _currentMessageCons, msg.SequenceId);
+                                    _currentMessageCons = msg.SequenceId;
+                                    if (_waitingMessages.TryGetValue(_currentMessageCons, out nextToProcess))
+                                    {
+                                        _waitingMessages.Remove(_currentMessageCons);
+                                    }
+                                }
+                            }
+                            if (nextToProcess != null)
+                            {
+                                ProcessMessageAndSequence(nextToProcess);
+                            }
+                        });
                     }
                 }
-                catch (Exception ex)
+        
+                private void ProcessSingleMessage(SocketMessage msg)
                 {
-                    Logger.LogError("Error Processing Received Message {0}: {1}", currentMsg.SequenceId, ex.Message);
+                    try
+                    {
+                        string sMessage = Encoding.UTF8.GetString(msg.Data);
+                        TransportMessage? tMessage;
+        
+                        lock (importLock)
+                        {
+                            Logger.LogTrace("Importing message {0}", msg.SequenceId);
+                            tMessage = JsonConvert.DeserializeObject<TransportMessage>(sMessage, _jsonSettings);
+                        }
+        
+                        if (tMessage != null)
+                        {
+                            ProcessTransportMessage(tMessage, msg.SequenceId);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError("Error Processing Received Message {0}: {1}", msg.SequenceId, ex.Message);
+                    }
                 }
-                finally
+        
+                private void ProcessMessageAndSequence(SocketMessage initialMsg)
                 {
-                    currentMsg = NudgeGateAndGetNext();
+                    SocketMessage? currentMsg = initialMsg;
+        
+                    while (currentMsg != null)
+                    {
+                        ProcessSingleMessage(currentMsg);
+                        currentMsg = NudgeGateAndGetNext();
+                    }
                 }
-            }
-        }
-
         private void ProcessTransportMessage(TransportMessage tMessage, int sequenceId)
         {
             if (IgnoreLocalMessages && tMessage.MessageSource.ResourceId == LocalSource.ResourceId)

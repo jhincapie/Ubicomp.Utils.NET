@@ -42,6 +42,12 @@ var transport = new TransportBuilder()
 transport.Start();
 ```
 
+To disable ordered messaging (e.g., for performance-critical applications that handle their own sequencing), set `EnforceOrdering` to `false` in the options:
+
+```csharp
+options.EnforceOrdering = false;
+```
+
 ### 2. Sending Messages
 Send any object directly. The framework handles the envelope and ID mapping.
 
