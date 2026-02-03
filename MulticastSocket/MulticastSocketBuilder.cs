@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Net;
+using Microsoft.Extensions.Logging;
 
 namespace Ubicomp.Utils.NET.Sockets
 {
@@ -13,6 +14,7 @@ namespace Ubicomp.Utils.NET.Sockets
         private Action<SocketMessage>? _onMessageReceived;
         private Action<SocketErrorContext>? _onError;
         private Action? _onStarted;
+        private ILogger? _logger;
 
         /// <summary>
         /// Configures the socket for a local network.
@@ -69,6 +71,24 @@ namespace Ubicomp.Utils.NET.Sockets
         }
 
         /// <summary>
+        /// Sets the logger factory for the socket.
+        /// </summary>
+        public MulticastSocketBuilder WithLogging(ILoggerFactory loggerFactory)
+        {
+            _logger = loggerFactory.CreateLogger<MulticastSocket>();
+            return this;
+        }
+
+        /// <summary>
+        /// Sets a specific logger for the socket.
+        /// </summary>
+        public MulticastSocketBuilder WithLogger(ILogger logger)
+        {
+            _logger = logger;
+            return this;
+        }
+
+        /// <summary>
         /// Builds the <see cref="MulticastSocket"/>.
         /// </summary>
         public MulticastSocket Build()
@@ -76,7 +96,7 @@ namespace Ubicomp.Utils.NET.Sockets
             if (_options == null)
                 throw new InvalidOperationException("Socket options must be configured.");
 
-            var socket = new MulticastSocket(_options)
+            var socket = new MulticastSocket(_options, _logger)
             {
                 OnMessageReceivedAction = _onMessageReceived,
                 OnErrorAction = _onError,

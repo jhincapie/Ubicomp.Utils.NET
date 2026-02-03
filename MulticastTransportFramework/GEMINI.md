@@ -7,7 +7,7 @@
 *   **Strongly-Typed Messaging**: Generic `Send<T>` (synchronous) and `SendAsync<T>` (modern Task-based) methods handle internal serialization and routing.
 *   **POCO Support**: Any class can be used as message content; no marker interface is required.
 *   **Serialization**: Uses `Newtonsoft.Json` to convert between .NET objects and JSON strings.
-*   **Logging**: Uses `Microsoft.Extensions.Logging.ILogger`, typically injected via the builder.
+*   **Diagnostic Transparency**: Uses `Microsoft.Extensions.Logging.ILogger` across both the transport and socket layers, providing end-to-end visibility into the communication lifecycle.
 *   **Message Routing**: Dispatches messages to strongly-typed handlers or legacy `ITransportListener`s based on their `MessageType` integer ID.
 
 ## Core Logic

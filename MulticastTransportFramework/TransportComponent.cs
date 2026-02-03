@@ -113,14 +113,22 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             Stop();
 
-            _socket = new MulticastSocketBuilder()
+            var builder = new MulticastSocketBuilder()
                 .WithOptions(_socketOptions)
                 .OnMessageReceived(msg => HandleSocketMessage(msg))
                 .OnError(err => Logger.LogError(
                     "Socket Error: {0}. Exception: {1}",
                     err.Message,
-                    err.Exception?.Message))
-                .Build();
+                    err.Exception?.Message));
+
+            // If we have a logger, we should try to get the factory to pass it down, 
+            // but TransportComponent currently only holds ILogger.
+            // Let's assume for now we might want to pass the Logger directly if we can,
+            // or better, update TransportComponent to optionally hold the factory.
+            // Given the current structure, let's pass the Logger to the socket.
+            builder.WithLogger(Logger);
+
+            _socket = builder.Build();
 
             lock (gate)
             {
