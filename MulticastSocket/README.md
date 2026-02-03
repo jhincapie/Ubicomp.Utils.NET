@@ -8,6 +8,9 @@ The **MulticastSocket** library provides a clean, asynchronous interface for joi
 ## Class Diagram
 ![MulticastSocket Class Diagram](assets/class_diagram.png)
 
+## Message Flow
+![MulticastSocket Message Flow](assets/message_flow_diagram.png)
+
 ## Features
 - **Fluent Builder API**:guided setup for network options and callbacks.
 - **Strongly-Typed Callbacks**: Clean `Action` based events for messages, errors, and status.
