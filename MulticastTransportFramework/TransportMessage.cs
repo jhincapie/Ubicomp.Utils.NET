@@ -37,7 +37,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public bool RequestAck { get; set; }
 
         /// <summary>Gets or sets the actual content of the message.</summary>
-        public ITransportMessageContent MessageData { get; set; } = null!;
+        public object MessageData { get; set; } = null!;
 
         /// <summary>Gets or sets the message timestamp.</summary>
         public string TimeStamp { get; set; } = string.Empty;
@@ -60,7 +60,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// <param name="type">The type of the message.</param>
         /// <param name="data">The message data.</param>
         public TransportMessage(EventSource source, int type,
-                                ITransportMessageContent data)
+                                object data)
             : this()
         {
             MessageSource = source;

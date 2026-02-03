@@ -83,25 +83,28 @@ namespace Ubicomp.Utils.NET.Tests
         [Fact]
         public void TransportComponent_Send_ShouldReturnAckSession()
         {
-            var tc = TransportComponent.Instance;
-            var msg = new TransportMessage { RequestAck = true };
+            var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1);
+            var tc = new TransportComponent(options);
             
-            var session = tc.Send(msg);
+            // Register a dummy type for sending
+            tc.RegisterHandler<AckMessageContent>(1, (c, ctx) => {});
+
+            var session = tc.Send(new AckMessageContent(), new SendOptions { RequestAck = true });
             
             Assert.NotNull(session);
-            Assert.Equal(msg.MessageId, session.OriginalMessageId);
         }
 
         [Fact]
         public async Task TransportComponent_AckProcessing_Simulation()
         {
             // Arrange
-            var tc = TransportComponent.Instance;
+            var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1);
+            var tc = new TransportComponent(options);
             tc.IgnoreLocalMessages = false;
             
             // Reflection to setup tc
             var socketField = typeof(TransportComponent).GetField("_socket", BindingFlags.Instance | BindingFlags.NonPublic);
-            var mockSocket = new MulticastSocket(MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1));
+            var mockSocket = new MulticastSocket(options);
             socketField?.SetValue(tc, mockSocket);
 
             var currentConsField = typeof(TransportComponent).GetField("_currentMessageCons", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -121,11 +124,14 @@ namespace Ubicomp.Utils.NET.Tests
 
             var handlerMethod = typeof(TransportComponent).GetMethod("socket_OnNotifyMulticastSocketListener", BindingFlags.Instance | BindingFlags.NonPublic);
 
-            var msg = new TransportMessage { RequestAck = true };
-            var session = tc.Send(msg);
+            // Register a dummy type for sending
+            tc.RegisterHandler<AckMessageContent>(1, (c, ctx) => {});
+            var session = tc.Send(new AckMessageContent(), new SendOptions { RequestAck = true });
 
             // Create an Ack message for this msg
-            var ackContent = new AckMessageContent { OriginalMessageId = msg.MessageId };
+            var manualSession = tc.Send(new AckMessageContent(), new SendOptions { RequestAck = true });
+            
+            var ackContent = new AckMessageContent { OriginalMessageId = manualSession.OriginalMessageId };
             var ackSource = new EventSource(Guid.NewGuid(), "Responder");
             var ackMsg = new TransportMessage(ackSource, TransportComponent.AckMessageType, ackContent);
 
@@ -140,23 +146,23 @@ namespace Ubicomp.Utils.NET.Tests
             handlerMethod?.Invoke(tc, new object[] { mockSocket, args });
 
             // Assert
-            var result = await session.WaitAsync(TimeSpan.FromSeconds(2));
+            var result = await manualSession.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.True(result, "Ack was not processed correctly in simulation");
-            Assert.True(session.IsAnyAckReceived);
-            Assert.Contains(ackSource.ResourceId, session.ReceivedAcks.Select(s => s.ResourceId));
+            Assert.True(manualSession.IsAnyAckReceived);
+            Assert.Contains(ackSource.ResourceId, manualSession.ReceivedAcks.Select(s => s.ResourceId));
         }
 
         [Fact]
         public void TransportComponent_IgnoreLocalMessages_ShouldFilter()
         {
             // Arrange
-            var tc = TransportComponent.Instance;
-            bool originalValue = tc.IgnoreLocalMessages;
+            var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1);
+            var tc = new TransportComponent(options);
             tc.IgnoreLocalMessages = true;
             
             // Reflection to setup tc
             var socketField = typeof(TransportComponent).GetField("_socket", BindingFlags.Instance | BindingFlags.NonPublic);
-            var mockSocket = new MulticastSocket(MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1));
+            var mockSocket = new MulticastSocket(options);
             socketField?.SetValue(tc, mockSocket);
 
             var currentConsField = typeof(TransportComponent).GetField("_currentMessageCons", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -177,7 +183,9 @@ namespace Ubicomp.Utils.NET.Tests
             var handlerMethod = typeof(TransportComponent).GetMethod("socket_OnNotifyMulticastSocketListener", BindingFlags.Instance | BindingFlags.NonPublic);
 
             // Create a message from LocalSource
-            var msg = new TransportMessage(tc.LocalSource, TransportComponent.TransportComponentID, new AckMessageContent());
+            int msgType = 123;
+            var content = new AckMessageContent();
+            var msg = new TransportMessage(tc.LocalSource, msgType, content);
             
             var settings = new JsonSerializerSettings();
             settings.Converters.Add(new TransportMessageConverter());
@@ -186,26 +194,15 @@ namespace Ubicomp.Utils.NET.Tests
 
             var args = new NotifyMulticastSocketListenerEventArgs(MulticastSocketMessageType.MessageReceived, data, 1);
 
-            // Register a listener to see if it gets called
-            bool listenerCalled = false;
-            var listener = new MockListener(() => listenerCalled = true);
-            tc.TransportListeners[TransportComponent.TransportComponentID] = listener;
+            // Register a handler to see if it gets called
+            bool handlerCalled = false;
+            tc.RegisterHandler<AckMessageContent>(msgType, (c, ctx) => handlerCalled = true);
 
             // Act
             handlerMethod?.Invoke(tc, new object[] { mockSocket, args });
 
             // Assert
-            Assert.False(listenerCalled, "Listener should not have been called for a local message when IgnoreLocalMessages is true");
-            
-            // Cleanup
-            tc.IgnoreLocalMessages = originalValue;
-        }
-
-        private class MockListener : ITransportListener
-        {
-            private readonly Action _onReceived;
-            public MockListener(Action onReceived) => _onReceived = onReceived;
-            public void MessageReceived(TransportMessage message, string rawMessage) => _onReceived();
+            Assert.False(handlerCalled, "Handler should not have been called for a local message when IgnoreLocalMessages is true");
         }
     }
 }

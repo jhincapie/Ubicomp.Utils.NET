@@ -3,23 +3,29 @@
 ## Architecture
 **MulticastTransportFramework** implements a higher-level messaging protocol over UDP multicast.
 
-*   **Singleton Pattern**: `TransportComponent.Instance` is the central access point.
+*   **Fluent Builder**: Use `TransportBuilder` to configure and create a `TransportComponent`.
+*   **Strongly-Typed Messaging**: Generic `Send<T>` and `RegisterHandler<T>` methods handle internal serialization and routing.
+*   **POCO Support**: Any class can be used as message content; no marker interface is required.
 *   **Serialization**: Uses `Newtonsoft.Json` to convert between .NET objects and JSON strings.
-*   **Logging**: Uses `Microsoft.Extensions.Logging.ILogger`. The `TransportComponent` exposes a public `Logger` property (defaults to `NullLogger`) for dependency injection.
-*   **Message Routing**: Uses a `Dictionary<int, ITransportListener>` to dispatch messages based on their `MessageType` integer ID.
+*   **Logging**: Uses `Microsoft.Extensions.Logging.ILogger`, typically injected via the builder.
+*   **Message Routing**: Dispatches messages to strongly-typed handlers or legacy `ITransportListener`s based on their `MessageType` integer ID.
 
 ## Core Logic
 1.  **Incoming Data**: `MulticastSocket` receives bytes.
 2.  **Conversion**: Bytes are converted to a UTF-8 string.
-3.  **Deserialization**: `Newtonsoft.Json` deserializes the string into a `TransportMessage` object.
-    *   **Polymorphism**: The `TransportMessageConverter` looks up the `MessageType` in the `KnownTypes` dictionary to determine the concrete type of the `MessageData` property.
-4.  **GateKeeper**: A synchronization mechanism (`GateKeeperMethod` + `EventWaitHandle`) ensures strict sequential processing of messages, preserving the order of `consecutive` IDs assigned by the socket layer.
-5.  **Dispatch**: The `MessageType` is looked up in `TransportListeners`, and `MessageReceived` is called on the registered listener.
+3.  **Deserialization**: `Newtonsoft.Json` deserializes the string into a `TransportMessage` "envelope" object.
+    *   **Polymorphism**: The internal `TransportMessageConverter` handles the concrete type of the `MessageData` property based on the registered ID.
+4.  **GateKeeper**: A synchronization mechanism (`GateKeeperMethod`) ensures strict sequential processing of messages, preserving the order assigned by the socket layer.
+5.  **Dispatch**:
+    *   Strongly-typed handlers receive the data POCO and a `MessageContext`.
+    *   Legacy `ITransportListener`s receive the full `TransportMessage`.
+    *   **Auto-Ack**: If enabled, an acknowledgement is sent automatically if requested.
 
 ## Key Classes
-*   **`TransportMessage`**: The data envelope. Has `Guid`, `Source`, `Type`, and `Data` (which implements `ITransportMessageContent`).
-*   **`TransportComponent`**: Orchestrator. Manages the socket, logging, and listeners.
-*   **`TransportMessageConverter`**: A `JsonConverter` that handles the logic for reading/writing the `MessageData` based on the message type.
+*   **`TransportBuilder`**: The primary entry point for configuration.
+*   **`TransportComponent`**: The orchestrator managing the socket and message flow.
+*   **`MessageContext`**: Provides metadata (Source, Timestamp, RequestAck) to message handlers.
+*   **`TransportMessage`**: The internal data envelope (hidden from common usage).
 
 ## Dependencies
 *   **Internal**: `MulticastSocket`

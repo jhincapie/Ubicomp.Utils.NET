@@ -1,110 +1,84 @@
 # MulticastTransportFramework
 
-A high-level messaging framework built on top of `MulticastSocket`, providing JSON-based object serialization and type-based message routing.
+A high-level messaging framework built on top of `MulticastSocket`, providing JSON-based object serialization, type-based message routing, and a modern fluent API.
 
 ## Overview
-The **MulticastTransportFramework** abstracts raw socket communication into a structured messaging system. It allows applications to send and receive typed objects (`TransportMessage`) without dealing with byte arrays or raw strings.
+The **MulticastTransportFramework** abstracts raw socket communication into a structured, strongly-typed messaging system. It allows applications to send and receive POCO (Plain Old CLR Objects) without dealing with byte arrays, manual serialization, or envelope management.
 
 **Key Features:**
-*   **Modern Serialization:** Uses `Newtonsoft.Json` for robust JSON handling.
-*   **Modern Logging:** Uses `Microsoft.Extensions.Logging` abstractions, allowing you to plug in any logger (Console, Debug, Serilog, etc.).
-*   **Type Safe:** Polymorphic message content support via `KnownTypes` registration.
+*   **Fluent Builder API:** guided configuration and initialization.
+*   **Strongly-Typed Handlers:** Generic handlers with automatic type mapping.
+*   **No Marker Interfaces:** Any class can be a message; no need to inherit from framework types.
+*   **Automatic Acknowledgements:** Optional auto-ack support for reliable messaging patterns.
+*   **Ordered Messaging:** Guaranteed sequential processing via an internal GateKeeper.
 
 ## System Architecture
 ![MulticastTransportFramework Flow Diagram](assets/transport_flow_diagram.png)
 
-## Key Concepts
-
-### TransportComponent
-A Singleton class that manages the `MulticastSocket`, serialization settings, and listener routing.
-
-### Ordered Messaging (GateKeeper)
-UDP multicast does not guarantee the order of packets. The framework implements a **GateKeeper** mechanism:
-- Every packet received by the `MulticastSocket` is assigned a consecutive sequence ID.
-- The `TransportComponent` ensures that messages are only dispatched to listeners when their sequence ID matches the expected next ID.
-- This guarantees strict ordering of message processing, even if the underlying async operations complete out of order.
-
-### Reliable Messaging (Ack)
-While primarily built on UDP, the framework supports reliable delivery via an acknowledgement system:
-- **AckMessageContent**: A special message type for acknowledgements.
-- **AckSession**: Manages the lifecycle of a reliable message, including retries and timeout handling.
-- Use `TransportComponent.Instance.SendAck(...)` to send a message that requires confirmation.
-
-### Network Diagnostics
-Multicast can often be blocked by firewalls or network configuration. The framework includes a `NetworkDiagnostics` utility:
-- **Firewall Check**: Checks if common multicast ports are open.
-- **Loopback Test**: Verifies if the local machine can receive its own multicast traffic.
-- **Interface Discovery**: Lists all available network interfaces and their multicast capabilities.
-
-### TransportMessage
-The standard envelope for all communication, containing `MessageId`, `Source`, `Type`, and `Data`.
-
 ## Usage
 
-### Initialization & Logging
-You can optionally inject a logger before initialization. If not provided, it defaults to a no-op logger.
+### 1. Configure and Build
+Use the `TransportBuilder` to set up your network options, logging, and message handlers.
 
 ```csharp
-using Ubicomp.Utils.NET.MulticastTransportFramework;
-using Microsoft.Extensions.Logging;
+var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000);
 
-// 1. (Optional) Configure Logging
-using ILoggerFactory factory = LoggerFactory.Create(builder => builder.AddConsole());
-ILogger<TransportComponent> logger = factory.CreateLogger<TransportComponent>();
-TransportComponent.Instance.Logger = logger;
-
-// 2. Configure Network Settings
-TransportComponent.Instance.MulticastGroupAddress = IPAddress.Parse("224.0.0.1");
-TransportComponent.Instance.Port = 6000;
-TransportComponent.Instance.UDPTTL = 1;
-
-// 3. Start
-TransportComponent.Instance.Init();
-```
-
-### Registration (Crucial for Deserialization)
-To ensure messages are deserialized into the correct .NET types, you must register the type mapping:
-
-```csharp
-// Register that MessageType 101 maps to MyCustomData class
-TransportMessageConverter.KnownTypes.Add(101, typeof(MyCustomData));
-```
-
-### Sending a Message
-```csharp
-TransportMessage msg = new TransportMessage()
-{
-    MessageType = 101, // Custom Type ID
-    MessageData = new MyCustomData() { Value = "Hello" }
-};
-
-TransportComponent.Instance.Send(msg);
-```
-
-### Receiving Messages
-Implement `ITransportListener` and register it:
-
-```csharp
-public class MyListener : ITransportListener
-{
-    public MyListener()
+var transport = new TransportBuilder()
+    .WithMulticastOptions(options)
+    .WithLogging(loggerFactory)
+    .WithLocalSource("MyDevice")
+    .WithAutoSendAcks(true) // Optional: automate acknowledgements
+    .RegisterHandler<MyData>(id: 101, (data, context) => 
     {
-        // Register to handle messages of type 101
-        TransportComponent.Instance.TransportListeners.Add(101, this);
-    }
+        Console.WriteLine($"Received: {data.Value} from {context.Source.ResourceName}");
+    })
+    .Build();
 
-    public void MessageReceived(TransportMessage message, string rawMessage)
-    {
-        // Data is already deserialized to the correct type
-        if (message.MessageData is MyCustomData data)
-        {
-            Console.WriteLine($"Received: {data.Value}");
-        }
-    }
-}
+transport.Start();
 ```
+
+### 2. Sending Messages
+Send any object directly. The framework handles the envelope and ID mapping.
+
+```csharp
+// Simple send
+transport.Send(new MyData { Value = "Hello" });
+
+// Send with options (e.g., request acknowledgement)
+var session = transport.Send(new MyData { Value = "Ping" }, new SendOptions { RequestAck = true });
+
+session.OnAckReceived += (s, source) => Console.WriteLine($"Ack from {source.ResourceName}");
+```
+
+### 3. Manual Acknowledgements
+If `AutoSendAcks` is disabled (the default), you can manually acknowledge messages using the `MessageContext`.
+
+```csharp
+transport.RegisterHandler<MyData>(101, (data, context) => 
+{
+    if (context.RequestAck)
+    {
+        transport.SendAck(context);
+    }
+});
+```
+
+## Key Concepts
+
+### TransportBuilder
+The entry point for the framework. It manages the assembly of the `TransportComponent` and hides internal bookkeeping like JSON converter registration.
+
+### MessageContext
+A lightweight object passed to handlers that contains metadata about the message:
+- `MessageId`: Unique GUID of the message.
+- `Source`: Information about the sender.
+- `Timestamp`: When the message was sent.
+- `RequestAck`: Whether the sender expects a confirmation.
+
+### Ordered Messaging (GateKeeper)
+UDP multicast does not guarantee packet order. The framework ensures that messages are dispatched to handlers in the exact order they were assigned by the socket layer, preventing race conditions in state-sensitive applications.
 
 ## Dependencies
-- `MulticastSocket` project
+- `MulticastSocket`
 - `Newtonsoft.Json`
 - `Microsoft.Extensions.Logging.Abstractions`

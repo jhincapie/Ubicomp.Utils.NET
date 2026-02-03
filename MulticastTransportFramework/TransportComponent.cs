@@ -14,13 +14,12 @@ using Ubicomp.Utils.NET.Sockets;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
 {
-
     /// <summary>
     /// The central component for managing multicast transport communication.
     /// Handles message serialization, sequential processing via a gatekeeper,
-    /// and routing messages to registered listeners.
+    /// and routing messages to registered handlers.
     /// </summary>
-    public class TransportComponent : ITransportListener
+    public class TransportComponent
     {
         /// <summary>Gets or sets the logger for this component.</summary>
         public ILogger Logger { get; set; } = NullLogger.Instance;
@@ -33,26 +32,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// </summary>
         public const int AckMessageType = 99;
 
-        /// <summary>The singleton instance of the transport
-        /// component.</summary>
-        public static TransportComponent Instance = new TransportComponent();
+        private static readonly object importLock = new object();
+        private static readonly object exportLock = new object();
 
-        private static object importLock = new object();
-        private static object exportLock = new object();
+        private MulticastSocket? _socket;
+        private readonly MulticastSocketOptions _socketOptions;
 
-        private MulticastSocket _socket = null!;
-        private IPAddress _multicastGroupAddress = null!;
-        private IPAddress? _localAddress;
-        private int _port;
-        private int _udpTTL;
-
-        /// <summary>
-        /// A mapping of message types to their respective listeners.
-        /// </summary>
-        public Dictionary<int, ITransportListener> TransportListeners
-        {
-            get;
-        } = new Dictionary<int, ITransportListener>();
+        private readonly ConcurrentDictionary<int, Delegate> _genericHandlers = new ConcurrentDictionary<int, Delegate>();
+        private readonly ConcurrentDictionary<Type, int> _typeToIdMap = new ConcurrentDictionary<Type, int>();
 
         private readonly ConcurrentDictionary<Guid, AckSession> _activeSessions = new ConcurrentDictionary<Guid, AckSession>();
 
@@ -75,74 +62,55 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// </summary>
         public bool IgnoreLocalMessages { get; set; } = true;
 
-        /// <summary>Gets or sets the multicast group IP address.</summary>
-        public IPAddress MulticastGroupAddress
-        {
-            get => _multicastGroupAddress;
-            set => _multicastGroupAddress = value;
-        }
+        /// <summary>
+        /// Gets or sets a value indicating whether acknowledgements should be sent automatically
+        /// when a message requesting one is received and handled.
+        /// </summary>
+        public bool AutoSendAcks { get; set; } = false;
 
-        /// <summary>Gets or sets the local IP address to bind to.</summary>
-        public IPAddress? LocalIPAddress
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TransportComponent"/> class.
+        /// </summary>
+        /// <param name="options">The multicast socket options to use.</param>
+        public TransportComponent(MulticastSocketOptions options)
         {
-            get => _localAddress;
-            set => _localAddress = value;
-        }
-
-        /// <summary>Gets or sets the multicast port.</summary>
-        public int Port
-        {
-            get => _port;
-            set => _port = value;
-        }
-
-        /// <summary>Gets or sets the multicast Time-to-Live (TTL).</summary>
-        public int UDPTTL
-        {
-            get => _udpTTL;
-            set => _udpTTL = value;
-        }
-
-        private TransportComponent()
-        {
+            _socketOptions = options;
             _jsonSettings = new JsonSerializerSettings();
             _jsonSettings.Converters.Add(new TransportMessageConverter());
 
+            RegisterInternalTypes();
+        }
+
+        private void RegisterInternalTypes()
+        {
             if (!TransportMessageConverter.KnownTypes.ContainsKey(AckMessageType))
             {
                 TransportMessageConverter.KnownTypes.Add(AckMessageType, typeof(AckMessageContent));
             }
-
-            TransportListeners.Add(TransportComponent.TransportComponentID,
-                                   this);
-            TransportListeners.Add(AckMessageType, this);
         }
 
         /// <summary>
-        /// Initializes the transport component and starts listening for
-        /// traffic.
+        /// Registers a handler for a specific message type.
         /// </summary>
-        /// <exception cref="ApplicationException">
-        /// Thrown if address or port are not specified.
-        /// </exception>
-        public void Init()
+        public void RegisterHandler<T>(int id, Action<T, MessageContext> handler) where T : class
         {
-            if (_multicastGroupAddress == null)
-                throw new ApplicationException(
-                    "Multicast group address not specified.");
-            if (_port == 0)
-                throw new ApplicationException(
-                    "Multicast group port not specified.");
+            _genericHandlers[id] = handler;
+            _typeToIdMap[typeof(T)] = id;
+            if (!TransportMessageConverter.KnownTypes.ContainsKey(id))
+            {
+                TransportMessageConverter.KnownTypes.Add(id, typeof(T));
+            }
+        }
 
+        /// <summary>
+        /// Starts the transport component and starts listening for traffic.
+        /// </summary>
+        public void Start()
+        {
             Stop();
 
-            var options = MulticastSocketOptions.WideAreaNetwork(_multicastGroupAddress.ToString(), _port, _udpTTL);
-
-            options.LocalIP = _localAddress?.ToString();
-
-            _socket = new MulticastSocket(options);
-            _socket.OnNotifyMulticastSocketListener +=
-                socket_OnNotifyMulticastSocketListener;
+            _socket = new MulticastSocket(_socketOptions);
+            _socket.OnNotifyMulticastSocketListener += socket_OnNotifyMulticastSocketListener;
 
             lock (gate)
             {
@@ -151,11 +119,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
             _socket.StartReceiving();
 
-            string interfaces = string.Join(
-                ", ", _socket.JoinedAddresses.Select(a => a.ToString()));
-            Logger.LogInformation("Multicast Socket Started to Listen for " +
-                                      "Traffic on {0}:{1} (TTL: {2}, Interfaces: {3})",
-                                  _multicastGroupAddress, _port, _udpTTL, interfaces);
+            string interfaces = string.Join(", ", _socket.JoinedAddresses.Select(a => a.ToString()));
+            Logger.LogInformation("Multicast Socket Started to Listen for Traffic on {0}:{1} (TTL: {2}, Interfaces: {3})",
+                                  _socketOptions.GroupAddress, _socketOptions.Port, _socketOptions.TimeToLive, interfaces);
             Logger.LogInformation("TransportComponent Initialized.");
         }
 
@@ -166,53 +132,65 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             if (_socket != null)
             {
-                _socket.OnNotifyMulticastSocketListener -=
-                    socket_OnNotifyMulticastSocketListener;
+                _socket.OnNotifyMulticastSocketListener -= socket_OnNotifyMulticastSocketListener;
                 _socket.Close();
                 _socket.Dispose();
-                _socket = null!;
+                _socket = null;
             }
         }
 
         /// <summary>
-        /// Verifies networking configuration by performing firewall checks and
-        /// a loopback test.
+        /// Verifies networking configuration by performing firewall checks and a loopback test.
         /// </summary>
         /// <returns>True if diagnostics pass, otherwise false.</returns>
         public bool VerifyNetworking()
         {
             Logger.LogInformation("Performing Network Diagnostics...");
-            NetworkDiagnostics.LogFirewallStatus(_port, Logger);
+            NetworkDiagnostics.LogFirewallStatus(_socketOptions.Port, Logger);
 
             bool success = NetworkDiagnostics.PerformLoopbackTest(this);
             if (success)
             {
-                Logger.LogInformation("Network Diagnostics Passed: Multicast " +
-                                      "Loopback Successful.");
+                Logger.LogInformation("Network Diagnostics Passed: Multicast Loopback Successful.");
             }
             else
             {
-                Logger.LogWarning("Network Diagnostics Failed: Multicast " +
-                                  "Loopback NOT received. Check firewall " +
-                                  "settings and interface configuration.");
+                Logger.LogWarning("Network Diagnostics Failed: Multicast Loopback NOT received. Check firewall settings and interface configuration.");
             }
             return success;
         }
 
         /// <summary>
-        /// Sends a transport message over the multicast socket.
+        /// Sends a message of type T over the multicast socket.
         /// </summary>
-        /// <param name="message">The message to send.</param>
-        /// <returns>An <see cref="AckSession"/> to track acknowledgements if requested.</returns>
-        public AckSession Send(TransportMessage message)
+        public AckSession Send<T>(T content, SendOptions? options = null) where T : class
+        {
+            int messageType;
+            if (options?.MessageType != null)
+            {
+                messageType = options.MessageType.Value;
+            }
+            else if (!_typeToIdMap.TryGetValue(typeof(T), out messageType))
+            {
+                throw new ArgumentException($"Type {typeof(T).Name} is not registered and no MessageType was provided in SendOptions.");
+            }
+
+            var message = new TransportMessage(LocalSource, messageType, content)
+            {
+                RequestAck = options?.RequestAck ?? false
+            };
+
+            return SendInternal(message, options?.AckTimeout);
+        }
+
+        private AckSession SendInternal(TransportMessage message, TimeSpan? ackTimeout)
         {
             var session = new AckSession(message.MessageId);
 
             if (message.RequestAck)
             {
                 _activeSessions.TryAdd(message.MessageId, session);
-                // Ensure cleanup after timeout
-                _ = session.WaitAsync(DefaultAckTimeout).ContinueWith(_ =>
+                _ = session.WaitAsync(ackTimeout ?? DefaultAckTimeout).ContinueWith(_ =>
                 {
                     _activeSessions.TryRemove(message.MessageId, out var _);
                 });
@@ -220,14 +198,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             string json;
             lock (exportLock)
-                json =
-                JsonConvert.SerializeObject(message, _jsonSettings);
+            {
+                json = JsonConvert.SerializeObject(message, _jsonSettings);
+            }
 
             _socket?.Send(json);
 
             if (!message.RequestAck)
             {
-                // Report "success" immediately if no ack requested
                 session.ReportAck(LocalSource);
             }
 
@@ -235,14 +213,18 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         }
 
         /// <summary>
-        /// Sends an acknowledgement for the specified message.
+        /// Sends an acknowledgement for the message associated with the given context.
         /// </summary>
-        /// <param name="originalMessage">The message to acknowledge.</param>
-        public void SendAck(TransportMessage originalMessage)
+        public void SendAck(MessageContext context)
+        {
+            SendAck(context.MessageId);
+        }
+
+        private void SendAck(Guid originalMessageId)
         {
             var ackContent = new AckMessageContent
             {
-                OriginalMessageId = originalMessage.MessageId
+                OriginalMessageId = originalMessageId
             };
 
             var ackMessage = new TransportMessage(LocalSource, AckMessageType, ackContent)
@@ -250,14 +232,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 RequestAck = false
             };
 
-            Send(ackMessage);
+            SendInternal(ackMessage, null);
         }
 
-        private void socket_OnNotifyMulticastSocketListener(
-            object sender, NotifyMulticastSocketListenerEventArgs e)
+        private void socket_OnNotifyMulticastSocketListener(object sender, NotifyMulticastSocketListenerEventArgs e)
         {
-            if (sender != _socket)
-                return;
+            if (sender != _socket) return;
 
             if (e.Type == MulticastSocketMessageType.SendException)
             {
@@ -271,35 +251,26 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 return;
             }
 
-            if (e.Type != MulticastSocketMessageType.MessageReceived)
-                return;
-
-            if (e.NewObject == null)
-                return;
+            if (e.Type != MulticastSocketMessageType.MessageReceived || e.NewObject == null) return;
 
             bool enteredGate = false;
             try
             {
-                // Enter the gate first based on socket sequence ID to ensure
-                // order, but we MUST exit it (nudge) even if deserialization
-                // fails.
                 GateKeeperMethod(e.Consecutive);
                 enteredGate = true;
 
                 string sMessage = GetMessageAsString((byte[])e.NewObject);
-                TransportMessage? tMessage = null;
+                TransportMessage? tMessage;
 
                 lock (importLock)
                 {
                     Logger.LogTrace("Importing message {0}", e.Consecutive);
-                    tMessage = JsonConvert.DeserializeObject<TransportMessage>(
-                        sMessage, _jsonSettings);
+                    tMessage = JsonConvert.DeserializeObject<TransportMessage>(sMessage, _jsonSettings);
                 }
 
                 if (tMessage == null)
                 {
-                    Logger.LogWarning("Deserialization failed for message {0}",
-                                      e.Consecutive);
+                    Logger.LogWarning("Deserialization failed for message {0}", e.Consecutive);
                     return;
                 }
 
@@ -313,33 +284,36 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 {
                     if (_activeSessions.TryGetValue(ackContent.OriginalMessageId, out var session))
                     {
-                        Logger.LogTrace("Received Ack for message {0} from {1}",
-                                        ackContent.OriginalMessageId, tMessage.MessageSource.ResourceName);
+                        Logger.LogTrace("Received Ack for message {0} from {1}", ackContent.OriginalMessageId, tMessage.MessageSource.ResourceName);
                         session.ReportAck(tMessage.MessageSource);
                     }
                 }
 
                 Logger.LogTrace("Processing message {0}", e.Consecutive);
-                if (!TransportListeners.TryGetValue(tMessage.MessageType,
-                                                    out var listener))
+
+                bool handled = false;
+
+                // First, check for generic handlers
+                if (_genericHandlers.TryGetValue(tMessage.MessageType, out var handler))
                 {
-                    Logger.LogWarning(
-                        "No listener registered for message type {0}",
-                        tMessage.MessageType);
-                    return;
+                    var context = new MessageContext(tMessage.MessageId, tMessage.MessageSource, tMessage.TimeStamp, tMessage.RequestAck);
+                    handler.DynamicInvoke(tMessage.MessageData, context);
+                    handled = true;
                 }
 
-                listener.MessageReceived(tMessage, sMessage);
+                if (handled && AutoSendAcks && tMessage.RequestAck && tMessage.MessageType != AckMessageType)
+                {
+                    Logger.LogTrace("Automatically sending Ack for message {0}", tMessage.MessageId);
+                    SendAck(tMessage.MessageId);
+                }
             }
             catch (Exception ex)
             {
-                Logger.LogError("Error Processing Received Message {0}: {1}",
-                                e.Consecutive, ex.Message);
+                Logger.LogError("Error Processing Received Message {0}: {1}", e.Consecutive, ex.Message);
             }
             finally
             {
-                if (enteredGate)
-                    NudgeGate();
+                if (enteredGate) NudgeGate();
             }
         }
 
@@ -354,8 +328,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
         }
 
-
-
         private void NudgeGate()
         {
             lock (gate)
@@ -365,36 +337,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
         }
 
-        #region ITransportListener Members
-
-        /// <summary>
-        /// Handles received messages for the transport component itself.
-        /// </summary>
-        /// <param name="message">The deserialized message.</param>
-        /// <param name="rawMessage">The raw string representation.</param>
-        public void MessageReceived(TransportMessage message, string rawMessage)
-        {
-            if (message.MessageType == AckMessageType)
-            {
-                Logger.LogTrace("Acknowledgement message {0} handled by internal session manager.", message.MessageId);
-                return;
-            }
-
-            Logger.LogInformation(
-                "Received Message for Transport Component - " +
-                "Not Implemented Feature.");
-        }
-
-        #endregion
-
         private static string GetMessageAsString(byte[] messageBytes)
         {
             int length = Array.IndexOf<byte>(messageBytes, (byte)'\0');
-            if (length == -1)
-                length = messageBytes.Length;
-            var encoding = new UTF8Encoding();
-            return encoding.GetString(messageBytes, 0, length);
+            if (length == -1) length = messageBytes.Length;
+            return Encoding.UTF8.GetString(messageBytes, 0, length);
         }
     }
-
 }

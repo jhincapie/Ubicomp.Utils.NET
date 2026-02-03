@@ -14,22 +14,7 @@ namespace Ubicomp.Utils.NET.Tests
     [Collection("SharedTransport")]
     public class GateKeeperDeadlockTests
     {
-        private class TestListener : ITransportListener
-        {
-            public ManualResetEvent ReceivedEvent { get; } = new ManualResetEvent(false);
-            public TransportMessage? LastMessage
-            {
-                get; private set;
-            }
-
-            public void MessageReceived(TransportMessage message, string rawMessage)
-            {
-                LastMessage = message;
-                ReceivedEvent.Set();
-            }
-        }
-
-        private class EmptyContent : ITransportMessageContent
+        private class EmptyContent
         {
         }
 
@@ -37,17 +22,8 @@ namespace Ubicomp.Utils.NET.Tests
         public void GateKeeper_ShouldNotDeadlock_OnMalformedMessage()
         {
             // Arrange
-            var transport = TransportComponent.Instance;
-
-            // Ensure transport is initialized to set _currentMessageCons = 1
-            // We use dummy values since we won't actually use the socket
-            transport.MulticastGroupAddress = IPAddress.Parse("239.0.0.1");
-            transport.Port = 5000;
-            try
-            {
-                transport.Init();
-            }
-            catch { /* Ignore if already init */ }
+            var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1);
+            var transport = new TransportComponent(options);
 
             // Reset _currentMessageCons to 1 via reflection for a clean test
             var currentConsField = typeof(TransportComponent).GetField("_currentMessageCons", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -66,29 +42,19 @@ namespace Ubicomp.Utils.NET.Tests
                 }
             }
 
-            var listener = new TestListener();
+            var receivedEvent = new ManualResetEvent(false);
             int msgType = 888;
-            transport.TransportListeners[msgType] = listener;
-            TransportMessageConverter.KnownTypes[msgType] = typeof(EmptyContent);
+            transport.RegisterHandler<EmptyContent>(msgType, (c, ctx) => receivedEvent.Set());
 
             // Get the private handler method
             var handlerMethod = typeof(TransportComponent).GetMethod("socket_OnNotifyMulticastSocketListener", BindingFlags.Instance | BindingFlags.NonPublic);
 
-
-
-
             // 1. Send malformed message (invalid JSON) as Consecutive 1
-
             byte[] badData = Encoding.UTF8.GetBytes("{ invalid json }");
-
             var args1 = new NotifyMulticastSocketListenerEventArgs(MulticastSocketMessageType.MessageReceived, badData, 1);
 
-
-
             // 2. Send valid message as Consecutive 2
-
             var source = new EventSource(Guid.NewGuid(), "TestSource");
-
             var validMsg = new TransportMessage(source, msgType, new EmptyContent());
 
             var settings = new JsonSerializerSettings();
@@ -100,7 +66,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             // Ensure _socket is not null and is the sender to avoid early return in handler
             var socketField = typeof(TransportComponent).GetField("_socket", BindingFlags.Instance | BindingFlags.NonPublic);
-            var mockSocket = new MulticastSocket(MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1));
+            var mockSocket = new MulticastSocket(options);
             socketField?.SetValue(transport, mockSocket);
 
             // Act
@@ -111,7 +77,7 @@ namespace Ubicomp.Utils.NET.Tests
             handlerMethod?.Invoke(transport, new object[] { mockSocket, args2 });
 
             // Assert
-            bool received = listener.ReceivedEvent.WaitOne(2000);
+            bool received = receivedEvent.WaitOne(2000);
             Assert.True(received, "GateKeeper deadlocked after malformed message. Message 2 was never processed.");
         }
     }

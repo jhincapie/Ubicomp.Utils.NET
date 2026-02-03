@@ -37,7 +37,7 @@ The foundational layer that wraps standard .NET UDP sockets.
 ## Core Flow
 1.  **Network Receive**: `MulticastSocket` receives bytes and assigns a sequence ID.
 2.  **Transport Processing**: `TransportComponent` deserializes the JSON into a typed `TransportMessage`.
-3.  **Ordered Dispatch**: The `GateKeeper` holds the message until its sequence ID is next, then dispatches it to registered `ITransportListener`s.
+3.  **Ordered Dispatch**: The `GateKeeper` holds the message until its sequence ID is next, then dispatches it to registered handlers.
 4.  **Context Update**: A `ContextService` (acting as a listener) receives the message and updates its `IEntity` state.
 5.  **UI Notification**: The `ContextService` uses a captured `Dispatcher` to safely notify UI components of the change.
 

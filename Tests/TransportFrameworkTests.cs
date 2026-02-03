@@ -11,7 +11,7 @@ namespace Ubicomp.Utils.NET.Tests
     public class TransportFrameworkTests
     {
         /// <summary>Mock content for transport framework tests.</summary>
-        public class MockContent : ITransportMessageContent
+        public class MockContent
         {
             /// <summary>Gets or sets the content text.</summary>
             public string Content { get; set; } = string.Empty;

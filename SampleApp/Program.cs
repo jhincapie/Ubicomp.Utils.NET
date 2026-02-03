@@ -2,7 +2,6 @@
 using System;
 using System.Linq;
 using System.Net;
-using System.Text;
 using Microsoft.Extensions.Logging;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
 using Ubicomp.Utils.NET.Sockets;
@@ -12,7 +11,7 @@ namespace Ubicomp.Utils.NET.SampleApp
     /// <summary>
     /// Sample application demonstrating the usage of the transport framework.
     /// </summary>
-    class Program : ITransportListener
+    class Program
     {
         /// <summary>The ID for this sample application.</summary>
         public const int SampleAppID = 2;
@@ -42,19 +41,16 @@ namespace Ubicomp.Utils.NET.SampleApp
 
             if (!IPAddress.TryParse(groupAddressStr, out var groupAddress))
             {
-                Console.WriteLine($"Invalid group address: {groupAddressStr}. Using default: 239.0.0.1");
                 groupAddress = IPAddress.Parse("239.0.0.1");
             }
 
             if (!int.TryParse(portStr, out int port))
             {
-                Console.WriteLine($"Invalid port: {portStr}. Using default: 5000");
                 port = 5000;
             }
 
             if (!int.TryParse(ttlStr, out int ttl))
             {
-                Console.WriteLine($"Invalid TTL: {ttlStr}. Using default: 1");
                 ttl = 1;
             }
 
@@ -66,59 +62,48 @@ namespace Ubicomp.Utils.NET.SampleApp
                     builder.SetMinimumLevel(LogLevel.Trace);
                 });
 
-            // 2. Create a logger for the TransportComponent
-            ILogger<TransportComponent> logger =
-                loggerFactory.CreateLogger<TransportComponent>();
+            var options = MulticastSocketOptions.WideAreaNetwork(groupAddress.ToString(), port, ttl);
 
-            // 3. Inject the logger
-            TransportComponent.Instance.Logger = logger;
+            // 2. Use the new TransportBuilder
+            var transport = new TransportBuilder()
+                .WithMulticastOptions(options)
+                .WithLogging(loggerFactory)
+                .WithLocalSource("SampleApp")
+                .IgnoreLocalMessages(!allowLocal)
+                .WithAutoSendAcks(false)
+                .Build();
 
-            // Configure Transport Component
-            TransportComponent.Instance.MulticastGroupAddress = groupAddress;
-            TransportComponent.Instance.Port = port;
-            TransportComponent.Instance.UDPTTL = ttl;
-            TransportComponent.Instance.IgnoreLocalMessages = !allowLocal;
-
-            // Register this app as a listener for message type 2
-            TransportComponent.Instance.TransportListeners.Add(SampleAppID,
-                                                               this);
-
-            // Register message type for deserialization
-            TransportMessageConverter.KnownTypes.Add(SampleAppID,
-                                                     typeof(SimpleContent));
+            transport.RegisterHandler<SimpleContent>(SampleAppID, (content, context) =>
+            {
+                Console.WriteLine($"Received message: {content.Text} from {context.Source.ResourceName}");
+                if (context.RequestAck)
+                {
+                    Console.WriteLine("Manually sending Ack...");
+                    transport.SendAck(context);
+                }
+            });
 
             Console.WriteLine("Initializing Transport Component...");
 
             if (verbose)
             {
                 Console.WriteLine("Multicast Options:");
-                Console.WriteLine($"  Group Address: {TransportComponent.Instance.MulticastGroupAddress}");
-                Console.WriteLine($"  Port: {TransportComponent.Instance.Port}");
-                Console.WriteLine($"  Local IP: {TransportComponent.Instance.LocalIPAddress?.ToString() ?? "Any"}");
-                Console.WriteLine($"  TTL: {TransportComponent.Instance.UDPTTL}");
-                // These are defaults used in TransportComponent.Init() via MulticastSocketOptions.WideAreaNetwork
-                Console.WriteLine("  Reuse Address: True");
-                Console.WriteLine("  Multicast Loopback: True");
-                Console.WriteLine("  No Delay: True");
-                Console.WriteLine("  Don't Fragment: False");
-                Console.WriteLine("  Auto Join: True");
+                Console.WriteLine($"  Group Address: {options.GroupAddress}");
+                Console.WriteLine($"  Port: {options.Port}");
+                Console.WriteLine($"  TTL: {options.TimeToLive}");
             }
 
-            TransportComponent.Instance.Init();
+            transport.Start();
 
             // Run network diagnostics
-            TransportComponent.Instance.VerifyNetworking();
+            transport.VerifyNetworking();
 
             if (args.Contains("--ack"))
             {
                 var content = new SimpleContent { Text = "Ping with Ack request" };
-                var msg = new TransportMessage(TransportComponent.Instance.LocalSource, SampleAppID, content)
-                {
-                    RequestAck = true
-                };
 
                 Console.WriteLine("Sending message with Ack request...");
-                var session = TransportComponent.Instance.Send(msg);
+                var session = transport.Send(content, new SendOptions { RequestAck = true });
 
                 session.OnAckReceived += (s, source) =>
                 {
@@ -126,7 +111,7 @@ namespace Ubicomp.Utils.NET.SampleApp
                 };
 
                 // Wait for acks in a background task if not in noWait mode
-                var waitTask = session.WaitAsync(TransportComponent.Instance.DefaultAckTimeout);
+                var waitTask = session.WaitAsync(transport.DefaultAckTimeout);
                 if (noWait)
                 {
                     waitTask.Wait();
@@ -150,6 +135,8 @@ namespace Ubicomp.Utils.NET.SampleApp
                 Console.WriteLine("Press any key to exit.");
                 Console.ReadKey();
             }
+
+            transport.Stop();
         }
 
         private string? GetArgValue(string[] args, string flag)
@@ -163,34 +150,12 @@ namespace Ubicomp.Utils.NET.SampleApp
             }
             return null;
         }
-
-        /// <inheritdoc />
-        public void MessageReceived(TransportMessage message, string rawMessage)
-        {
-            if (message.MessageData is SimpleContent content)
-            {
-                Console.WriteLine($"Received message: {content.Text} from " +
-                                  $"{message.MessageSource.ResourceName}");
-            }
-            else
-            {
-                Console.WriteLine(
-                    $"Received raw message of type {message.MessageType}: " +
-                    $"{rawMessage}");
-            }
-
-            if (message.RequestAck)
-            {
-                Console.WriteLine($"Sending Ack for message {message.MessageId}...");
-                TransportComponent.Instance.SendAck(message);
-            }
-        }
     }
 
     /// <summary>
     /// Simple content model for transport messages.
     /// </summary>
-    public class SimpleContent : ITransportMessageContent
+    public class SimpleContent
     {
         /// <summary>Gets or sets the text content.</summary>
         public string Text { get; set; } = string.Empty;

@@ -94,22 +94,21 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 // Deserialize directly to the known type
                 object? deserialized =
                     dataToken.ToObject(targetType, serializer);
-                if (deserialized is ITransportMessageContent content)
+                if (deserialized != null)
                 {
-                    message.MessageData = content;
+                    message.MessageData = deserialized;
                 }
                 return message;
             }
 
             try
             {
-                // Attempt best effort. We use object to avoid 'cannot 
-                // instantiate interface' errors if type info is missing.
+                // Attempt best effort.
                 object? deserialized = dataToken.ToObject(typeof(object),
                                                           serializer);
-                if (deserialized is ITransportMessageContent content)
+                if (deserialized != null)
                 {
-                    message.MessageData = content;
+                    message.MessageData = deserialized;
                 }
             }
             catch (Exception e)

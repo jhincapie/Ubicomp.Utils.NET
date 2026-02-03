@@ -10,7 +10,7 @@ namespace Ubicomp.Utils.NET.Muticast.TestApp
     /// <summary>
     /// Mock message content for testing purposes.
     /// </summary>
-    public class MockMessage : ITransportMessageContent
+    public class MockMessage
     {
         /// <summary>Gets or sets the mock message text.</summary>
         public string Message { get; set; } = string.Empty;

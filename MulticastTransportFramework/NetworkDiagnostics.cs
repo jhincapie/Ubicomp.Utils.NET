@@ -184,28 +184,18 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             bool received = false;
             var testId = Guid.NewGuid();
+            const int TestMessageType = 998; // Changed to avoid collision if any
 
-            ITransportListener testListener = new TestListener(
-                (msg, raw) =>
+            transport.RegisterHandler<LoopbackTestData>(TestMessageType, (data, context) =>
+            {
+                if (data.Id == testId)
                 {
-                    if (msg.MessageData is LoopbackTestData data &&
-                        data.Id == testId)
-                    {
-                        received = true;
-                    }
-                });
+                    received = true;
+                }
+            });
 
-            const int TestMessageType = 999;
-            transport.TransportListeners[TestMessageType] = testListener;
-            TransportMessageConverter.KnownTypes[TestMessageType] =
-                typeof(LoopbackTestData);
-
-            var source = new EventSource(
-                Guid.NewGuid(), Environment.MachineName, "DiagnosticSource");
-            var message = new TransportMessage(
-                source, TestMessageType, new LoopbackTestData { Id = testId });
-
-            transport.Send(message);
+            var content = new LoopbackTestData { Id = testId };
+            transport.Send(content, new SendOptions { MessageType = TestMessageType });
 
             var start = DateTime.Now;
             while (!received &&
@@ -214,22 +204,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 Thread.Sleep(100);
             }
 
-            transport.TransportListeners.Remove(TestMessageType);
             return received;
         }
 
-        private class TestListener : ITransportListener
-        {
-            private readonly Action<TransportMessage, string> _callback;
-            public TestListener(Action<TransportMessage, string> callback) =>
-                _callback = callback;
-            public void MessageReceived(TransportMessage message,
-                                        string rawMessage) =>
-                _callback(message, rawMessage);
-        }
-
         /// <summary>Placeholder data for loopback diagnostics.</summary>
-        public class LoopbackTestData : ITransportMessageContent
+        public class LoopbackTestData
         {
             /// <summary>Gets or sets the diagnostic ID.</summary>
             public Guid Id
