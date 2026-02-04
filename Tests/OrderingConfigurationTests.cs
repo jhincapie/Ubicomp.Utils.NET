@@ -17,7 +17,6 @@ namespace Ubicomp.Utils.NET.Tests
         {
             // Arrange
             var options = MulticastSocketOptions.LocalNetwork();
-            options.EnforceOrdering = false; // Default
 
             // Act
             var transport = new TransportBuilder()
@@ -26,7 +25,7 @@ namespace Ubicomp.Utils.NET.Tests
                 .Build();
 
             // Assert
-            Assert.True(options.EnforceOrdering, "EnforceOrdering should be true after builder configuration.");
+            Assert.True(transport.EnforceOrdering, "EnforceOrdering should be true after builder configuration.");
 
             // Act again (override to false)
             transport = new TransportBuilder()
@@ -34,7 +33,7 @@ namespace Ubicomp.Utils.NET.Tests
                 .WithEnforceOrdering(false)
                 .Build();
 
-            Assert.False(options.EnforceOrdering, "EnforceOrdering should be false after builder configuration.");
+            Assert.False(transport.EnforceOrdering, "EnforceOrdering should be false after builder configuration.");
         }
 
         [Fact]
@@ -42,8 +41,6 @@ namespace Ubicomp.Utils.NET.Tests
         {
             // Arrange
             var options = MulticastSocketOptions.LocalNetwork();
-            // Ensure options start as false so we rely on builder to set it
-            options.EnforceOrdering = false;
 
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
@@ -106,7 +103,6 @@ namespace Ubicomp.Utils.NET.Tests
         {
             // Arrange
             var options = MulticastSocketOptions.LocalNetwork();
-            options.EnforceOrdering = true; // Set to true initially to ensure builder overrides it
 
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)

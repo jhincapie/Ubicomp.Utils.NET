@@ -25,12 +25,12 @@ namespace Ubicomp.Utils.NET.Tests
         private TransportComponent CreateComponent()
         {
             var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000);
-            options.EnforceOrdering = true;
             options.LocalIP = "127.0.0.1";
 
             var component = new TransportComponent(options)
             {
-                Logger = NullLogger.Instance
+                Logger = NullLogger.Instance,
+                EnforceOrdering = true
             };
             // Reset state - usually Start() does this but we want to test HandleSocketMessage directly.
             // We need to simulate Start() partially to init _currentMessageCons

@@ -74,6 +74,13 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public bool AutoSendAcks { get; set; } = false;
 
         /// <summary>
+        /// Gets or sets whether to enforce strict message ordering via the GateKeeper.
+        /// When true, messages are processed sequentially based on sequence IDs.
+        /// When false (default), messages are processed immediately as they arrive.
+        /// </summary>
+        public bool EnforceOrdering { get; set; } = false;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="TransportComponent"/> class.
         /// </summary>
         /// <param name="options">The multicast socket options to use.</param>
@@ -339,7 +346,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         internal void HandleSocketMessage(SocketMessage msg)
         {
-            if (!_socketOptions.EnforceOrdering)
+            if (!EnforceOrdering)
             {
                 try
                 {
