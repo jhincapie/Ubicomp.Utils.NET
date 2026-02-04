@@ -42,6 +42,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     }
                 }
 
+                // Ensure MessageSource is not null (matching original behavior/constructor)
                 if (message.MessageSource == null)
                 {
                     message.MessageSource = new EventSource();
@@ -88,7 +89,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             writer.WriteStartObject();
 
-            writer.WriteString("messageId", value.MessageId);
+            // Correctly write the GUID as a string property value
+            writer.WriteString("messageId", value.MessageId.ToString());
+
             writer.WritePropertyName("messageSource");
             JsonSerializer.Serialize(writer, value.MessageSource, options);
 
