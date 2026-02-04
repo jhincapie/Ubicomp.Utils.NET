@@ -97,5 +97,9 @@ This project targets **.NET Standard 2.0** for core libraries and **.NET 8.0** f
 *   **Do NOT push directly to the `master` branch.** 
 *   Always create a feature branch and submit a Pull Request.
 
+## Contribution Guidelines
+*   **Do NOT push directly to the `master` branch.** 
+*   Always create a feature branch and submit a Pull Request.
+
 ---
 *Note: The core libraries target `netstandard2.0` for maximum compatibility, while the Sample App and Tests target `net8.0`.*
