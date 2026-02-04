@@ -27,6 +27,7 @@ namespace Ubicomp.Utils.NET.Sockets
         private IPEndPoint _localIPEndPoint = null!;
         private readonly MulticastSocketOptions _options;
         private readonly List<IPAddress> _joinedAddresses = new List<IPAddress>();
+        private readonly object _joinedLock = new object();
         private readonly Channel<SocketMessage> _messageChannel = Channel.CreateUnbounded<SocketMessage>();
         private bool _isChannelStarted = false;
 
@@ -49,7 +50,16 @@ namespace Ubicomp.Utils.NET.Sockets
         /// <summary>
         /// Gets the collection of IP addresses that have successfully joined the multicast group.
         /// </summary>
-        public IEnumerable<IPAddress> JoinedAddresses => _joinedAddresses;
+        public IEnumerable<IPAddress> JoinedAddresses
+        {
+            get
+            {
+                lock (_joinedLock)
+                {
+                    return _joinedAddresses.ToList();
+                }
+            }
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="MulticastSocket"/> class.
@@ -97,7 +107,10 @@ namespace Ubicomp.Utils.NET.Sockets
             Logger.LogDebug("Multicast TTL set to {TTL}", _options.TimeToLive);
 
             IPAddress mcastAddr = IPAddress.Parse(_options.GroupAddress);
-            _joinedAddresses.Clear();
+            lock (_joinedLock)
+            {
+                _joinedAddresses.Clear();
+            }
 
             if (_options.LocalIP != null)
             {
@@ -108,6 +121,7 @@ namespace Ubicomp.Utils.NET.Sockets
             {
                 Logger.LogInformation("Auto-joining all valid interfaces for group {GroupAddress}", _options.GroupAddress);
                 JoinAllInterfaces(mcastAddr);
+                NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
             }
 
             OnStartedAction?.Invoke();
@@ -175,7 +189,10 @@ namespace Ubicomp.Utils.NET.Sockets
             try
             {
                 _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, localAddr));
-                _joinedAddresses.Add(localAddr);
+                lock (_joinedLock)
+                {
+                    _joinedAddresses.Add(localAddr);
+                }
                 Logger.LogInformation("Successfully joined multicast group {Group} on interface {Interface}", mcastAddr, localAddr);
             }
             catch (Exception ex)
@@ -191,6 +208,20 @@ namespace Ubicomp.Utils.NET.Sockets
             catch (SocketException ex)
             {
                 Logger.LogWarning(ex, "Failed to set MulticastInterface to {Interface}", localAddr);
+            }
+        }
+
+        private void OnNetworkAddressChanged(object sender, EventArgs e)
+        {
+            Logger.LogInformation("Network address changed detected. Attempting to join new interfaces.");
+            try
+            {
+                IPAddress mcastAddr = IPAddress.Parse(_options.GroupAddress);
+                JoinAllInterfaces(mcastAddr);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error while handling network address change.");
             }
         }
 
@@ -212,10 +243,19 @@ namespace Ubicomp.Utils.NET.Sockets
                     continue;
                 }
 
+                lock (_joinedLock)
+                {
+                    if (_joinedAddresses.Contains(addr))
+                        continue;
+                }
+
                 try
                 {
                     _udpSocket?.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, addr));
-                    _joinedAddresses.Add(addr);
+                    lock (_joinedLock)
+                    {
+                        _joinedAddresses.Add(addr);
+                    }
                     joinCount++;
                     Logger.LogDebug("Joined multicast group {Group} on interface {Interface}", mcastAddr, addr);
                 }
@@ -239,10 +279,13 @@ namespace Ubicomp.Utils.NET.Sockets
             try
             {
                 _udpSocket?.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, IPAddress.Any));
-                if (!_joinedAddresses.Any(a => a.Equals(IPAddress.Any)))
+                lock (_joinedLock)
                 {
-                    _joinedAddresses.Add(IPAddress.Any);
-                    Logger.LogDebug("Joined multicast group {Group} on IPAddress.Any (Default)", mcastAddr);
+                    if (!_joinedAddresses.Any(a => a.Equals(IPAddress.Any)))
+                    {
+                        _joinedAddresses.Add(IPAddress.Any);
+                        Logger.LogDebug("Joined multicast group {Group} on IPAddress.Any (Default)", mcastAddr);
+                    }
                 }
             }
             catch (SocketException ex)
@@ -346,6 +389,10 @@ namespace Ubicomp.Utils.NET.Sockets
         public void Close()
         {
             Logger.LogInformation("Closing MulticastSocket...");
+            if (_options.LocalIP == null)
+            {
+                NetworkChange.NetworkAddressChanged -= OnNetworkAddressChanged;
+            }
             _messageChannel.Writer.TryComplete();
             try
             {
