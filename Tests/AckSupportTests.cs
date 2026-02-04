@@ -104,6 +104,8 @@ namespace Ubicomp.Utils.NET.Tests
             var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1);
             var tc = new TransportComponent(options);
 
+            try { tc.Start(); } catch { }
+
             // Register a dummy type for sending
             tc.RegisterHandler<AckMessageContent>("1", (c, ctx) => { });
             var session = await tc.SendAsync(new AckMessageContent(), new SendOptions { RequestAck = true });
@@ -128,6 +130,8 @@ namespace Ubicomp.Utils.NET.Tests
 
             // Assert
             var result = await manualSession.WaitAsync(TimeSpan.FromSeconds(2));
+            tc.Stop();
+
             Assert.True(result, "Ack was not processed correctly in simulation");
             Assert.True(manualSession.IsAnyAckReceived);
             Assert.Contains(ackSource.ResourceId, manualSession.ReceivedAcks.Select(s => s.ResourceId));

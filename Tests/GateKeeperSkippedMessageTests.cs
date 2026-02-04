@@ -19,6 +19,13 @@ namespace Ubicomp.Utils.NET.Tests
             transport.EnforceOrdering = true;
             transport.GateKeeperTimeout = TimeSpan.FromMilliseconds(200);
 
+            // Start the transport (actor loops need to be running)
+            try
+            {
+                transport.Start();
+            }
+            catch (Exception) { /* Socket bind might fail in test, ignore */ }
+
             // We simulate messages arriving out of order or one being skipped.
             // Note: HandleSocketMessage is internal, so we can call it directly.
 
@@ -50,6 +57,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             // Assert
             bool received = msg2Processed.WaitOne(2000);
+            transport.Stop();
 
             Assert.True(received, "GateKeeper hung because message 1 was skipped.");
         }
@@ -61,6 +69,13 @@ namespace Ubicomp.Utils.NET.Tests
             var options = MulticastSocketOptions.LocalNetwork();
             var transport = new TransportComponent(options);
             transport.EnforceOrdering = false;
+
+            try
+            {
+                transport.Start();
+            }
+            catch (Exception) { /* Socket bind might fail in test, ignore */ }
+
 
             var msg2Processed = new ManualResetEvent(false);
             string msgType = "test.skipped";
@@ -87,6 +102,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             // Assert
             bool received = msg2Processed.WaitOne(100); // Should be almost instant
+            transport.Stop();
             Assert.True(received, "Message 2 was not processed immediately when ordering was disabled.");
         }
     }

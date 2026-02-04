@@ -25,6 +25,12 @@ namespace Ubicomp.Utils.NET.Tests
             var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1);
             var transport = new TransportComponent(options);
 
+            try
+            {
+               transport.Start();
+            }
+            catch { }
+
             var receivedEvent = new ManualResetEvent(false);
             string msgType = "test.deadlock";
             transport.RegisterHandler<EmptyContent>(msgType, (c, ctx) => receivedEvent.Set());
@@ -54,6 +60,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             // Assert
             bool received = receivedEvent.WaitOne(2000);
+            transport.Stop();
             Assert.True(received, "GateKeeper deadlocked after malformed message. Message 2 was never processed.");
         }
     }

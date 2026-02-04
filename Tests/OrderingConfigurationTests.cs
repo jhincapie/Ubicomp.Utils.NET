@@ -47,6 +47,8 @@ namespace Ubicomp.Utils.NET.Tests
                 .WithEnforceOrdering(true)
                 .Build();
 
+            try { transport.Start(); } catch { }
+
             var processedMessages = new List<string>();
             var completionSource = new TaskCompletionSource<bool>();
 
@@ -96,6 +98,7 @@ namespace Ubicomp.Utils.NET.Tests
                 Assert.Equal("msg1", processedMessages[0]);
                 Assert.Equal("msg2", processedMessages[1]);
             }
+            transport.Stop();
         }
 
         [Fact]
@@ -108,6 +111,8 @@ namespace Ubicomp.Utils.NET.Tests
                 .WithMulticastOptions(options)
                 .WithEnforceOrdering(false)
                 .Build();
+
+            try { transport.Start(); } catch { }
 
             var processedMessages = new List<string>();
             var msgEvent = new AutoResetEvent(false);
@@ -130,6 +135,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             // Assert
             bool received = msgEvent.WaitOne(500);
+            transport.Stop();
             Assert.True(received, "Message 2 should be processed immediately.");
 
             lock (processedMessages)
@@ -142,9 +148,13 @@ namespace Ubicomp.Utils.NET.Tests
         private byte[] CreateSocketMessageData<T>(EventSource source, string msgType, T content)
         {
             var transportMsg = new TransportMessage(source, msgType, content);
-            string json = JsonConvert.SerializeObject(transportMsg, new JsonSerializerSettings
+
+            var options = new JsonSerializerOptions
             {
-            });
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+
+            string json = JsonSerializer.Serialize(transportMsg, options);
             return Encoding.UTF8.GetBytes(json);
         }
     }

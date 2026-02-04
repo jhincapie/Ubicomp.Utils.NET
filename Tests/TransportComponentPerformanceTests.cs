@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
-using Newtonsoft.Json;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
 using Ubicomp.Utils.NET.Sockets;
 using Xunit;
@@ -32,9 +32,7 @@ namespace Ubicomp.Utils.NET.Tests
                 Logger = NullLogger.Instance,
                 EnforceOrdering = true
             };
-            // Reset state - usually Start() does this but we want to test HandleSocketMessage directly.
-            // We need to simulate Start() partially to init _currentMessageCons
-            component.Start();
+            try { component.Start(); } catch { }
             return component;
         }
 
@@ -44,7 +42,14 @@ namespace Ubicomp.Utils.NET.Tests
             {
                 MessageId = Guid.NewGuid()
             };
-            string json = JsonConvert.SerializeObject(tm);
+
+            var options = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            // No custom converters needed as we are using "data" string which is compatible
+
+            string json = JsonSerializer.Serialize(tm, options);
             byte[] data = Encoding.UTF8.GetBytes(json);
             return new SocketMessage(data, seq);
         }
@@ -62,6 +67,7 @@ namespace Ubicomp.Utils.NET.Tests
                 component.HandleSocketMessage(msg);
             }
             sw.Stop();
+            component.Stop();
             _output.WriteLine($"Ordered: {count} messages in {sw.ElapsedMilliseconds}ms");
         }
 
@@ -79,6 +85,7 @@ namespace Ubicomp.Utils.NET.Tests
                 component.HandleSocketMessage(msg);
             }
             sw.Stop();
+            component.Stop();
             _output.WriteLine($"Reverse: {count} messages in {sw.ElapsedMilliseconds}ms");
         }
 
@@ -96,6 +103,7 @@ namespace Ubicomp.Utils.NET.Tests
                 component.HandleSocketMessage(msg);
             }
             sw.Stop();
+            component.Stop();
             _output.WriteLine($"Random: {count} messages in {sw.ElapsedMilliseconds}ms");
         }
     }
