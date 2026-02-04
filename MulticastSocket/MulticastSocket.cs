@@ -30,6 +30,9 @@ namespace Ubicomp.Utils.NET.Sockets
         private readonly object _joinedLock = new object();
         private readonly Channel<SocketMessage> _messageChannel = Channel.CreateUnbounded<SocketMessage>();
         private bool _isChannelStarted = false;
+#if NET8_0_OR_GREATER
+        private CancellationTokenSource? _receiveCts;
+#endif
 
         /// <summary>Gets or sets the logger for this component.</summary>
         public ILogger Logger { get; set; } = NullLogger.Instance;
@@ -313,8 +316,71 @@ namespace Ubicomp.Utils.NET.Sockets
                 throw new ApplicationException("Socket is not initialized.");
 
             Logger.LogInformation("Starting receive loop...");
+#if NET8_0_OR_GREATER
+            _receiveCts = new CancellationTokenSource();
+            _ = ReceiveAsyncLoop(_receiveCts.Token);
+#else
             Receive(new StateObject { WorkSocket = _udpSocket });
+#endif
         }
+
+#if NET8_0_OR_GREATER
+        private async Task ReceiveAsyncLoop(CancellationToken cancellationToken)
+        {
+            if (_udpSocket == null) return;
+
+            byte[] buffer = new byte[StateObject.BufferSize];
+            Memory<byte> memoryBuffer = buffer;
+
+            try
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    try
+                    {
+                        var result = await _udpSocket.ReceiveFromAsync(memoryBuffer, SocketFlags.None, _localEndPoint, cancellationToken);
+
+                        // Copy the data as in the original implementation
+                        byte[] bufferCopy = new byte[result.ReceivedBytes];
+                        Array.Copy(buffer, 0, bufferCopy, 0, result.ReceivedBytes);
+
+                        int seqId = Interlocked.Increment(ref _mConsecutive);
+                        var msg = new SocketMessage(bufferCopy, seqId);
+
+                        Logger.LogTrace("Received message with SeqId {SeqId}, Length {Length}", seqId, result.ReceivedBytes);
+
+                        OnMessageReceivedAction?.Invoke(msg);
+                        _messageChannel.Writer.TryWrite(msg);
+                    }
+                    catch (SocketException se) when (se.SocketErrorCode == SocketError.OperationAborted || se.SocketErrorCode == SocketError.Interrupted)
+                    {
+                        Logger.LogInformation("Receive operation aborted or interrupted.");
+                        break;
+                    }
+                     catch (OperationCanceledException)
+                    {
+                        Logger.LogDebug("Receive operation cancelled.");
+                        break;
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        Logger.LogDebug("Socket disposed, stopping receive loop.");
+                        break;
+                    }
+                    catch (Exception e)
+                    {
+                        Logger.LogError(e, "Error during receive.");
+                        OnErrorAction?.Invoke(new SocketErrorContext("Error during receive.", e));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                 // Outer catch just in case
+                 Logger.LogError(ex, "Fatal error in receive loop.");
+            }
+        }
+#endif
 
         private void Receive(StateObject state)
         {
@@ -394,6 +460,11 @@ namespace Ubicomp.Utils.NET.Sockets
                 NetworkChange.NetworkAddressChanged -= OnNetworkAddressChanged;
             }
             _messageChannel.Writer.TryComplete();
+#if NET8_0_OR_GREATER
+            _receiveCts?.Cancel();
+            _receiveCts?.Dispose();
+            _receiveCts = null;
+#endif
             try
             {
                 _udpSocket?.Close();
