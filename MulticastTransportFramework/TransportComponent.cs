@@ -6,11 +6,11 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Newtonsoft.Json;
 using Ubicomp.Utils.NET.Sockets;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
@@ -45,7 +45,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private readonly ConcurrentDictionary<Guid, AckSession> _activeSessions = new ConcurrentDictionary<Guid, AckSession>();
 
-        private readonly JsonSerializerSettings _jsonSettings;
+        private readonly JsonSerializerOptions _jsonSettings;
 
         private int _currentMessageCons = 1;
         private readonly object gate = new object();
@@ -79,7 +79,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public TransportComponent(MulticastSocketOptions options)
         {
             _socketOptions = options;
-            _jsonSettings = new JsonSerializerSettings();
+            _jsonSettings = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
             _jsonSettings.Converters.Add(new TransportMessageConverter(_knownTypes));
 
             RegisterInternalTypes();
@@ -235,15 +238,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     });
             }
 
-            string json;
+            byte[] jsonBytes;
             lock (exportLock)
             {
-                json = JsonConvert.SerializeObject(message, _jsonSettings);
+                jsonBytes = JsonSerializer.SerializeToUtf8Bytes(message, _jsonSettings);
             }
 
             if (_socket != null)
             {
-                await _socket.SendAsync(json);
+                await _socket.SendAsync(jsonBytes);
             }
 
             if (!message.RequestAck)
@@ -356,13 +359,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             try
             {
-                string sMessage = Encoding.UTF8.GetString(msg.Data);
                 TransportMessage? tMessage;
 
                 lock (importLock)
                 {
                     Logger.LogTrace("Importing message {0}", msg.SequenceId);
-                    tMessage = JsonConvert.DeserializeObject<TransportMessage>(sMessage, _jsonSettings);
+                    tMessage = JsonSerializer.Deserialize<TransportMessage>(msg.Data, _jsonSettings);
                 }
 
                 if (tMessage != null)

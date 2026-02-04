@@ -1,125 +1,117 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
 {
-    /// <summary>
-    /// Custom JSON converter for <see cref="TransportMessage"/> objects.
-    /// Handles polymorphic deserialization of the message data based on the
-    /// message type.
-    /// </summary>
-    public class TransportMessageConverter : JsonConverter
+    public class TransportMessageConverter : JsonConverter<TransportMessage>
     {
         private readonly IDictionary<int, Type> _knownTypes;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="TransportMessageConverter"/> class.
-        /// </summary>
-        /// <param name="knownTypes">The dictionary of known message types for deserialization.</param>
         public TransportMessageConverter(IDictionary<int, Type> knownTypes)
         {
             _knownTypes = knownTypes;
         }
 
-        /// <inheritdoc />
-        public override bool CanConvert(Type objectType)
+        public override TransportMessage Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return objectType == typeof(TransportMessage);
-        }
-
-        /// <inheritdoc />
-        public override void WriteJson(JsonWriter writer, object? value,
-                                       JsonSerializer serializer)
-        {
-            if (value == null)
+            if (reader.TokenType != JsonTokenType.StartObject)
             {
-                writer.WriteNull();
-                return;
+                throw new JsonException();
             }
 
-            TransportMessage message = (TransportMessage)value;
-
-            writer.WriteStartObject();
-            writer.WritePropertyName("messageId");
-            serializer.Serialize(writer, message.MessageId);
-            writer.WritePropertyName("messageSource");
-            serializer.Serialize(writer, message.MessageSource);
-            writer.WritePropertyName("messageType");
-            writer.WriteValue(message.MessageType);
-
-            if (message.RequestAck)
-            {
-                writer.WritePropertyName("requestAck");
-                writer.WriteValue(true);
-            }
-
-            writer.WritePropertyName("messageData");
-            if (message.MessageData != null)
-                serializer.Serialize(writer, message.MessageData);
-            else
-                writer.WriteNull();
-
-            writer.WritePropertyName("timeStamp");
-            writer.WriteValue(message.TimeStamp);
-            writer.WriteEndObject();
-        }
-
-        /// <inheritdoc />
-        public override object? ReadJson(JsonReader reader, Type objectType,
-                                         object? existingValue,
-                                         JsonSerializer serializer)
-        {
-            JObject jo = JObject.Load(reader);
             TransportMessage message = new TransportMessage();
 
-            message.MessageId =
-                jo["messageId"]?.ToObject<Guid>(serializer) ?? Guid.Empty;
-            message.MessageSource =
-                jo["messageSource"]?.ToObject<EventSource>(serializer) ??
-                new EventSource();
-            message.MessageType = jo["messageType"]?.Value<int>() ?? 0;
-            message.RequestAck = jo["requestAck"]?.Value<bool>() ?? false;
-            message.TimeStamp =
-                jo["timeStamp"]?.Value<string>() ?? string.Empty;
-
-            JToken? dataToken = jo["messageData"];
-            if (dataToken == null || dataToken.Type == JTokenType.Null)
-                return message;
-
-            if (_knownTypes.TryGetValue(message.MessageType,
-                                       out Type? targetType) &&
-                targetType != null)
+            using (JsonDocument doc = JsonDocument.ParseValue(ref reader))
             {
-                // Deserialize directly to the known type
-                object? deserialized =
-                    dataToken.ToObject(targetType, serializer);
-                if (deserialized != null)
+                JsonElement root = doc.RootElement;
+
+                if (root.TryGetProperty("messageId", out JsonElement idElement))
                 {
-                    message.MessageData = deserialized;
+                    if (idElement.TryGetGuid(out Guid guid))
+                        message.MessageId = guid;
                 }
-                return message;
-            }
 
-            try
-            {
-                // Attempt best effort.
-                object? deserialized = dataToken.ToObject(typeof(object),
-                                                          serializer);
-                if (deserialized != null)
+                if (root.TryGetProperty("messageSource", out JsonElement sourceElement))
                 {
-                    message.MessageData = deserialized;
+                    if (sourceElement.ValueKind != JsonValueKind.Null)
+                    {
+                        message.MessageSource = JsonSerializer.Deserialize<EventSource>(sourceElement.GetRawText(), options)!;
+                    }
                 }
-            }
-            catch (Exception e)
-            {
-                Console.Error.WriteLine(
-                    $"Error during best-effort deserialization of transport message content: {e.Message}");
+
+                if (message.MessageSource == null)
+                {
+                    message.MessageSource = new EventSource();
+                }
+
+                if (root.TryGetProperty("messageType", out JsonElement typeElement))
+                {
+                    if (typeElement.TryGetInt32(out int typeVal))
+                        message.MessageType = typeVal;
+                }
+
+                if (root.TryGetProperty("requestAck", out JsonElement ackElement))
+                {
+                     if (ackElement.ValueKind == JsonValueKind.True || ackElement.ValueKind == JsonValueKind.False)
+                        message.RequestAck = ackElement.GetBoolean();
+                }
+
+                if (root.TryGetProperty("timeStamp", out JsonElement timeElement))
+                {
+                    message.TimeStamp = timeElement.GetString() ?? string.Empty;
+                }
+
+                if (root.TryGetProperty("messageData", out JsonElement dataElement))
+                {
+                    if (dataElement.ValueKind != JsonValueKind.Null)
+                    {
+                        if (_knownTypes.TryGetValue(message.MessageType, out Type? targetType) && targetType != null)
+                        {
+                            message.MessageData = JsonSerializer.Deserialize(dataElement.GetRawText(), targetType, options)!;
+                        }
+                        else
+                        {
+                            // Best effort
+                             message.MessageData = JsonSerializer.Deserialize<JsonElement>(dataElement.GetRawText(), options);
+                        }
+                    }
+                }
             }
 
             return message;
+        }
+
+        public override void Write(Utf8JsonWriter writer, TransportMessage value, JsonSerializerOptions options)
+        {
+            writer.WriteStartObject();
+
+            writer.WriteString("messageId", value.MessageId);
+            writer.WritePropertyName("messageSource");
+            JsonSerializer.Serialize(writer, value.MessageSource, options);
+
+            writer.WriteNumber("messageType", value.MessageType);
+
+            if (value.RequestAck)
+            {
+                writer.WriteBoolean("requestAck", true);
+            }
+
+            writer.WritePropertyName("messageData");
+            if (value.MessageData != null)
+            {
+                JsonSerializer.Serialize(writer, value.MessageData, value.MessageData.GetType(), options);
+            }
+            else
+            {
+                writer.WriteNullValue();
+            }
+
+            writer.WriteString("timeStamp", value.TimeStamp);
+
+            writer.WriteEndObject();
         }
     }
 }

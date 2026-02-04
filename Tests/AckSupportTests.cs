@@ -5,7 +5,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
+using System.Text.Json;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
 using Ubicomp.Utils.NET.Sockets;
 using Xunit;
@@ -31,13 +31,13 @@ namespace Ubicomp.Utils.NET.Tests
             // Default should be false
             Assert.False(msg.RequestAck);
 
-            var settings = new JsonSerializerSettings();
-            settings.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()));
-            var jsonFalse = JsonConvert.SerializeObject(msg, settings);
-            Assert.DoesNotContain("RequestAck", jsonFalse);
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            options.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()));
+            var jsonFalse = JsonSerializer.Serialize(msg, options);
+            Assert.DoesNotContain("requestAck", jsonFalse);
 
             msg.RequestAck = true;
-            var jsonTrue = JsonConvert.SerializeObject(msg, settings);
+            var jsonTrue = JsonSerializer.Serialize(msg, options);
             Assert.Contains("\"requestAck\":true", jsonTrue);
         }
 
@@ -112,10 +112,9 @@ namespace Ubicomp.Utils.NET.Tests
             var ackSource = new EventSource(Guid.NewGuid(), "Responder");
             var ackMsg = new TransportMessage(ackSource, TransportComponent.AckMessageType, ackContent);
 
-            var settings = new JsonSerializerSettings();
-            settings.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()));
-            string ackJson = JsonConvert.SerializeObject(ackMsg, settings);
-            byte[] ackData = Encoding.UTF8.GetBytes(ackJson);
+            var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            jsonOptions.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()));
+            byte[] ackData = JsonSerializer.SerializeToUtf8Bytes(ackMsg, jsonOptions);
 
             // Act
             tc.HandleSocketMessage(new SocketMessage(ackData, 1));

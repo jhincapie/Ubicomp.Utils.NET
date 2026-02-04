@@ -33,11 +33,9 @@ namespace Ubicomp.Utils.NET.Tests
             // Act
             var source = new EventSource(Guid.NewGuid(), "TestSource");
             var transportMsg = new TransportMessage(source, msgType, "msg2");
-            string json = Newtonsoft.Json.JsonConvert.SerializeObject(transportMsg, new Newtonsoft.Json.JsonSerializerSettings
-            {
-                Converters = { new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()) }
-            });
-            byte[] data = System.Text.Encoding.UTF8.GetBytes(json);
+            var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            jsonOptions.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()));
+            byte[] data = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(transportMsg, jsonOptions);
 
             // We skip message 1 and send message 2.
             var task = Task.Run(() =>
@@ -70,11 +68,9 @@ namespace Ubicomp.Utils.NET.Tests
             // Act
             var source = new EventSource(Guid.NewGuid(), "TestSource");
             var transportMsg = new TransportMessage(source, msgType, "msg2");
-            string json = Newtonsoft.Json.JsonConvert.SerializeObject(transportMsg, new Newtonsoft.Json.JsonSerializerSettings
-            {
-                Converters = { new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()) }
-            });
-            byte[] data = System.Text.Encoding.UTF8.GetBytes(json);
+            var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            jsonOptions.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()));
+            byte[] data = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(transportMsg, jsonOptions);
 
             // We send message 2 immediately. It should be processed without waiting for 1.
             transport.HandleSocketMessage(new SocketMessage(data, 2));

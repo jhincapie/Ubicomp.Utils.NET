@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Newtonsoft.Json;
+using System.Text.Json.Serialization;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
 {
@@ -18,31 +18,37 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         /// <summary>Gets or sets the unique identifier for the
         /// message.</summary>
+        [JsonPropertyName("messageId")]
         public Guid MessageId
         {
             get; set;
         }
 
         /// <summary>Gets or sets the source of the message.</summary>
+        [JsonPropertyName("messageSource")]
         public EventSource MessageSource { get; set; } = null!;
 
         /// <summary>Gets or sets the type identifier of the message.</summary>
+        [JsonPropertyName("messageType")]
         public int MessageType
         {
             get; set;
         }
 
         /// <summary>Gets or sets a value indicating whether an acknowledgement is requested.</summary>
-        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [JsonPropertyName("requestAck")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public bool RequestAck
         {
             get; set;
         }
 
         /// <summary>Gets or sets the actual content of the message.</summary>
+        [JsonPropertyName("messageData")]
         public object MessageData { get; set; } = null!;
 
         /// <summary>Gets or sets the message timestamp.</summary>
+        [JsonPropertyName("timeStamp")]
         public string TimeStamp { get; set; } = string.Empty;
 
         /// <summary>

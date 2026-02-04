@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Newtonsoft.Json;
+using System.Text.Json.Serialization;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
 {
@@ -15,18 +15,18 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     {
         /// <summary>Gets or sets the unique ID of the resource
         /// source.</summary>
-        [JsonProperty("resourceId")]
+        [JsonPropertyName("resourceId")]
         public Guid ResourceId
         {
             get; set;
         }
 
         /// <summary>Gets or sets the name of the resource source.</summary>
-        [JsonProperty("resourceName")]
+        [JsonPropertyName("resourceName")]
         public string ResourceName { get; set; } = string.Empty;
 
         /// <summary>Gets or sets a friendly name for the source.</summary>
-        [JsonProperty("friendlyName")]
+        [JsonPropertyName("friendlyName")]
         public string? FriendlyName
         {
             get; set;

@@ -1,7 +1,7 @@
 #nullable enable
 using System;
 using System.IO;
-using Newtonsoft.Json;
+using System.Text.Json;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
 using Xunit;
 
@@ -35,15 +35,15 @@ namespace Ubicomp.Utils.NET.Tests
             var message = new TransportMessage(source, typeId, content);
 
             var knownTypes = new System.Collections.Generic.Dictionary<int, Type>();
-            var settings = new JsonSerializerSettings();
-            settings.Converters.Add(new TransportMessageConverter(knownTypes));
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            options.Converters.Add(new TransportMessageConverter(knownTypes));
 
             // Export
-            string json = JsonConvert.SerializeObject(message, settings);
+            string json = JsonSerializer.Serialize(message, options);
 
             // Import
             var importedMessage =
-                JsonConvert.DeserializeObject<TransportMessage>(json, settings);
+                JsonSerializer.Deserialize<TransportMessage>(json, options);
 
             Assert.NotNull(importedMessage);
             Assert.Equal(message.MessageId, importedMessage!.MessageId);
@@ -67,15 +67,15 @@ namespace Ubicomp.Utils.NET.Tests
             var content = new MockContent { Content = "Polymorphic Hello" };
             var message = new TransportMessage(source, typeId, content);
 
-            var settings = new JsonSerializerSettings();
-            settings.Converters.Add(new TransportMessageConverter(knownTypes));
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            options.Converters.Add(new TransportMessageConverter(knownTypes));
 
             // Export
-            string json = JsonConvert.SerializeObject(message, settings);
+            string json = JsonSerializer.Serialize(message, options);
 
             // Import
             var importedMessage =
-                JsonConvert.DeserializeObject<TransportMessage>(json, settings);
+                JsonSerializer.Deserialize<TransportMessage>(json, options);
 
             Assert.NotNull(importedMessage);
             Assert.Equal(message.MessageId, importedMessage!.MessageId);
