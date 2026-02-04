@@ -1,8 +1,8 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
 {
@@ -11,7 +11,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     /// Handles polymorphic deserialization of the message data based on the
     /// message type.
     /// </summary>
-    public class TransportMessageConverter : JsonConverter
+    public class TransportMessageConverter : JsonConverter<TransportMessage>
     {
         private readonly IDictionary<string, Type> _knownTypes;
 
@@ -25,102 +25,98 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         }
 
         /// <inheritdoc />
-        public override bool CanConvert(Type objectType)
+        public override TransportMessage? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return objectType == typeof(TransportMessage);
+            if (reader.TokenType != JsonTokenType.StartObject)
+            {
+                throw new JsonException();
+            }
+
+            using (JsonDocument doc = JsonDocument.ParseValue(ref reader))
+            {
+                var root = doc.RootElement;
+                var message = new TransportMessage();
+
+                if (root.TryGetProperty("messageId", out var idProp))
+                {
+                    message.MessageId = idProp.GetGuid();
+                }
+
+                if (root.TryGetProperty("messageSource", out var sourceProp))
+                {
+                    message.MessageSource = JsonSerializer.Deserialize<EventSource>(sourceProp.GetRawText(), options) ?? new EventSource();
+                }
+
+                if (root.TryGetProperty("messageType", out var typeProp))
+                {
+                    message.MessageType = typeProp.GetString() ?? string.Empty;
+                }
+
+                if (root.TryGetProperty("requestAck", out var ackProp))
+                {
+                    message.RequestAck = ackProp.GetBoolean();
+                }
+
+                if (root.TryGetProperty("timeStamp", out var timeProp))
+                {
+                    message.TimeStamp = timeProp.GetString() ?? string.Empty;
+                }
+
+                if (root.TryGetProperty("messageData", out var dataProp) && dataProp.ValueKind != JsonValueKind.Null)
+                {
+                    if (!string.IsNullOrEmpty(message.MessageType) && _knownTypes.TryGetValue(message.MessageType, out Type? targetType) && targetType != null)
+                    {
+                        message.MessageData = JsonSerializer.Deserialize(dataProp.GetRawText(), targetType, options)!;
+                    }
+                    else
+                    {
+                        try
+                        {
+                            // Best effort.
+                            message.MessageData = JsonSerializer.Deserialize<object>(dataProp.GetRawText(), options)!;
+                        }
+                        catch (Exception e)
+                        {
+                             Console.Error.WriteLine(
+                                $"Error during best-effort deserialization of transport message content: {e.Message}");
+                        }
+                    }
+                }
+
+                return message;
+            }
         }
 
         /// <inheritdoc />
-        public override void WriteJson(JsonWriter writer, object? value,
-                                       JsonSerializer serializer)
+        public override void Write(Utf8JsonWriter writer, TransportMessage value, JsonSerializerOptions options)
         {
-            if (value == null)
-            {
-                writer.WriteNull();
-                return;
-            }
-
-            TransportMessage message = (TransportMessage)value;
-
             writer.WriteStartObject();
-            writer.WritePropertyName("messageId");
-            serializer.Serialize(writer, message.MessageId);
-            writer.WritePropertyName("messageSource");
-            serializer.Serialize(writer, message.MessageSource);
-            writer.WritePropertyName("messageType");
-            writer.WriteValue(message.MessageType);
 
-            if (message.RequestAck)
+            writer.WriteString("messageId", value.MessageId);
+
+            writer.WritePropertyName("messageSource");
+            JsonSerializer.Serialize(writer, value.MessageSource, options);
+
+            writer.WriteString("messageType", value.MessageType);
+
+            if (value.RequestAck)
             {
-                writer.WritePropertyName("requestAck");
-                writer.WriteValue(true);
+                writer.WriteBoolean("requestAck", true);
             }
 
             writer.WritePropertyName("messageData");
-            if (message.MessageData != null)
-                serializer.Serialize(writer, message.MessageData);
+            if (value.MessageData != null)
+            {
+                JsonSerializer.Serialize(writer, value.MessageData, value.MessageData.GetType(), options);
+            }
             else
-                writer.WriteNull();
+            {
+                writer.WriteNullValue();
+            }
 
-            writer.WritePropertyName("timeStamp");
-            writer.WriteValue(message.TimeStamp);
+            writer.WriteString("timeStamp", value.TimeStamp);
+
             writer.WriteEndObject();
-        }
-
-        /// <inheritdoc />
-        public override object? ReadJson(JsonReader reader, Type objectType,
-                                         object? existingValue,
-                                         JsonSerializer serializer)
-        {
-            JObject jo = JObject.Load(reader);
-            TransportMessage message = new TransportMessage();
-
-            message.MessageId =
-                jo["messageId"]?.ToObject<Guid>(serializer) ?? Guid.Empty;
-            message.MessageSource =
-                jo["messageSource"]?.ToObject<EventSource>(serializer) ??
-                new EventSource();
-            message.MessageType = jo["messageType"]?.Value<string>() ?? string.Empty;
-            message.RequestAck = jo["requestAck"]?.Value<bool>() ?? false;
-            message.TimeStamp =
-                jo["timeStamp"]?.Value<string>() ?? string.Empty;
-
-            JToken? dataToken = jo["messageData"];
-            if (dataToken == null || dataToken.Type == JTokenType.Null)
-                return message;
-
-            if (!string.IsNullOrEmpty(message.MessageType) &&
-                _knownTypes.TryGetValue(message.MessageType,
-                                       out Type? targetType) &&
-                targetType != null)
-            {
-                // Deserialize directly to the known type
-                object? deserialized =
-                    dataToken.ToObject(targetType, serializer);
-                if (deserialized != null)
-                {
-                    message.MessageData = deserialized;
-                }
-                return message;
-            }
-
-            try
-            {
-                // Attempt best effort.
-                object? deserialized = dataToken.ToObject(typeof(object),
-                                                          serializer);
-                if (deserialized != null)
-                {
-                    message.MessageData = deserialized;
-                }
-            }
-            catch (Exception e)
-            {
-                Console.Error.WriteLine(
-                    $"Error during best-effort deserialization of transport message content: {e.Message}");
-            }
-
-            return message;
         }
     }
 }

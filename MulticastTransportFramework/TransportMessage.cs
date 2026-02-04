@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Newtonsoft.Json;
+using System.Text.Json.Serialization;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
 {
@@ -33,7 +33,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         } = string.Empty;
 
         /// <summary>Gets or sets a value indicating whether an acknowledgement is requested.</summary>
-        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public bool RequestAck
         {
             get; set;

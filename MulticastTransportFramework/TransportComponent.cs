@@ -10,7 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Newtonsoft.Json;
+using System.Text.Json;
 using Ubicomp.Utils.NET.Sockets;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
@@ -45,7 +45,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private readonly ConcurrentDictionary<Guid, AckSession> _activeSessions = new ConcurrentDictionary<Guid, AckSession>();
 
-        private readonly JsonSerializerSettings _jsonSettings;
+        private readonly JsonSerializerOptions _jsonOptions;
 
         private int _currentMessageCons = 1;
         private readonly object gate = new object();
@@ -87,8 +87,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public TransportComponent(MulticastSocketOptions options)
         {
             _socketOptions = options;
-            _jsonSettings = new JsonSerializerSettings();
-            _jsonSettings.Converters.Add(new TransportMessageConverter(_knownTypes));
+            _jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true
+            };
+            _jsonOptions.Converters.Add(new TransportMessageConverter(_knownTypes));
 
             RegisterInternalTypes();
         }
@@ -306,7 +310,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     });
             }
 
-            string json = JsonConvert.SerializeObject(message, _jsonSettings);
+            string json = JsonSerializer.Serialize(message, _jsonOptions);
 
             if (_socket != null)
             {
@@ -453,7 +457,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 TransportMessage? tMessage;
 
                 Logger.LogTrace("Importing message {0}", msg.SequenceId);
-                tMessage = JsonConvert.DeserializeObject<TransportMessage>(sMessage, _jsonSettings);
+                tMessage = JsonSerializer.Deserialize<TransportMessage>(sMessage, _jsonOptions);
 
                 if (tMessage != null)
                 {
