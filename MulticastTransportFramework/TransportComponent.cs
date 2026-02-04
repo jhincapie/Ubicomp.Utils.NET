@@ -36,6 +36,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private MulticastSocket? _socket;
         private readonly MulticastSocketOptions _socketOptions;
+        private CancellationTokenSource? _receiveCts;
+        private Task? _receiveTask;
 
         private readonly ConcurrentDictionary<string, Type> _knownTypes = new ConcurrentDictionary<string, Type>();
         private readonly ConcurrentDictionary<string, Delegate> _genericHandlers = new ConcurrentDictionary<string, Delegate>();
@@ -123,9 +125,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             Stop();
 
+            _receiveCts = new CancellationTokenSource();
+
             var builder = new MulticastSocketBuilder()
                 .WithOptions(_socketOptions)
-                .OnMessageReceived(msg => HandleSocketMessage(msg))
                 .OnError(err => Logger.LogError(
                     "Socket Error: {0}. Exception: {1}",
                     err.Message,
@@ -150,6 +153,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 Monitor.PulseAll(gate);
             }
             _socket.StartReceiving();
+            _receiveTask = Task.Run(async () => await ReceiveLoop(_receiveCts.Token));
 
             string interfaces = string.Join(
                 ", ",
@@ -163,6 +167,30 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             Logger.LogInformation("TransportComponent Initialized.");
         }
 
+        private async Task ReceiveLoop(CancellationToken cancellationToken)
+        {
+            if (_socket == null) return;
+
+            try
+            {
+                await foreach (var msg in _socket.GetMessageStream(cancellationToken))
+                {
+                    HandleSocketMessage(msg);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                Logger.LogInformation("Receive loop stopped.");
+            }
+            catch (Exception ex)
+            {
+                if (!_isStopping)
+                {
+                    Logger.LogError(ex, "Error in TransportComponent receive loop.");
+                }
+            }
+        }
+
         /// <summary>
         /// Stops the transport component and closes the underlying socket.
         /// </summary>
@@ -173,6 +201,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 _isStopping = true;
                 Monitor.PulseAll(gate);
             }
+
+            _receiveCts?.Cancel();
+            try
+            {
+                _receiveTask?.Wait(500);
+            }
+            catch { }
+            _receiveCts?.Dispose();
+            _receiveCts = null;
 
             if (_socket != null)
             {
@@ -217,7 +254,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public async Task<AckSession> SendAsync<T>(T content, SendOptions? options = null)
             where T : class
         {
-            string messageType;
+            string? messageType;
             if (options?.MessageType != null)
             {
                 messageType = options.MessageType;

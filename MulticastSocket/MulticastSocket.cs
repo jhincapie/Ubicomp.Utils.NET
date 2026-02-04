@@ -221,7 +221,7 @@ namespace Ubicomp.Utils.NET.Sockets
             }
         }
 
-        private void OnNetworkAddressChanged(object sender, EventArgs e)
+        private void OnNetworkAddressChanged(object? sender, EventArgs e)
         {
             Logger.LogInformation("Network address changed detected. Attempting to join new interfaces.");
             try
