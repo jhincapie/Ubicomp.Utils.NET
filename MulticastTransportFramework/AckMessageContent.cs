@@ -9,6 +9,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     /// <summary>
     /// Content for an acknowledgement message.
     /// </summary>
+    [MessageType(TransportComponent.AckMessageType)]
     public class AckMessageContent
     {
         /// <summary>

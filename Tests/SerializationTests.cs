@@ -15,6 +15,7 @@ namespace Ubicomp.Utils.NET.Tests
     public class SerializationTests
     {
         /// <summary>Mock content for serialization tests.</summary>
+        [MessageType("test.mockcontent")]
         public class MockContent
         {
             /// <summary>Gets or sets the content text.</summary>
@@ -28,13 +29,13 @@ namespace Ubicomp.Utils.NET.Tests
         [Fact]
         public void ExportImport_ShouldMaintainData()
         {
-            int typeId = 99;
+            string typeId = "test.message";
 
             var source = new EventSource(Guid.NewGuid(), "Host", "Desc");
             var content = new MockContent { Content = "Hello" };
             var message = new TransportMessage(source, typeId, content);
 
-            var knownTypes = new System.Collections.Generic.Dictionary<int, Type>();
+            var knownTypes = new System.Collections.Generic.Dictionary<string, Type>();
             var settings = new JsonSerializerSettings();
             settings.Converters.Add(new TransportMessageConverter(knownTypes));
 
@@ -57,10 +58,10 @@ namespace Ubicomp.Utils.NET.Tests
         [Fact]
         public void ExportImport_WithRegisteredType_ShouldMaintainData()
         {
-            int typeId = 100;
+            string typeId = "test.mockcontent";
 
             // Register the type mapping
-            var knownTypes = new System.Collections.Generic.Dictionary<int, Type>();
+            var knownTypes = new System.Collections.Generic.Dictionary<string, Type>();
             knownTypes[typeId] = typeof(MockContent);
 
             var source = new EventSource(Guid.NewGuid(), "Host", "Desc");

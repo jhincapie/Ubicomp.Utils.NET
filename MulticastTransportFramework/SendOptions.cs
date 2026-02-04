@@ -26,7 +26,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// Gets or sets the message type ID. If not specified, the component
         /// will try to look up the ID based on the registered type.
         /// </summary>
-        public int? MessageType
+        public string? MessageType
         {
             get; set;
         }

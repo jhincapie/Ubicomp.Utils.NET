@@ -20,7 +20,7 @@ namespace Ubicomp.Utils.NET.Sockets
     /// Handles joining multicast groups on multiple interfaces and provides
     /// asynchronous sending and receiving capabilities.
     /// </summary>
-    public class MulticastSocket : IDisposable
+    public partial class MulticastSocket : IDisposable
     {
         private Socket? _udpSocket;
         private int _mConsecutive;
@@ -28,8 +28,12 @@ namespace Ubicomp.Utils.NET.Sockets
         private IPEndPoint _localIPEndPoint = null!;
         private readonly MulticastSocketOptions _options;
         private readonly List<IPAddress> _joinedAddresses = new List<IPAddress>();
+        private readonly object _joinedLock = new object();
         private readonly Channel<SocketMessage> _messageChannel = Channel.CreateUnbounded<SocketMessage>();
         private volatile bool _isChannelStarted = false;
+#if NET8_0_OR_GREATER
+        private CancellationTokenSource? _receiveCts;
+#endif
 
         /// <summary>Gets or sets the logger for this component.</summary>
         public ILogger Logger { get; set; } = NullLogger.Instance;
@@ -50,7 +54,16 @@ namespace Ubicomp.Utils.NET.Sockets
         /// <summary>
         /// Gets the collection of IP addresses that have successfully joined the multicast group.
         /// </summary>
-        public IEnumerable<IPAddress> JoinedAddresses => _joinedAddresses;
+        public IEnumerable<IPAddress> JoinedAddresses
+        {
+            get
+            {
+                lock (_joinedLock)
+                {
+                    return _joinedAddresses.ToList();
+                }
+            }
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="MulticastSocket"/> class.
@@ -98,7 +111,10 @@ namespace Ubicomp.Utils.NET.Sockets
             Logger.LogDebug("Multicast TTL set to {TTL}", _options.TimeToLive);
 
             IPAddress mcastAddr = IPAddress.Parse(_options.GroupAddress);
-            _joinedAddresses.Clear();
+            lock (_joinedLock)
+            {
+                _joinedAddresses.Clear();
+            }
 
             if (_options.LocalIP != null)
             {
@@ -109,6 +125,7 @@ namespace Ubicomp.Utils.NET.Sockets
             {
                 Logger.LogInformation("Auto-joining all valid interfaces for group {GroupAddress}", _options.GroupAddress);
                 JoinAllInterfaces(mcastAddr);
+                NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
             }
 
             OnStartedAction?.Invoke();
@@ -121,11 +138,8 @@ namespace Ubicomp.Utils.NET.Sockets
 
             try
             {
-                if (_options.NoDelay)
-                {
-                    _udpSocket.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoDelay, 1);
-                    Logger.LogTrace("Socket option NoDelay set to true");
-                }
+                _udpSocket.SetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoDelay, _options.NoDelay ? 1 : 0);
+                Logger.LogTrace("Socket option NoDelay set to {Value}", _options.NoDelay);
             }
             catch (SocketException ex)
             {
@@ -136,6 +150,11 @@ namespace Ubicomp.Utils.NET.Sockets
             {
                 _udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 1);
                 Logger.LogTrace("Socket option ReuseAddress set to true");
+            }
+            else
+            {
+                _udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 0);
+                Logger.LogTrace("Socket option ReuseAddress set to false");
             }
 
             if (_options.MulticastLoopback)
@@ -153,6 +172,11 @@ namespace Ubicomp.Utils.NET.Sockets
             {
                 _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.DontFragment, 1);
                 Logger.LogTrace("Socket option DontFragment set to true");
+            }
+            else
+            {
+                _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.DontFragment, 0);
+                Logger.LogTrace("Socket option DontFragment set to false");
             }
 
             if (_options.ReceiveBufferSize > 0)
@@ -176,7 +200,10 @@ namespace Ubicomp.Utils.NET.Sockets
             try
             {
                 _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, localAddr));
-                _joinedAddresses.Add(localAddr);
+                lock (_joinedLock)
+                {
+                    _joinedAddresses.Add(localAddr);
+                }
                 Logger.LogInformation("Successfully joined multicast group {Group} on interface {Interface}", mcastAddr, localAddr);
             }
             catch (Exception ex)
@@ -192,6 +219,20 @@ namespace Ubicomp.Utils.NET.Sockets
             catch (SocketException ex)
             {
                 Logger.LogWarning(ex, "Failed to set MulticastInterface to {Interface}", localAddr);
+            }
+        }
+
+        private void OnNetworkAddressChanged(object? sender, EventArgs e)
+        {
+            Logger.LogInformation("Network address changed detected. Attempting to join new interfaces.");
+            try
+            {
+                IPAddress mcastAddr = IPAddress.Parse(_options.GroupAddress);
+                JoinAllInterfaces(mcastAddr);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error while handling network address change.");
             }
         }
 
@@ -213,10 +254,19 @@ namespace Ubicomp.Utils.NET.Sockets
                     continue;
                 }
 
+                lock (_joinedLock)
+                {
+                    if (_joinedAddresses.Contains(addr))
+                        continue;
+                }
+
                 try
                 {
                     _udpSocket?.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, addr));
-                    _joinedAddresses.Add(addr);
+                    lock (_joinedLock)
+                    {
+                        _joinedAddresses.Add(addr);
+                    }
                     joinCount++;
                     Logger.LogDebug("Joined multicast group {Group} on interface {Interface}", mcastAddr, addr);
                 }
@@ -240,10 +290,13 @@ namespace Ubicomp.Utils.NET.Sockets
             try
             {
                 _udpSocket?.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(mcastAddr, IPAddress.Any));
-                if (!_joinedAddresses.Any(a => a.Equals(IPAddress.Any)))
+                lock (_joinedLock)
                 {
-                    _joinedAddresses.Add(IPAddress.Any);
-                    Logger.LogDebug("Joined multicast group {Group} on IPAddress.Any (Default)", mcastAddr);
+                    if (!_joinedAddresses.Any(a => a.Equals(IPAddress.Any)))
+                    {
+                        _joinedAddresses.Add(IPAddress.Any);
+                        Logger.LogDebug("Joined multicast group {Group} on IPAddress.Any (Default)", mcastAddr);
+                    }
                 }
             }
             catch (SocketException ex)
@@ -271,8 +324,71 @@ namespace Ubicomp.Utils.NET.Sockets
                 throw new ApplicationException("Socket is not initialized.");
 
             Logger.LogInformation("Starting receive loop...");
+#if NET8_0_OR_GREATER
+            _receiveCts = new CancellationTokenSource();
+            _ = ReceiveAsyncLoop(_receiveCts.Token);
+#else
             Receive(new StateObject { WorkSocket = _udpSocket });
+#endif
         }
+
+#if NET8_0_OR_GREATER
+        private async Task ReceiveAsyncLoop(CancellationToken cancellationToken)
+        {
+            if (_udpSocket == null) return;
+
+            byte[] buffer = new byte[StateObject.BufferSize];
+            Memory<byte> memoryBuffer = buffer;
+
+            try
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    try
+                    {
+                        var result = await _udpSocket.ReceiveFromAsync(memoryBuffer, SocketFlags.None, _localEndPoint, cancellationToken);
+
+                        // Copy the data as in the original implementation
+                        byte[] bufferCopy = new byte[result.ReceivedBytes];
+                        Array.Copy(buffer, 0, bufferCopy, 0, result.ReceivedBytes);
+
+                        int seqId = Interlocked.Increment(ref _mConsecutive);
+                        var msg = new SocketMessage(bufferCopy, seqId);
+
+                        Logger.LogTrace("Received message with SeqId {SeqId}, Length {Length}", seqId, result.ReceivedBytes);
+
+                        OnMessageReceivedAction?.Invoke(msg);
+                        _messageChannel.Writer.TryWrite(msg);
+                    }
+                    catch (SocketException se) when (se.SocketErrorCode == SocketError.OperationAborted || se.SocketErrorCode == SocketError.Interrupted)
+                    {
+                        Logger.LogInformation("Receive operation aborted or interrupted.");
+                        break;
+                    }
+                     catch (OperationCanceledException)
+                    {
+                        Logger.LogDebug("Receive operation cancelled.");
+                        break;
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        Logger.LogDebug("Socket disposed, stopping receive loop.");
+                        break;
+                    }
+                    catch (Exception e)
+                    {
+                        Logger.LogError(e, "Error during receive.");
+                        OnErrorAction?.Invoke(new SocketErrorContext("Error during receive.", e));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                 // Outer catch just in case
+                 Logger.LogError(ex, "Fatal error in receive loop.");
+            }
+        }
+#endif
 
         private void Receive(StateObject state)
         {
@@ -295,7 +411,7 @@ namespace Ubicomp.Utils.NET.Sockets
                 int seqId = Interlocked.Increment(ref _mConsecutive);
                 var msg = new SocketMessage(buffer, bytesRead, seqId, isRented: true);
 
-                Logger.LogTrace("Received message with SeqId {SeqId}, Length {Length}", seqId, bytesRead);
+                LogMessageReceived(Logger, seqId, bytesRead);
 
                 OnMessageReceivedAction?.Invoke(msg);
 
@@ -355,7 +471,16 @@ namespace Ubicomp.Utils.NET.Sockets
         public void Close()
         {
             Logger.LogInformation("Closing MulticastSocket...");
+            if (_options.LocalIP == null)
+            {
+                NetworkChange.NetworkAddressChanged -= OnNetworkAddressChanged;
+            }
             _messageChannel.Writer.TryComplete();
+#if NET8_0_OR_GREATER
+            _receiveCts?.Cancel();
+            _receiveCts?.Dispose();
+            _receiveCts = null;
+#endif
             try
             {
                 _udpSocket?.Close();
@@ -412,6 +537,9 @@ namespace Ubicomp.Utils.NET.Sockets
             Close();
             _udpSocket?.Dispose();
         }
+
+        [LoggerMessage(Level = LogLevel.Trace, Message = "Received message with SeqId {SeqId}, Length {Length}")]
+        private static partial void LogMessageReceived(ILogger logger, int seqId, int length);
 
         internal class StateObject
         {
