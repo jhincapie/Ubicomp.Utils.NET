@@ -85,6 +85,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public bool EnforceOrdering { get; set; } = false;
 
         /// <summary>
+        /// Gets or sets the maximum size of the pending message queue to prevent memory exhaustion.
+        /// Defaults to 10000 messages.
+        /// </summary>
+        public int MaxQueueSize { get; set; } = 10000;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="TransportComponent"/> class.
         /// </summary>
         /// <param name="options">The multicast socket options to use.</param>
@@ -139,8 +145,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             Stop();
 
             _receiveCts = new CancellationTokenSource();
-            _gateInput = Channel.CreateUnbounded<GateCmd>();
-            _processingChannel = Channel.CreateUnbounded<SocketMessage>();
+
+            var channelOptions = new BoundedChannelOptions(MaxQueueSize)
+            {
+                FullMode = BoundedChannelFullMode.DropWrite
+            };
+
+            _gateInput = Channel.CreateBounded<GateCmd>(channelOptions);
+            _processingChannel = Channel.CreateBounded<SocketMessage>(channelOptions);
 
             // Start the Actor Loops
             _gateLoopTask = Task.Run(GateKeeperLoop);
@@ -228,15 +240,28 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                                     gapCts.Cancel();
                                     gapCts = null;
                                 }
-                                _processingChannel.Writer.TryWrite(msg);
-                                currentSeq++;
-
-                                // Check queue for next messages
-                                CheckQueue(pq, ref currentSeq, _processingChannel);
+                                if (!_processingChannel.Writer.TryWrite(msg))
+                                {
+                                    Logger.LogWarning("Processing channel full. Dropping message {0}.", msg.SequenceId);
+                                    msg.Dispose();
+                                }
+                                else
+                                {
+                                    currentSeq++;
+                                    // Check queue for next messages
+                                    CheckQueue(pq, ref currentSeq, _processingChannel);
+                                }
                             }
                             else
                             {
-                                // Future message
+                                // Future message - Check Queue Size Limit
+                                if (pq.Count >= MaxQueueSize)
+                                {
+                                     Logger.LogWarning("PriorityQueue full ({0}). Dropping future message {1} to prevent DoS.", pq.Count, msg.SequenceId);
+                                     msg.Dispose();
+                                     continue;
+                                }
+
                                 pq.Enqueue(msg, msg.SequenceId);
                                 if (gapCts == null)
                                 {
@@ -283,7 +308,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                  if (priority == currentSeq)
                  {
                      pq.Dequeue();
-                     output.Writer.TryWrite(nextMsg);
+                     if (!output.Writer.TryWrite(nextMsg))
+                     {
+                         Logger.LogWarning("Processing channel full. Dropping queued message {0}.", nextMsg.SequenceId);
+                         nextMsg.Dispose();
+                     }
                      currentSeq++;
                  }
                  else if (priority < currentSeq)
@@ -303,24 +332,24 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             if (_processingChannel == null) return;
             try
             {
-                 while (await _processingChannel.Reader.WaitToReadAsync())
-                 {
-                     while (_processingChannel.Reader.TryRead(out var msg))
-                     {
-                         try
-                         {
-                             ProcessSingleMessage(msg);
-                         }
-                         finally
-                         {
-                             msg.Dispose();
-                         }
-                     }
-                 }
+                while (await _processingChannel.Reader.WaitToReadAsync())
+                {
+                    while (_processingChannel.Reader.TryRead(out var msg))
+                    {
+                        try
+                        {
+                            ProcessSingleMessage(msg);
+                        }
+                        finally
+                        {
+                            msg.Dispose();
+                        }
+                    }
+                }
             }
             catch (Exception ex)
             {
-                 Logger.LogError(ex, "Critical error in ProcessingLoop");
+                Logger.LogError(ex, "Critical error in ProcessingLoop");
             }
         }
 
@@ -479,12 +508,20 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             if (!EnforceOrdering)
             {
                 // Route directly to processing
-                _processingChannel?.Writer.TryWrite(msg);
+                if (!(_processingChannel?.Writer.TryWrite(msg) ?? false))
+                {
+                     // Channel full or null
+                     msg.Dispose();
+                }
             }
             else
             {
                 // Route to GateKeeper
-                _gateInput?.Writer.TryWrite(new InputMsgCmd { Msg = msg });
+                if (!(_gateInput?.Writer.TryWrite(new InputMsgCmd { Msg = msg }) ?? false))
+                {
+                     // Channel full or null
+                     msg.Dispose();
+                }
             }
         }
 
