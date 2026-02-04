@@ -36,7 +36,6 @@ namespace Ubicomp.Utils.NET.Tests
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                 PropertyNameCaseInsensitive = true
             };
-            jsonOptions.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<string, Type>()));
             var jsonFalse = JsonSerializer.Serialize(msg, jsonOptions);
             Assert.DoesNotContain("RequestAck", jsonFalse);
 
@@ -121,7 +120,6 @@ namespace Ubicomp.Utils.NET.Tests
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                 PropertyNameCaseInsensitive = true
             };
-            jsonOptions.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<string, Type>()));
             string ackJson = JsonSerializer.Serialize(ackMsg, jsonOptions);
             byte[] ackData = Encoding.UTF8.GetBytes(ackJson);
 

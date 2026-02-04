@@ -41,8 +41,6 @@ namespace Ubicomp.Utils.NET.Tests
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                 PropertyNameCaseInsensitive = true
             };
-            options.Converters.Add(new TransportMessageConverter(knownTypes));
-
             // Export
             string json = JsonSerializer.Serialize(message, options);
 
@@ -77,8 +75,6 @@ namespace Ubicomp.Utils.NET.Tests
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                 PropertyNameCaseInsensitive = true
             };
-            options.Converters.Add(new TransportMessageConverter(knownTypes));
-
             // Export
             string json = JsonSerializer.Serialize(message, options);
 
@@ -90,11 +86,15 @@ namespace Ubicomp.Utils.NET.Tests
             Assert.Equal(message.MessageId, importedMessage!.MessageId);
             Assert.Equal(message.MessageType, importedMessage.MessageType);
 
-            // System.Text.Json deserializes to JsonElement if type is object and not polymorphic handled
-            // But here we use TransportMessageConverter which handles known types.
-            Assert.IsType<MockContent>(importedMessage.MessageData);
-            Assert.Equal(content.Content,
-                         ((MockContent)importedMessage.MessageData).Content);
+            // Without converter, MessageData is JsonElement
+            Assert.IsType<JsonElement>(importedMessage.MessageData);
+
+            // Manual late deserialization
+            var element = (JsonElement)importedMessage.MessageData;
+            var data = JsonSerializer.Deserialize(element.GetRawText(), knownTypes[typeId], options);
+
+            Assert.IsType<MockContent>(data);
+            Assert.Equal(content.Content, ((MockContent)data!).Content);
         }
     }
 }

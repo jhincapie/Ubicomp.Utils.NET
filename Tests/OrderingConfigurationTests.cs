@@ -144,7 +144,6 @@ namespace Ubicomp.Utils.NET.Tests
             var transportMsg = new TransportMessage(source, msgType, content);
             string json = JsonConvert.SerializeObject(transportMsg, new JsonSerializerSettings
             {
-                Converters = { new TransportMessageConverter(new Dictionary<string, Type>()) }
             });
             return Encoding.UTF8.GetBytes(json);
         }

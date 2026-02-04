@@ -38,7 +38,6 @@ namespace Ubicomp.Utils.NET.Tests
                 PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
                 PropertyNameCaseInsensitive = true
             };
-            jsonOptions.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<string, Type>()));
 
             string json = System.Text.Json.JsonSerializer.Serialize(transportMsg, jsonOptions);
             byte[] data = System.Text.Encoding.UTF8.GetBytes(json);
@@ -79,7 +78,6 @@ namespace Ubicomp.Utils.NET.Tests
                 PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
                 PropertyNameCaseInsensitive = true
             };
-            jsonOptions.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<string, Type>()));
 
             string json = System.Text.Json.JsonSerializer.Serialize(transportMsg, jsonOptions);
             byte[] data = System.Text.Encoding.UTF8.GetBytes(json);
