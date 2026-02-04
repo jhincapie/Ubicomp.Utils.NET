@@ -185,7 +185,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             var tcs = new TaskCompletionSource<bool>();
             var testId = Guid.NewGuid();
-            const int TestMessageType = 998; // Changed to avoid collision if any
+            const string TestMessageType = "sys.diag.loopback"; // Changed to avoid collision if any
 
             transport.RegisterHandler<LoopbackTestData>(TestMessageType, (data, context) =>
             {

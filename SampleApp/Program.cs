@@ -14,9 +14,6 @@ namespace Ubicomp.Utils.NET.SampleApp
     /// </summary>
     class Program
     {
-        /// <summary>The ID for this sample application.</summary>
-        public const int SampleAppID = 2;
-
         static async Task Main(string[] args)
         {
             Console.WriteLine("Ubicomp.Utils.NET Sample App");
@@ -74,7 +71,7 @@ namespace Ubicomp.Utils.NET.SampleApp
                 .WithAutoSendAcks(false)
                 .Build();
 
-            transport.RegisterHandler<SimpleContent>(SampleAppID, (content, context) =>
+            transport.RegisterHandler<SimpleContent>((content, context) =>
             {
                 Console.WriteLine($"Received message: {content.Text} from {context.Source.ResourceName}");
                 if (context.RequestAck)
@@ -157,6 +154,7 @@ namespace Ubicomp.Utils.NET.SampleApp
     /// <summary>
     /// Simple content model for transport messages.
     /// </summary>
+    [MessageType("ubicomp.utils.net.sampleapp.SimpleContent")]
     public class SimpleContent
     {
         /// <summary>Gets or sets the text content.</summary>

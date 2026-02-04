@@ -32,7 +32,7 @@ namespace Ubicomp.Utils.NET.Tests
             Assert.False(msg.RequestAck);
 
             var settings = new JsonSerializerSettings();
-            settings.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()));
+            settings.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<string, Type>()));
             var jsonFalse = JsonConvert.SerializeObject(msg, settings);
             Assert.DoesNotContain("RequestAck", jsonFalse);
 
@@ -87,7 +87,7 @@ namespace Ubicomp.Utils.NET.Tests
             var tc = new TransportComponent(options);
 
             // Register a dummy type for sending
-            tc.RegisterHandler<AckMessageContent>(1, (c, ctx) => { });
+            tc.RegisterHandler<AckMessageContent>("1", (c, ctx) => { });
 
             var session = await tc.SendAsync(new AckMessageContent(), new SendOptions { RequestAck = true });
 
@@ -102,7 +102,7 @@ namespace Ubicomp.Utils.NET.Tests
             var tc = new TransportComponent(options);
 
             // Register a dummy type for sending
-            tc.RegisterHandler<AckMessageContent>(1, (c, ctx) => { });
+            tc.RegisterHandler<AckMessageContent>("1", (c, ctx) => { });
             var session = await tc.SendAsync(new AckMessageContent(), new SendOptions { RequestAck = true });
 
             // Create an Ack message for this msg
@@ -113,7 +113,7 @@ namespace Ubicomp.Utils.NET.Tests
             var ackMsg = new TransportMessage(ackSource, TransportComponent.AckMessageType, ackContent);
 
             var settings = new JsonSerializerSettings();
-            settings.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()));
+            settings.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<string, Type>()));
             string ackJson = JsonConvert.SerializeObject(ackMsg, settings);
             byte[] ackData = Encoding.UTF8.GetBytes(ackJson);
 

@@ -12,6 +12,7 @@ namespace Ubicomp.Utils.NET.Tests
     [Collection("SharedTransport")]
     public class AutoAckTests
     {
+        [MessageType("test.autoack.content")]
         private class TestContent
         {
             public string Text { get; set; } = "";
@@ -21,7 +22,6 @@ namespace Ubicomp.Utils.NET.Tests
         public async Task MessageContext_ShouldReflectRequestAck()
         {
             // Arrange
-            int msgType = 1001;
             var receivedEvent = new ManualResetEvent(false);
             bool? requestAckValue = null;
 
@@ -33,7 +33,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
-                .RegisterHandler<TestContent>(msgType, (content, context) =>
+                .RegisterHandler<TestContent>((content, context) =>
                 {
                     requestAckValue = context.RequestAck;
                     receivedEvent.Set();
@@ -45,7 +45,7 @@ namespace Ubicomp.Utils.NET.Tests
             try
             {
                 // Act
-                await transport.SendAsync(new TestContent { Text = "Ping" }, new SendOptions { RequestAck = true, MessageType = msgType });
+                await transport.SendAsync(new TestContent { Text = "Ping" }, new SendOptions { RequestAck = true });
 
                 // Assert
                 bool received = receivedEvent.WaitOne(2000);
@@ -62,7 +62,6 @@ namespace Ubicomp.Utils.NET.Tests
         public async Task AutoSendAcks_ShouldAutomaticallySendAck()
         {
             // Arrange
-            int msgType = 1002;
             var options1 = MulticastSocketOptions.WideAreaNetwork("239.1.2.8", 5007, 1);
             var options2 = MulticastSocketOptions.WideAreaNetwork("239.1.2.8", 5007, 1);
             if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
@@ -82,7 +81,7 @@ namespace Ubicomp.Utils.NET.Tests
                 .WithMulticastOptions(options2)
                 .WithLocalSource("SourceB")
                 .WithAutoSendAcks(true)
-                .RegisterHandler<TestContent>(msgType, (c, ctx) => { /* Just handle it */ })
+                .RegisterHandler<TestContent>((c, ctx) => { /* Just handle it */ })
                 .Build();
 
             transportA.Start();
@@ -91,7 +90,7 @@ namespace Ubicomp.Utils.NET.Tests
             try
             {
                 // Act
-                var session = await transportA.SendAsync(new TestContent { Text = "Ping" }, new SendOptions { RequestAck = true, MessageType = msgType });
+                var session = await transportA.SendAsync(new TestContent { Text = "Ping" }, new SendOptions { RequestAck = true });
 
                 // Assert
                 bool ackReceived = await session.WaitAsync(TimeSpan.FromSeconds(3));
@@ -109,7 +108,6 @@ namespace Ubicomp.Utils.NET.Tests
         public async Task AutoSendAcks_Disabled_ShouldNotSendAck()
         {
             // Arrange
-            int msgType = 1003;
             var options1 = MulticastSocketOptions.WideAreaNetwork("239.1.2.9", 5008, 1);
             var options2 = MulticastSocketOptions.WideAreaNetwork("239.1.2.9", 5008, 1);
             if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
@@ -127,7 +125,7 @@ namespace Ubicomp.Utils.NET.Tests
                 .WithMulticastOptions(options2)
                 .WithLocalSource("SourceB")
                 .WithAutoSendAcks(false) // DISABLED
-                .RegisterHandler<TestContent>(msgType, (c, ctx) => { })
+                .RegisterHandler<TestContent>((c, ctx) => { })
                 .Build();
 
             transportA.Start();
@@ -136,7 +134,7 @@ namespace Ubicomp.Utils.NET.Tests
             try
             {
                 // Act
-                var session = await transportA.SendAsync(new TestContent { Text = "Ping" }, new SendOptions { RequestAck = true, MessageType = msgType });
+                var session = await transportA.SendAsync(new TestContent { Text = "Ping" }, new SendOptions { RequestAck = true });
 
                 // Assert
                 bool ackReceived = await session.WaitAsync(TimeSpan.FromSeconds(1));

@@ -56,9 +56,18 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// <summary>
         /// Registers a handler for a specific message type.
         /// </summary>
-        public TransportBuilder RegisterHandler<T>(int id, Action<T, MessageContext> handler) where T : class
+        public TransportBuilder RegisterHandler<T>(string id, Action<T, MessageContext> handler) where T : class
         {
             _registrations.Add(component => component.RegisterHandler(id, handler));
+            return this;
+        }
+
+        /// <summary>
+        /// Registers a handler for a message type using the <see cref="MessageTypeAttribute"/>.
+        /// </summary>
+        public TransportBuilder RegisterHandler<T>(Action<T, MessageContext> handler) where T : class
+        {
+            _registrations.Add(component => component.RegisterHandler(handler));
             return this;
         }
 
