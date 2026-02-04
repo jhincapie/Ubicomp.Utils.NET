@@ -3,9 +3,9 @@ using System;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
 using Ubicomp.Utils.NET.Sockets;
 using Xunit;
@@ -31,13 +31,17 @@ namespace Ubicomp.Utils.NET.Tests
             // Default should be false
             Assert.False(msg.RequestAck);
 
-            var settings = new JsonSerializerSettings();
-            settings.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<string, Type>()));
-            var jsonFalse = JsonConvert.SerializeObject(msg, settings);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true
+            };
+            jsonOptions.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<string, Type>()));
+            var jsonFalse = JsonSerializer.Serialize(msg, jsonOptions);
             Assert.DoesNotContain("RequestAck", jsonFalse);
 
             msg.RequestAck = true;
-            var jsonTrue = JsonConvert.SerializeObject(msg, settings);
+            var jsonTrue = JsonSerializer.Serialize(msg, jsonOptions);
             Assert.Contains("\"requestAck\":true", jsonTrue);
         }
 
@@ -112,9 +116,13 @@ namespace Ubicomp.Utils.NET.Tests
             var ackSource = new EventSource(Guid.NewGuid(), "Responder");
             var ackMsg = new TransportMessage(ackSource, TransportComponent.AckMessageType, ackContent);
 
-            var settings = new JsonSerializerSettings();
-            settings.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<string, Type>()));
-            string ackJson = JsonConvert.SerializeObject(ackMsg, settings);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true
+            };
+            jsonOptions.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<string, Type>()));
+            string ackJson = JsonSerializer.Serialize(ackMsg, jsonOptions);
             byte[] ackData = Encoding.UTF8.GetBytes(ackJson);
 
             // Act

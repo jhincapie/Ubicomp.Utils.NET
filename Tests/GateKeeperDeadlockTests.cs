@@ -3,8 +3,8 @@ using System;
 using System.Net;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
-using Newtonsoft.Json;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
 using Ubicomp.Utils.NET.Sockets;
 using Xunit;
@@ -36,10 +36,14 @@ namespace Ubicomp.Utils.NET.Tests
             var source = new EventSource(Guid.NewGuid(), "TestSource");
             var validMsg = new TransportMessage(source, msgType, new EmptyContent());
 
-            var settings = new JsonSerializerSettings();
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true
+            };
             var knownTypes = new System.Collections.Generic.Dictionary<string, Type>();
-            settings.Converters.Add(new TransportMessageConverter(knownTypes));
-            string validJson = JsonConvert.SerializeObject(validMsg, settings);
+            jsonOptions.Converters.Add(new TransportMessageConverter(knownTypes));
+            string validJson = JsonSerializer.Serialize(validMsg, jsonOptions);
             byte[] validData = Encoding.UTF8.GetBytes(validJson);
 
             // Act

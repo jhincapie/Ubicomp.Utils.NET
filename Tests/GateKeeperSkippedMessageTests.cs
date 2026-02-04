@@ -33,10 +33,14 @@ namespace Ubicomp.Utils.NET.Tests
             // Act
             var source = new EventSource(Guid.NewGuid(), "TestSource");
             var transportMsg = new TransportMessage(source, msgType, "msg2");
-            string json = Newtonsoft.Json.JsonConvert.SerializeObject(transportMsg, new Newtonsoft.Json.JsonSerializerSettings
+            var jsonOptions = new System.Text.Json.JsonSerializerOptions
             {
-                Converters = { new TransportMessageConverter(new System.Collections.Generic.Dictionary<string, Type>()) }
-            });
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true
+            };
+            jsonOptions.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<string, Type>()));
+
+            string json = System.Text.Json.JsonSerializer.Serialize(transportMsg, jsonOptions);
             byte[] data = System.Text.Encoding.UTF8.GetBytes(json);
 
             // We skip message 1 and send message 2.
@@ -70,10 +74,14 @@ namespace Ubicomp.Utils.NET.Tests
             // Act
             var source = new EventSource(Guid.NewGuid(), "TestSource");
             var transportMsg = new TransportMessage(source, msgType, "msg2");
-            string json = Newtonsoft.Json.JsonConvert.SerializeObject(transportMsg, new Newtonsoft.Json.JsonSerializerSettings
+            var jsonOptions = new System.Text.Json.JsonSerializerOptions
             {
-                Converters = { new TransportMessageConverter(new System.Collections.Generic.Dictionary<string, Type>()) }
-            });
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true
+            };
+            jsonOptions.Converters.Add(new TransportMessageConverter(new System.Collections.Generic.Dictionary<string, Type>()));
+
+            string json = System.Text.Json.JsonSerializer.Serialize(transportMsg, jsonOptions);
             byte[] data = System.Text.Encoding.UTF8.GetBytes(json);
 
             // We send message 2 immediately. It should be processed without waiting for 1.
