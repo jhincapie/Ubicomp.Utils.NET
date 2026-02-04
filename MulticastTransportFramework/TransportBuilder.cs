@@ -15,6 +15,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private ILoggerFactory? _loggerFactory;
         private EventSource? _localSource;
         private bool _autoSendAcks = false;
+        private bool? _enforceOrdering;
         private readonly List<Action<TransportComponent>> _registrations = new List<Action<TransportComponent>>();
 
         /// <summary>
@@ -23,6 +24,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public TransportBuilder WithMulticastOptions(MulticastSocketOptions options)
         {
             _options = options;
+            return this;
+        }
+
+        /// <summary>
+        /// Configures whether to enforce strict message ordering.
+        /// </summary>
+        public TransportBuilder WithEnforceOrdering(bool enforce)
+        {
+            _enforceOrdering = enforce;
             return this;
         }
 
@@ -78,6 +88,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             if (_options == null)
                 throw new InvalidOperationException("Multicast options must be configured.");
+
+            if (_enforceOrdering.HasValue)
+            {
+                _options.EnforceOrdering = _enforceOrdering.Value;
+            }
 
             var component = new TransportComponent(_options);
 
