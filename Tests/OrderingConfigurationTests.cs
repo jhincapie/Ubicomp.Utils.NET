@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
 using Ubicomp.Utils.NET.Sockets;
 using Xunit;
-using Newtonsoft.Json;
+using System.Text.Json;
 using System.Text;
 
 namespace Ubicomp.Utils.NET.Tests
