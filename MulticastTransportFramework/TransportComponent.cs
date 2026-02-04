@@ -341,7 +341,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             if (!_socketOptions.EnforceOrdering)
             {
-                ProcessSingleMessage(msg);
+                try
+                {
+                    ProcessSingleMessage(msg);
+                }
+                finally
+                {
+                    msg.Dispose();
+                }
                 return;
             }
 
@@ -356,6 +363,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                         "Received late message {0} (current is {1}). Ignoring.",
                         msg.SequenceId,
                         _currentMessageCons);
+                    msg.Dispose();
                     return;
                 }
 
@@ -434,7 +442,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             try
             {
-                string sMessage = Encoding.UTF8.GetString(msg.Data);
+                string sMessage = Encoding.UTF8.GetString(msg.Data, 0, msg.Length);
                 TransportMessage? tMessage;
 
                 Logger.LogTrace("Importing message {0}", msg.SequenceId);
@@ -460,7 +468,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             while (currentMsg != null)
             {
-                ProcessSingleMessage(currentMsg);
+                try
+                {
+                    ProcessSingleMessage(currentMsg);
+                }
+                finally
+                {
+                    currentMsg.Dispose();
+                }
                 currentMsg = NudgeGateAndGetNext();
             }
         }
