@@ -40,7 +40,7 @@ namespace Ubicomp.Utils.NET.Tests
 
         private SocketMessage CreateMessage(int seq)
         {
-            var tm = new TransportMessage(new EventSource(Guid.NewGuid(), "test"), 1, "data")
+            var tm = new TransportMessage(new EventSource(Guid.NewGuid(), "test"), "1", "data")
             {
                 MessageId = Guid.NewGuid()
             };

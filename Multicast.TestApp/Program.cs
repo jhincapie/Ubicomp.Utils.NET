@@ -16,8 +16,8 @@ namespace Ubicomp.Utils.NET.Muticast.TestApp
     /// </summary>
     class Program
     {
-        /// <summary>The unique ID for the test application.</summary>
-        public const int ProgramID = 1;
+        /// <summary>The message ID used for testing.</summary>
+        public const string ProgramID = "1";
 
         private readonly TransportComponent _transport;
 
