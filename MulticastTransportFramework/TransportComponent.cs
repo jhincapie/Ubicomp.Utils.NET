@@ -33,8 +33,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// </summary>
         public const int AckMessageType = 99;
 
-        private static readonly object importLock = new object();
-        private static readonly object exportLock = new object();
 
         private MulticastSocket? _socket;
         private readonly MulticastSocketOptions _socketOptions;
@@ -235,11 +233,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     });
             }
 
-            string json;
-            lock (exportLock)
-            {
-                json = JsonConvert.SerializeObject(message, _jsonSettings);
-            }
+            string json = JsonConvert.SerializeObject(message, _jsonSettings);
 
             if (_socket != null)
             {
@@ -359,11 +353,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 string sMessage = Encoding.UTF8.GetString(msg.Data);
                 TransportMessage? tMessage;
 
-                lock (importLock)
-                {
-                    Logger.LogTrace("Importing message {0}", msg.SequenceId);
-                    tMessage = JsonConvert.DeserializeObject<TransportMessage>(sMessage, _jsonSettings);
-                }
+                Logger.LogTrace("Importing message {0}", msg.SequenceId);
+                tMessage = JsonConvert.DeserializeObject<TransportMessage>(sMessage, _jsonSettings);
 
                 if (tMessage != null)
                 {
