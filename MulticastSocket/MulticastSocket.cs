@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Buffers;
 using System.Text;
 using System.Threading;
 using System.Threading.Channels;
@@ -28,7 +29,7 @@ namespace Ubicomp.Utils.NET.Sockets
         private readonly MulticastSocketOptions _options;
         private readonly List<IPAddress> _joinedAddresses = new List<IPAddress>();
         private readonly Channel<SocketMessage> _messageChannel = Channel.CreateUnbounded<SocketMessage>();
-        private bool _isChannelStarted = false;
+        private volatile bool _isChannelStarted = false;
 
         /// <summary>Gets or sets the logger for this component.</summary>
         public ILogger Logger { get; set; } = NullLogger.Instance;
@@ -288,16 +289,24 @@ namespace Ubicomp.Utils.NET.Sockets
             try
             {
                 int bytesRead = state.WorkSocket.EndReceiveFrom(ar, ref _localEndPoint);
-                byte[] bufferCopy = new byte[bytesRead];
-                Array.Copy(state.Buffer, 0, bufferCopy, 0, bytesRead);
+                byte[] buffer = ArrayPool<byte>.Shared.Rent(bytesRead);
+                Array.Copy(state.Buffer, 0, buffer, 0, bytesRead);
 
                 int seqId = Interlocked.Increment(ref _mConsecutive);
-                var msg = new SocketMessage(bufferCopy, seqId);
+                var msg = new SocketMessage(buffer, bytesRead, seqId, isRented: true);
 
                 Logger.LogTrace("Received message with SeqId {SeqId}, Length {Length}", seqId, bytesRead);
 
                 OnMessageReceivedAction?.Invoke(msg);
-                _messageChannel.Writer.TryWrite(msg);
+
+                if (_isChannelStarted)
+                {
+                    _messageChannel.Writer.TryWrite(msg);
+                }
+                else if (OnMessageReceivedAction == null)
+                {
+                    msg.Dispose();
+                }
 
                 Receive(state);
             }

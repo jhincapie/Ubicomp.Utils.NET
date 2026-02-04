@@ -50,7 +50,8 @@ namespace Ubicomp.Utils.NET.Tests
 
             Assert.True(hasMessage);
             Assert.NotNull(enumerator.Current);
-            Assert.Equal(testMessage, Encoding.UTF8.GetString(enumerator.Current.Data));
+            Assert.Equal(testMessage, Encoding.UTF8.GetString(enumerator.Current.Data, 0, enumerator.Current.Length));
+            enumerator.Current.Dispose();
 
             cts.Cancel();
         }
@@ -89,9 +90,12 @@ namespace Ubicomp.Utils.NET.Tests
             int count = 0;
             await foreach (var msg in stream)
             {
-                count++;
-                string content = Encoding.UTF8.GetString(msg.Data);
-                Assert.Equal($"Msg {count}", content);
+                using (msg)
+                {
+                    count++;
+                    string content = Encoding.UTF8.GetString(msg.Data, 0, msg.Length);
+                    Assert.Equal($"Msg {count}", content);
+                }
 
                 if (count == 3)
                     break;

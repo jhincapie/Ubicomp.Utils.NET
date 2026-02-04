@@ -81,7 +81,8 @@ namespace Ubicomp.Utils.NET.Tests
                 .WithOptions(receiverOptions)
                 .OnMessageReceived(msg =>
                 {
-                    receivedMessage = Encoding.UTF8.GetString(msg.Data);
+                    receivedMessage = Encoding.UTF8.GetString(msg.Data, 0, msg.Length);
+                    msg.Dispose();
                     signal.Set();
                 })
                 .Build();
@@ -120,7 +121,8 @@ namespace Ubicomp.Utils.NET.Tests
                 .WithOptions(options)
                 .OnMessageReceived(msg =>
                 {
-                    receivedMessage = Encoding.UTF8.GetString(msg.Data);
+                    receivedMessage = Encoding.UTF8.GetString(msg.Data, 0, msg.Length);
+                    msg.Dispose();
                     receivedEvent.Set();
                 })
                 .Build();

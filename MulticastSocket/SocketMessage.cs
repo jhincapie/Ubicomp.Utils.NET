@@ -1,15 +1,24 @@
 #nullable enable
 using System;
+using System.Buffers;
 
 namespace Ubicomp.Utils.NET.Sockets
 {
     /// <summary>
     /// Represents a message received by a multicast socket.
     /// </summary>
-    public class SocketMessage
+    public class SocketMessage : IDisposable
     {
+        private byte[]? _rentedBuffer;
+
         /// <summary>Gets the raw data received.</summary>
         public byte[] Data
+        {
+            get;
+        }
+
+        /// <summary>Gets the length of the valid data in the buffer.</summary>
+        public int Length
         {
             get;
         }
@@ -32,8 +41,30 @@ namespace Ubicomp.Utils.NET.Sockets
         public SocketMessage(byte[] data, int sequenceId)
         {
             Data = data;
+            Length = data.Length;
             SequenceId = sequenceId;
             Timestamp = DateTime.Now;
+        }
+
+        internal SocketMessage(byte[] buffer, int length, int sequenceId, bool isRented)
+        {
+            Data = buffer;
+            Length = length;
+            SequenceId = sequenceId;
+            Timestamp = DateTime.Now;
+            if (isRented)
+            {
+                _rentedBuffer = buffer;
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_rentedBuffer != null)
+            {
+                ArrayPool<byte>.Shared.Return(_rentedBuffer);
+                _rentedBuffer = null;
+            }
         }
     }
 
