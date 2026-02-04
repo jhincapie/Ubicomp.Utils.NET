@@ -3,5 +3,9 @@
 **Action:** When optimizing `Socket` operations, benchmark carefully. Avoid assuming that object reuse is always faster, especially with legacy APM methods.
 
 ## 2024-05-23 - Global Serialization Locks
-**Learning:** `TransportComponent` used static `importLock` and `exportLock` to synchronize serialization/deserialization. This creates a global bottleneck across all `TransportComponent` instances and limits concurrency. Removing these locks improved throughput by ~5% in a concurrent benchmark and unlocks scalability.
+**Learning:** `TransportComponent` used static `importLock` and `exportLock` to synchronize serialization/deserialization. This creates a global bottleneck. Removing these locks improved throughput by ~5% in a concurrent benchmark and unlocks scalability.
 **Action:** Avoid static locks for thread-safe operations like `JsonConvert.SerializeObject`.
+
+## 2024-05-23 - Ordering Logic and Thread Safety
+**Learning:** The `importLock` in `TransportComponent` was `static`, meaning it locked deserialization across all instances. However, message ordering (`EnforceOrdering`) is handled by a per-instance `gate` lock. Removing the static lock does not compromise ordering logic, even for out-of-order delivery, as validated by `TransportOrderingBenchmark`.
+**Action:** Ensure logical ordering mechanisms (like buffering queues) are separate from processing safeguards (like serialization locks).
