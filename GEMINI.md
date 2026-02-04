@@ -24,7 +24,8 @@ The solution is structured into several key projects:
 *   **`Tests`**: Unit tests for the solution (likely using MSTest, NUnit, or xUnit - check `Ubicomp.Utils.NET.Tests.csproj`).
 
 ### External Dependencies
-*   All dependencies are managed via NuGet. The legacy `Libs/` folder has been removed.
+*   All dependencies are managed via NuGet. The project is aligned with **.NET 8.0** standards (using version `8.0.0` for Microsoft extensions).
+*   Key libraries: `Microsoft.Extensions.Logging`, `System.Threading.Channels`, `Microsoft.Bcl.AsyncInterfaces`, `Newtonsoft.Json`.
 
 ## Development Workflow
 
@@ -59,9 +60,10 @@ All commands should be run from the repository root.
     ```
 
 ## Development Conventions
-*   **Project Format:** Modern SDK-style `.csproj` files are used.
-*   **Dependencies:** External libraries in the `Libs` folder are referenced via `<Reference>` tags with `<HintPath>`. When adding new dependencies, prefer NuGet packages if possible, but maintain existing patterns for local DLLs.
-*   **Versioning:** Check `Properties/AssemblyInfo.cs` in each project for version information if strictly required, though SDK-style projects often move this to the `.csproj`.
+*   **Async/Await**: Prefer asynchronous patterns. The networking layer uses `IAsyncEnumerable` and `Channels`.
+*   **Messaging**: Use `[MessageType("id")]` attributes on POCOs for transport routing.
+*   **Project Format**: Modern SDK-style `.csproj` files are used.
+*   **Dependencies**: Prefer NuGet packages. Maintain `netstandard2.0` compatibility for core libraries.
 
 ## Important Files
 *   `Ubicomp.Utils.NET.sln`: The main solution file.

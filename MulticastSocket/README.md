@@ -12,28 +12,43 @@ The **MulticastSocket** library provides a clean, asynchronous interface for joi
 ![MulticastSocket Message Flow](assets/message_flow_diagram.png)
 
 ## Features
-- **Fluent Builder API**:guided setup for network options and callbacks.
-- **Strongly-Typed Callbacks**: Clean `Action` based events for messages, errors, and status.
+- **Fluent Builder API**: guided setup for network options and callbacks.
+- **Reactive Streams**: Provides `GetMessageStream()` for modern, non-blocking message processing via `IAsyncEnumerable`.
+- **Strongly-Typed Callbacks**: Legacy `Action` based events for messages, errors, and status.
 - **Ordered Metadata**: Every message carries a `SequenceId` and `Timestamp`.
 - **Cross-Platform**: Handles platform-specific socket options automatically.
-- **Asynchronous I/O**: High-performance, non-blocking receive and send loops.
 
 ## Usage
 
-### Initialization & Receiving
-Use the `MulticastSocketBuilder` to configure your connection and register handlers.
+### Initialization & Receiving (Async Stream)
+The recommended way to receive messages is via the `GetMessageStream` method.
 
 ```csharp
 using Ubicomp.Utils.NET.Sockets;
 
 var socket = new MulticastSocketBuilder()
     .WithLocalNetwork(port: 5000)
+    .Build();
+
+socket.StartReceiving();
+
+// Consume messages as an async stream
+await foreach (var msg in socket.GetMessageStream(cts.Token))
+{
+    Console.WriteLine($"Received {msg.Data.Length} bytes. Seq: {msg.SequenceId}");
+}
+```
+
+### Initialization & Receiving (Callbacks)
+You can also use the legacy callback-based approach.
+
+```csharp
+var socket = new MulticastSocketBuilder()
+    .WithLocalNetwork(port: 5000)
     .OnMessageReceived(msg => 
     {
         Console.WriteLine($"Received {msg.Data.Length} bytes. Seq: {msg.SequenceId}");
     })
-    .OnError(err => Console.Error.WriteLine($"Socket Error: {err.Message}"))
-    .OnStarted(() => Console.WriteLine("Socket listening..."))
     .Build();
 
 socket.StartReceiving();

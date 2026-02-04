@@ -17,14 +17,16 @@ The top layer implements the **Monitor-Service-Entity (MSE)** pattern.
 
 ### 2. MulticastTransportFramework
 The middle layer provides a structured messaging protocol over UDP multicast.
-- **TransportComponent**: The central orchestrator (Singleton).
-- **Serialization**: Automated JSON serialization/deserialization with polymorphic support.
+- **TransportComponent**: The central orchestrator.
+- **Serialization**: Automated JSON serialization/deserialization with polymorphic support using `[MessageType("id")]` attributes.
+- **Reactive Processing**: Uses `IAsyncEnumerable` streams for efficient, non-blocking message handling.
 - **Ordering (GateKeeper)**: Ensures messages are processed in the exact order they were received, even in asynchronous environments.
 - **Reliability (Ack)**: Optional acknowledgement-based sessions for reliable message delivery.
 - **Diagnostics**: Built-in tools for network sanity and firewall checks.
 
 ### 3. MulticastSocket
 The foundational layer that wraps standard .NET UDP sockets.
+- **Reactive Streams**: Provides `GetMessageStream()` which returns an `IAsyncEnumerable<SocketMessage>`.
 - **Group Management**: Simplified joining and leaving of multicast groups.
 - **Sequencing**: Automatically assigns sequence numbers to incoming packets for higher-level ordering.
 - **Performance**: Optimized async I/O and buffer management.
@@ -35,16 +37,18 @@ The foundational layer that wraps standard .NET UDP sockets.
 *   [**ContextAwarenessFramework**](ContextAwarenessFramework/README.md): Framework for context sensing and data management.
 
 ## Core Flow
-1.  **Network Receive**: `MulticastSocket` receives bytes and assigns a sequence ID.
-2.  **Transport Processing**: `TransportComponent` deserializes the JSON into a typed `TransportMessage`.
-3.  **Ordered Dispatch**: The `GateKeeper` holds the message until its sequence ID is next, then dispatches it to registered handlers.
-4.  **Context Update**: A `ContextService` (acting as a listener) receives the message and updates its `IEntity` state.
-5.  **UI Notification**: The `ContextService` uses a captured `Dispatcher` to safely notify UI components of the change.
+1.  **Network Receive**: `MulticastSocket` receives bytes, assigns a sequence ID, and pushes to an internal `Channel`.
+2.  **Stream Consumption**: `TransportComponent` consumes the `IAsyncEnumerable` stream from the socket.
+3.  **Transport Processing**: The JSON is deserialized into a typed `TransportMessage` based on its attribute-defined ID.
+4.  **Ordered Dispatch**: The `GateKeeper` holds the message until its sequence ID is next, then dispatches it to registered handlers.
+5.  **Context Update**: A `ContextService` (acting as a listener) receives the message and updates its `IEntity` state.
+6.  **UI Notification**: The `ContextService` uses a captured `Dispatcher` to safely notify UI components of the change.
 
 ## Modernization Status
-This project targets **.NET Standard 2.0** for core libraries (for broad compatibility) and **.NET 8.0** for applications and tests.
-- **Serialization**: `Newtonsoft.Json`.
-- **Logging**: `Microsoft.Extensions.Logging`.
+This project targets **.NET Standard 2.0** for core libraries and **.NET 8.0** for applications and tests.
+- **Asynchronous**: Fully utilizes `IAsyncEnumerable`, `Channels`, and `Task`-based patterns.
+- **Serialization**: `Newtonsoft.Json` with custom polymorphic converters.
+- **Logging**: `Microsoft.Extensions.Logging` (Version 8.0.0).
 - **Dependencies**: Managed via NuGet.
 
 ## How to Run

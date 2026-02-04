@@ -4,21 +4,20 @@
 **MulticastTransportFramework** implements a higher-level messaging protocol over UDP multicast.
 
 *   **Fluent Builder**: Use `TransportBuilder` to configure and create a `TransportComponent`.
-*   **Strongly-Typed Messaging**: Generic `Send<T>` (synchronous) and `SendAsync<T>` (modern Task-based) methods handle internal serialization and routing.
+*   **Strongly-Typed Messaging**: Generic `SendAsync<T>` methods handle internal serialization and routing via `[MessageType("id")]` attributes.
 *   **POCO Support**: Any class can be used as message content; no marker interface is required.
-*   **Serialization**: Uses `Newtonsoft.Json` to convert between .NET objects and JSON strings.
-*   **Diagnostic Transparency**: Uses `Microsoft.Extensions.Logging.ILogger` across both the transport and socket layers, providing end-to-end visibility into the communication lifecycle.
-*   **Message Routing**: Dispatches messages to strongly-typed handlers or legacy `ITransportListener`s based on their `MessageType` integer ID.
+*   **Serialization**: Uses `Newtonsoft.Json` with a custom `TransportMessageConverter` for polymorphic deserialization.
+*   **Diagnostic Transparency**: Uses `Microsoft.Extensions.Logging.ILogger` across both the transport and socket layers.
+*   **Message Routing**: Dispatches messages to strongly-typed handlers based on their string ID defined in the `MessageTypeAttribute`.
 
 ## Core Logic
-1.  **Incoming Data**: `MulticastSocket` receives bytes.
-2.  **Conversion**: Bytes are converted to a UTF-8 string.
-3.  **Deserialization**: `Newtonsoft.Json` deserializes the string into a `TransportMessage` "envelope" object.
-    *   **Polymorphism**: The internal `TransportMessageConverter` handles the concrete type of the `MessageData` property based on the registered ID.
-4.  **GateKeeper**: Optional mechanism (controlled by `EnforceOrdering` in options) that ensures sequential processing of messages, preserving the order assigned by the socket layer. It employs a buffering strategy for out-of-order messages and a recovery timeout (`GateKeeperTimeout`) to automatically advance the sequence if a message is lost, preventing deadlocks.
+1.  **Incoming Data**: `MulticastSocket` receives bytes and pushes them into an internal `Channel`.
+2.  **Consumption**: `TransportComponent` consumes messages from the socket's `IAsyncEnumerable<SocketMessage>` stream.
+3.  **Deserialization**: `Newtonsoft.Json` deserializes the UTF-8 string into a `TransportMessage` envelope.
+    *   **Polymorphism**: The `TransportMessageConverter` resolves the concrete type of `MessageData` using the registered string ID.
+4.  **GateKeeper**: Optional mechanism (controlled by `EnforceOrdering` in options) that ensures sequential processing of messages, preserving the order assigned by the socket layer.
 5.  **Dispatch**:
     *   Strongly-typed handlers receive the data POCO and a `MessageContext`.
-    *   Legacy `ITransportListener`s receive the full `TransportMessage`.
     *   **Auto-Ack**: If enabled, an acknowledgement is sent automatically if requested.
 
 ## Key Classes

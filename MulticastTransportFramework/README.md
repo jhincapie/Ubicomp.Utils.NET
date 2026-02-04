@@ -22,7 +22,18 @@ The **MulticastTransportFramework** abstracts raw socket communication into a st
 
 ## Usage
 
-### 1. Configure and Build
+### 1. Define your Messages
+Decorate your message POCOs with the `[MessageType]` attribute to define their transport ID.
+
+```csharp
+[MessageType("sensor.data")]
+public class SensorData
+{
+    public double Value { get; set; }
+}
+```
+
+### 2. Configure and Build
 Use the `TransportBuilder` to set up your network options, logging, and message handlers.
 
 ```csharp
@@ -32,8 +43,8 @@ var transport = new TransportBuilder()
     .WithMulticastOptions(options)
     .WithLogging(loggerFactory)
     .WithLocalSource("MyDevice")
-    .WithAutoSendAcks(true) // Optional: automate acknowledgements
-    .RegisterHandler<MyData>(id: 101, (data, context) => 
+    .WithAutoSendAcks(true)
+    .RegisterHandler<SensorData>((data, context) => 
     {
         Console.WriteLine($"Received: {data.Value} from {context.Source.ResourceName}");
     })
@@ -50,24 +61,24 @@ options.EnforceOrdering = true;
 
 When enabled, the internal **GateKeeper** uses a buffering strategy and a recovery timeout (defaulting to 500ms) to handle out-of-order arrivals and sequence gaps.
 
-### 2. Sending Messages
-Send any object directly. The framework handles the envelope and ID mapping.
+### 3. Sending Messages
+Send any object directly. The framework handles the envelope and ID mapping via the attributes.
 
 ```csharp
 // Simple send
-await transport.SendAsync(new MyData { Value = "Hello" });
+await transport.SendAsync(new SensorData { Value = 25.5 });
 
 // Send with options (e.g., request acknowledgement)
-var session = await transport.SendAsync(new MyData { Value = "Ping" }, new SendOptions { RequestAck = true });
+var session = await transport.SendAsync(new SensorData { Value = 25.5 }, new SendOptions { RequestAck = true });
 
 session.OnAckReceived += (s, source) => Console.WriteLine($"Ack from {source.ResourceName}");
 ```
 
-### 3. Manual Acknowledgements
+### 4. Manual Acknowledgements
 If `AutoSendAcks` is disabled (the default), you can manually acknowledge messages using the `MessageContext`.
 
 ```csharp
-transport.RegisterHandler<MyData>(101, async (data, context) => 
+transport.RegisterHandler<SensorData>(async (data, context) => 
 {
     if (context.RequestAck)
     {
@@ -79,7 +90,7 @@ transport.RegisterHandler<MyData>(101, async (data, context) =>
 ## Key Concepts
 
 ### TransportBuilder
-The entry point for the framework. It manages the assembly of the `TransportComponent` and hides internal bookkeeping like JSON converter registration.
+The entry point for the framework. It manages the assembly of the `TransportComponent` and handles JSON converter registration.
 
 ### MessageContext
 A lightweight object passed to handlers that contains metadata about the message:
@@ -87,6 +98,9 @@ A lightweight object passed to handlers that contains metadata about the message
 - `Source`: Information about the sender.
 - `Timestamp`: When the message was sent.
 - `RequestAck`: Whether the sender expects a confirmation.
+
+### Async Processing
+The framework uses `IAsyncEnumerable` to process messages as a stream from the underlying `MulticastSocket`. This ensures that message processing is non-blocking and highly efficient.
 
 ### Ordered Messaging (GateKeeper)
 UDP multicast does not guarantee packet order. The framework ensures that messages are dispatched to handlers in the exact order they were assigned by the socket layer. The internal **GateKeeper** uses a buffering strategy and a recovery timeout (defaulting to 500ms) to handle out-of-order arrivals and sequence gaps, ensuring robustness against packet loss while maintaining state consistency.
