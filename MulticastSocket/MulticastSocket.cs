@@ -19,7 +19,7 @@ namespace Ubicomp.Utils.NET.Sockets
     /// Handles joining multicast groups on multiple interfaces and provides
     /// asynchronous sending and receiving capabilities.
     /// </summary>
-    public class MulticastSocket : IDisposable
+    public partial class MulticastSocket : IDisposable
     {
         private Socket? _udpSocket;
         private int _mConsecutive;
@@ -403,7 +403,7 @@ namespace Ubicomp.Utils.NET.Sockets
                 int seqId = Interlocked.Increment(ref _mConsecutive);
                 var msg = new SocketMessage(bufferCopy, seqId);
 
-                Logger.LogTrace("Received message with SeqId {SeqId}, Length {Length}", seqId, bytesRead);
+                LogMessageReceived(Logger, seqId, bytesRead);
 
                 OnMessageReceivedAction?.Invoke(msg);
                 _messageChannel.Writer.TryWrite(msg);
@@ -521,6 +521,9 @@ namespace Ubicomp.Utils.NET.Sockets
             Close();
             _udpSocket?.Dispose();
         }
+
+        [LoggerMessage(Level = LogLevel.Trace, Message = "Received message with SeqId {SeqId}, Length {Length}")]
+        private static partial void LogMessageReceived(ILogger logger, int seqId, int length);
 
         internal class StateObject
         {
