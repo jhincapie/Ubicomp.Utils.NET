@@ -24,7 +24,7 @@ The solution is structured into several key projects:
 *   **`Tests`**: Unit tests for the solution (likely using MSTest, NUnit, or xUnit - check `Ubicomp.Utils.NET.Tests.csproj`).
 
 ### External Dependencies
-*   All dependencies are managed via NuGet. The project is aligned with **.NET 8.0** standards (using version `8.0.0` for Microsoft extensions).
+*   All dependencies are managed via NuGet. The project is aligned with **.NET 8.0** standards (using version `8.0.0` or later for Microsoft extensions, with `System.Text.Json` at `8.0.5` for security).
 *   Key libraries: `Microsoft.Extensions.Logging`, `System.Threading.Channels`, `Microsoft.Bcl.AsyncInterfaces`, `Newtonsoft.Json`.
 
 ## Development Workflow

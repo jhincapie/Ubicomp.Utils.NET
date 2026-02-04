@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
 using Ubicomp.Utils.NET.Sockets;
 using Xunit;
-using Newtonsoft.Json;
+using System.Text.Json;
 using System.Text;
 
 namespace Ubicomp.Utils.NET.Tests
@@ -142,10 +142,11 @@ namespace Ubicomp.Utils.NET.Tests
         private byte[] CreateSocketMessageData<T>(EventSource source, string msgType, T content)
         {
             var transportMsg = new TransportMessage(source, msgType, content);
-            string json = JsonConvert.SerializeObject(transportMsg, new JsonSerializerSettings
-            {
-                Converters = { new TransportMessageConverter(new Dictionary<string, Type>()) }
-            });
+            
+            var options = new JsonSerializerOptions();
+            options.Converters.Add(new TransportMessageConverter(new Dictionary<string, Type>()));
+            
+            string json = JsonSerializer.Serialize(transportMsg, options);
             return Encoding.UTF8.GetBytes(json);
         }
     }

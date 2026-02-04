@@ -48,7 +48,7 @@ The foundational layer that wraps standard .NET UDP sockets.
 This project targets **.NET Standard 2.0** for core libraries and **.NET 8.0** for applications and tests.
 - **Asynchronous**: Fully utilizes `IAsyncEnumerable`, `Channels`, and `Task`-based patterns.
 - **Serialization**: `Newtonsoft.Json` with custom polymorphic converters.
-- **Logging**: `Microsoft.Extensions.Logging` (Version 8.0.0).
+- **Logging**: `Microsoft.Extensions.Logging` (Version 8.0.x).
 - **Dependencies**: Managed via NuGet.
 
 ## How to Run
