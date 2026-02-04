@@ -92,8 +92,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                 PropertyNameCaseInsensitive = true
             };
-            _jsonOptions.Converters.Add(new TransportMessageConverter(_knownTypes));
-
             RegisterInternalTypes();
         }
 
@@ -493,6 +491,21 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private void ProcessTransportMessage(TransportMessage tMessage, int sequenceId)
         {
+            if (tMessage.MessageData is JsonElement element)
+            {
+                if (_knownTypes.TryGetValue(tMessage.MessageType, out Type? targetType))
+                {
+                    try
+                    {
+                        tMessage.MessageData = JsonSerializer.Deserialize(element.GetRawText(), targetType, _jsonOptions)!;
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "Failed to deserialize message content for type {0}", tMessage.MessageType);
+                    }
+                }
+            }
+
             if (tMessage.MessageType == AckMessageType &&
                 tMessage.MessageData is AckMessageContent ackContent)
             {

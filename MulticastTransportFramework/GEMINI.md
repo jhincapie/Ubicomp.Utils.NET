@@ -6,15 +6,15 @@
 *   **Fluent Builder**: Use `TransportBuilder` to configure and create a `TransportComponent`.
 *   **Strongly-Typed Messaging**: Generic `SendAsync<T>` methods handle internal serialization and routing via `[MessageType("id")]` attributes.
 *   **POCO Support**: Any class can be used as message content; no marker interface is required.
-*   **Serialization**: Uses `Newtonsoft.Json` with a custom `TransportMessageConverter` for polymorphic deserialization.
+*   **Serialization**: Uses `System.Text.Json` for serialization and efficient polymorphic deserialization.
 *   **Diagnostic Transparency**: Uses `Microsoft.Extensions.Logging.ILogger` across both the transport and socket layers.
 *   **Message Routing**: Dispatches messages to strongly-typed handlers based on their string ID defined in the `MessageTypeAttribute`.
 
 ## Core Logic
 1.  **Incoming Data**: `MulticastSocket` receives bytes and pushes them into an internal `Channel`.
 2.  **Consumption**: `TransportComponent` consumes messages from the socket's `IAsyncEnumerable<SocketMessage>` stream.
-3.  **Deserialization**: `Newtonsoft.Json` deserializes the UTF-8 string into a `TransportMessage` envelope.
-    *   **Polymorphism**: The `TransportMessageConverter` resolves the concrete type of `MessageData` using the registered string ID.
+3.  **Deserialization**: `System.Text.Json` deserializes the UTF-8 string into a `TransportMessage` envelope.
+    *   **Polymorphism**: The `TransportComponent` resolves the concrete type of `MessageData` (from `JsonElement`) using the registered string ID.
 4.  **GateKeeper**: Optional mechanism (controlled by `EnforceOrdering` in options) that ensures sequential processing of messages, preserving the order assigned by the socket layer.
 5.  **Dispatch**:
     *   Strongly-typed handlers receive the data POCO and a `MessageContext`.
@@ -28,4 +28,4 @@
 
 ## Dependencies
 *   **Internal**: `MulticastSocket`
-*   **External**: `Newtonsoft.Json`, `Microsoft.Extensions.Logging.Abstractions`
+*   **External**: `System.Text.Json`, `Microsoft.Extensions.Logging.Abstractions`

@@ -42,7 +42,6 @@ namespace Ubicomp.Utils.NET.Tests
                 PropertyNameCaseInsensitive = true
             };
             var knownTypes = new System.Collections.Generic.Dictionary<string, Type>();
-            jsonOptions.Converters.Add(new TransportMessageConverter(knownTypes));
             string validJson = JsonSerializer.Serialize(validMsg, jsonOptions);
             byte[] validData = Encoding.UTF8.GetBytes(validJson);
 

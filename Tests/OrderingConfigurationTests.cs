@@ -142,11 +142,9 @@ namespace Ubicomp.Utils.NET.Tests
         private byte[] CreateSocketMessageData<T>(EventSource source, string msgType, T content)
         {
             var transportMsg = new TransportMessage(source, msgType, content);
-            
-            var options = new JsonSerializerOptions();
-            options.Converters.Add(new TransportMessageConverter(new Dictionary<string, Type>()));
-            
-            string json = JsonSerializer.Serialize(transportMsg, options);
+            string json = JsonConvert.SerializeObject(transportMsg, new JsonSerializerSettings
+            {
+            });
             return Encoding.UTF8.GetBytes(json);
         }
     }

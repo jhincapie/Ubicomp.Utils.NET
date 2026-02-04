@@ -54,7 +54,6 @@ namespace Benchmarks
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                 PropertyNameCaseInsensitive = true
             };
-            _systemTextOptions.Converters.Add(new TransportMessageConverter(_knownTypes));
 
             // Pre-serialize for deserialization benchmarks
             _jsonNewtonsoft = JsonConvert.SerializeObject(_message, _newtonsoftSettings);
@@ -82,7 +81,12 @@ namespace Benchmarks
         [Benchmark]
         public TransportMessage SystemTextJsonDeserialize()
         {
-            return System.Text.Json.JsonSerializer.Deserialize<TransportMessage>(_jsonSystemText, _systemTextOptions)!;
+            var msg = System.Text.Json.JsonSerializer.Deserialize<TransportMessage>(_jsonSystemText, _systemTextOptions)!;
+            if (msg.MessageData is JsonElement element)
+            {
+                msg.MessageData = System.Text.Json.JsonSerializer.Deserialize(element.GetRawText(), _knownTypes[msg.MessageType], _systemTextOptions)!;
+            }
+            return msg;
         }
     }
 
