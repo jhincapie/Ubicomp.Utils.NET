@@ -48,7 +48,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private int _currentMessageCons = 1;
         private readonly object gate = new object();
         private bool _isStopping = false;
-        private readonly SortedDictionary<int, SocketMessage> _waitingMessages = new SortedDictionary<int, SocketMessage>();
+        private readonly PriorityQueue<SocketMessage> _waitingMessages = new PriorityQueue<SocketMessage>();
+        private CancellationTokenSource? _gapTimeoutCts;
 
         /// <summary>Gets or sets the default timeout for acknowledgements.</summary>
         public TimeSpan DefaultAckTimeout { get; set; } = TimeSpan.FromSeconds(5);
@@ -127,6 +128,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 _currentMessageCons = 1;
                 _isStopping = false;
                 _waitingMessages.Clear();
+                _gapTimeoutCts?.Cancel();
+                _gapTimeoutCts = null;
                 Monitor.PulseAll(gate);
             }
             _socket.StartReceiving();
@@ -279,26 +282,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 return;
             }
 
-            bool shouldStartTimeout;
-            bool shouldProcessNow;
-
             lock (gate)
             {
                 if (_isStopping)
                     return;
 
-                if (msg.SequenceId > _currentMessageCons)
-                {
-                    _waitingMessages[msg.SequenceId] = msg;
-                    shouldStartTimeout = true;
-                    shouldProcessNow = false;
-                }
-                else if (msg.SequenceId == _currentMessageCons)
-                {
-                    shouldStartTimeout = false;
-                    shouldProcessNow = true;
-                }
-                else
+                if (msg.SequenceId < _currentMessageCons)
                 {
                     Logger.LogWarning(
                         "Received late message {0} (current is {1}). Ignoring.",
@@ -306,43 +295,75 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                         _currentMessageCons);
                     return;
                 }
-            }
 
-            if (shouldProcessNow)
-            {
-                ProcessMessageAndSequence(msg);
-            }
-            else if (shouldStartTimeout)
-            {
-                // Start a task to wait and then jump if necessary
-                _ = Task.Run(async () =>
+                if (msg.SequenceId == _currentMessageCons)
                 {
-                    await Task.Delay(GateKeeperTimeout);
-                    SocketMessage? nextToProcess = null;
-                    lock (gate)
+                    // If we get the expected message, cancel any pending gap timeout
+                    if (_gapTimeoutCts != null)
                     {
-                        if (_isStopping)
-                            return;
+                        _gapTimeoutCts.Cancel();
+                        _gapTimeoutCts = null;
+                    }
+                    // Process immediately
+                }
+                else
+                {
+                    // Future message
+                    _waitingMessages.Enqueue(msg, msg.SequenceId);
 
-                        // If the message we were waiting for still hasn't arrived
-                        if (msg.SequenceId > _currentMessageCons)
-                        {
-                            Logger.LogWarning(
-                                "Sequence gap detected. Timed out waiting for message {0}. Jumping to {1}.",
-                                _currentMessageCons,
-                                msg.SequenceId);
-                            _currentMessageCons = msg.SequenceId;
-                            if (_waitingMessages.TryGetValue(_currentMessageCons, out nextToProcess))
-                            {
-                                _waitingMessages.Remove(_currentMessageCons);
-                            }
-                        }
-                    }
-                    if (nextToProcess != null)
+                    // If we aren't already waiting for a gap to fill, start waiting
+                    if (_gapTimeoutCts == null)
                     {
-                        ProcessMessageAndSequence(nextToProcess);
+                        _gapTimeoutCts = new CancellationTokenSource();
+                        var token = _gapTimeoutCts.Token;
+                        _ = WaitForGapAsync(token);
                     }
-                });
+                    return;
+                }
+            }
+
+            // If we are here, we are processing the current message
+            ProcessMessageAndSequence(msg);
+        }
+
+        private async Task WaitForGapAsync(CancellationToken token)
+        {
+            try
+            {
+                await Task.Delay(GateKeeperTimeout, token);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+
+            SocketMessage? nextToProcess = null;
+            lock (gate)
+            {
+                if (_isStopping || token.IsCancellationRequested)
+                    return;
+
+                _gapTimeoutCts = null;
+
+                if (_waitingMessages.Count > 0 && _waitingMessages.TryPeek(out var nextMsg, out var priority))
+                {
+                    // Double check ordering (should be guaranteed by logic)
+                    if (priority > _currentMessageCons)
+                    {
+                        Logger.LogWarning(
+                            "Sequence gap detected. Timed out waiting for message {0}. Jumping to {1}.",
+                            _currentMessageCons,
+                            priority);
+
+                        _currentMessageCons = priority;
+                        nextToProcess = _waitingMessages.Dequeue();
+                    }
+                }
+            }
+
+            if (nextToProcess != null)
+            {
+                ProcessMessageAndSequence(nextToProcess);
             }
         }
 
@@ -429,10 +450,22 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             {
                 _currentMessageCons++;
 
-                if (_waitingMessages.TryGetValue(_currentMessageCons, out var nextMsg))
+                // Discard any messages that are now "late" (smaller than current)
+                // This handles duplicates or old messages that were in the queue
+                while (_waitingMessages.Count > 0 && _waitingMessages.TryPeek(out var msg, out var priority))
                 {
-                    _waitingMessages.Remove(_currentMessageCons);
-                    return nextMsg;
+                    if (priority < _currentMessageCons)
+                    {
+                        _waitingMessages.Dequeue(); // discard
+                        continue;
+                    }
+
+                    if (priority == _currentMessageCons)
+                    {
+                        return _waitingMessages.Dequeue();
+                    }
+
+                    break;
                 }
 
                 Monitor.PulseAll(gate);
