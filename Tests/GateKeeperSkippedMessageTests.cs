@@ -15,8 +15,8 @@ namespace Ubicomp.Utils.NET.Tests
         {
             // Arrange
             var options = MulticastSocketOptions.LocalNetwork();
-            options.EnforceOrdering = true;
             var transport = new TransportComponent(options);
+            transport.EnforceOrdering = true;
             transport.GateKeeperTimeout = TimeSpan.FromMilliseconds(200);
 
             // We simulate messages arriving out of order or one being skipped.
@@ -56,8 +56,8 @@ namespace Ubicomp.Utils.NET.Tests
         {
             // Arrange
             var options = MulticastSocketOptions.LocalNetwork();
-            options.EnforceOrdering = false;
             var transport = new TransportComponent(options);
+            transport.EnforceOrdering = false;
 
             var msg2Processed = new ManualResetEvent(false);
             string msgType = "test.skipped";

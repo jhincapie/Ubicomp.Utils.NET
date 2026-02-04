@@ -89,12 +89,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             if (_options == null)
                 throw new InvalidOperationException("Multicast options must be configured.");
 
+            var component = new TransportComponent(_options);
+
             if (_enforceOrdering.HasValue)
             {
-                _options.EnforceOrdering = _enforceOrdering.Value;
+                component.EnforceOrdering = _enforceOrdering.Value;
             }
-
-            var component = new TransportComponent(_options);
 
             if (_loggerFactory != null)
             {
