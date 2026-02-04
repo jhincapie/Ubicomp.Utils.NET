@@ -376,13 +376,25 @@ namespace Ubicomp.Utils.NET.Sockets
         /// <returns>A task that completes when the send operation is finished.</returns>
         public Task SendAsync(byte[] bytesToSend)
         {
+            return SendAsync(bytesToSend, 0, bytesToSend.Length);
+        }
+
+        /// <summary>
+        /// Sends a range of bytes asynchronously over the multicast socket.
+        /// </summary>
+        /// <param name="buffer">The buffer containing the data to send.</param>
+        /// <param name="offset">The offset in the buffer where the data starts.</param>
+        /// <param name="count">The number of bytes to send.</param>
+        /// <returns>A task that completes when the send operation is finished.</returns>
+        public Task SendAsync(byte[] buffer, int offset, int count)
+        {
             if (_udpSocket == null)
                 return Task.CompletedTask;
 
-            Logger.LogTrace("Sending byte data: {Length} bytes", bytesToSend.Length);
+            Logger.LogTrace("Sending byte data: {Length} bytes", count);
             var remoteEndPoint = new IPEndPoint(IPAddress.Parse(_options.GroupAddress), _options.Port);
             return Task.Factory.FromAsync(
-                _udpSocket.BeginSendTo(bytesToSend, 0, bytesToSend.Length, SocketFlags.None, remoteEndPoint, null, null),
+                _udpSocket.BeginSendTo(buffer, offset, count, SocketFlags.None, remoteEndPoint, null, null),
                 _udpSocket.EndSendTo);
         }
 
