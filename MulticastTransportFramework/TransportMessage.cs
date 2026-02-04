@@ -27,10 +27,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public EventSource MessageSource { get; set; } = null!;
 
         /// <summary>Gets or sets the type identifier of the message.</summary>
-        public int MessageType
+        public string MessageType
         {
             get; set;
-        }
+        } = string.Empty;
 
         /// <summary>Gets or sets a value indicating whether an acknowledgement is requested.</summary>
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
@@ -62,7 +62,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// <param name="source">The source event.</param>
         /// <param name="type">The type of the message.</param>
         /// <param name="data">The message data.</param>
-        public TransportMessage(EventSource source, int type,
+        public TransportMessage(EventSource source, string type,
                                 object data)
             : this()
         {

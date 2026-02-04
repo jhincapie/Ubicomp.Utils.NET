@@ -26,7 +26,7 @@ namespace Ubicomp.Utils.NET.Tests
             var transport = new TransportComponent(options);
 
             var receivedEvent = new ManualResetEvent(false);
-            int msgType = 888;
+            string msgType = "test.deadlock";
             transport.RegisterHandler<EmptyContent>(msgType, (c, ctx) => receivedEvent.Set());
 
             // 1. Send malformed message (invalid JSON) as Consecutive 1
@@ -37,7 +37,7 @@ namespace Ubicomp.Utils.NET.Tests
             var validMsg = new TransportMessage(source, msgType, new EmptyContent());
 
             var settings = new JsonSerializerSettings();
-            var knownTypes = new System.Collections.Generic.Dictionary<int, Type>();
+            var knownTypes = new System.Collections.Generic.Dictionary<string, Type>();
             settings.Converters.Add(new TransportMessageConverter(knownTypes));
             string validJson = JsonConvert.SerializeObject(validMsg, settings);
             byte[] validData = Encoding.UTF8.GetBytes(validJson);

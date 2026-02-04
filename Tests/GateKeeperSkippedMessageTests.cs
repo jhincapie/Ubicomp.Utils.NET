@@ -23,7 +23,7 @@ namespace Ubicomp.Utils.NET.Tests
             // Note: HandleSocketMessage is internal, so we can call it directly.
 
             var msg2Processed = new ManualResetEvent(false);
-            int msgType = 101;
+            string msgType = "test.skipped";
             transport.RegisterHandler<string>(msgType, (data, ctx) =>
             {
                 if (data == "msg2")
@@ -35,7 +35,7 @@ namespace Ubicomp.Utils.NET.Tests
             var transportMsg = new TransportMessage(source, msgType, "msg2");
             string json = Newtonsoft.Json.JsonConvert.SerializeObject(transportMsg, new Newtonsoft.Json.JsonSerializerSettings
             {
-                Converters = { new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()) }
+                Converters = { new TransportMessageConverter(new System.Collections.Generic.Dictionary<string, Type>()) }
             });
             byte[] data = System.Text.Encoding.UTF8.GetBytes(json);
 
@@ -60,7 +60,7 @@ namespace Ubicomp.Utils.NET.Tests
             var transport = new TransportComponent(options);
 
             var msg2Processed = new ManualResetEvent(false);
-            int msgType = 101;
+            string msgType = "test.skipped";
             transport.RegisterHandler<string>(msgType, (data, ctx) =>
             {
                 if (data == "msg2")
@@ -72,7 +72,7 @@ namespace Ubicomp.Utils.NET.Tests
             var transportMsg = new TransportMessage(source, msgType, "msg2");
             string json = Newtonsoft.Json.JsonConvert.SerializeObject(transportMsg, new Newtonsoft.Json.JsonSerializerSettings
             {
-                Converters = { new TransportMessageConverter(new System.Collections.Generic.Dictionary<int, Type>()) }
+                Converters = { new TransportMessageConverter(new System.Collections.Generic.Dictionary<string, Type>()) }
             });
             byte[] data = System.Text.Encoding.UTF8.GetBytes(json);
 

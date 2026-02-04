@@ -31,15 +31,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// <summary>
         /// The message type ID used for acknowledgements.
         /// </summary>
-        public const int AckMessageType = 99;
+        public const string AckMessageType = "sys.ack";
 
 
         private MulticastSocket? _socket;
         private readonly MulticastSocketOptions _socketOptions;
 
-        private readonly ConcurrentDictionary<int, Type> _knownTypes = new ConcurrentDictionary<int, Type>();
-        private readonly ConcurrentDictionary<int, Delegate> _genericHandlers = new ConcurrentDictionary<int, Delegate>();
-        private readonly ConcurrentDictionary<Type, int> _typeToIdMap = new ConcurrentDictionary<Type, int>();
+        private readonly ConcurrentDictionary<string, Type> _knownTypes = new ConcurrentDictionary<string, Type>();
+        private readonly ConcurrentDictionary<string, Delegate> _genericHandlers = new ConcurrentDictionary<string, Delegate>();
+        private readonly ConcurrentDictionary<Type, string> _typeToIdMap = new ConcurrentDictionary<Type, string>();
 
         private readonly ConcurrentDictionary<Guid, AckSession> _activeSessions = new ConcurrentDictionary<Guid, AckSession>();
 
@@ -90,10 +90,27 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         }
 
         /// <summary>
-        /// Registers a handler for a specific message type.
+        /// Registers a handler for a message type. The type must have the <see cref="MessageTypeAttribute"/>.
         /// </summary>
-        public void RegisterHandler<T>(int id, Action<T, MessageContext> handler) where T : class
+        public void RegisterHandler<T>(Action<T, MessageContext> handler) where T : class
         {
+            var attr = (MessageTypeAttribute?)Attribute.GetCustomAttribute(typeof(T), typeof(MessageTypeAttribute));
+            if (attr == null)
+            {
+                throw new InvalidOperationException($"Type {typeof(T).Name} does not have a [MessageType] attribute. Use the overload that accepts an ID.");
+            }
+            RegisterHandler(attr.MsgId, handler);
+        }
+
+        /// <summary>
+        /// Registers a handler for a specific message type ID.
+        /// </summary>
+        public void RegisterHandler<T>(string id, Action<T, MessageContext> handler) where T : class
+        {
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                throw new ArgumentException("Message ID cannot be null or empty.", nameof(id));
+            }
             _genericHandlers[id] = handler;
             _typeToIdMap[typeof(T)] = id;
             _knownTypes[id] = typeof(T);
@@ -200,16 +217,25 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public async Task<AckSession> SendAsync<T>(T content, SendOptions? options = null)
             where T : class
         {
-            int messageType;
+            string messageType;
             if (options?.MessageType != null)
             {
-                messageType = options.MessageType.Value;
+                messageType = options.MessageType;
             }
             else if (!_typeToIdMap.TryGetValue(typeof(T), out messageType))
             {
-                throw new ArgumentException(
-                    $"Type {typeof(T).Name} is not registered and no " +
-                    "MessageType was provided in SendOptions.");
+                // Fallback: check attribute directly if not registered but trying to send
+                var attr = (MessageTypeAttribute?)Attribute.GetCustomAttribute(typeof(T), typeof(MessageTypeAttribute));
+                if (attr != null)
+                {
+                    messageType = attr.MsgId;
+                }
+                else
+                {
+                    throw new ArgumentException(
+                        $"Type {typeof(T).Name} is not registered, has no [MessageType] attribute, and no " +
+                        "MessageType was provided in SendOptions.");
+                }
             }
 
             var message = new TransportMessage(LocalSource, messageType, content)

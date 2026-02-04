@@ -13,13 +13,13 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     /// </summary>
     public class TransportMessageConverter : JsonConverter
     {
-        private readonly IDictionary<int, Type> _knownTypes;
+        private readonly IDictionary<string, Type> _knownTypes;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TransportMessageConverter"/> class.
         /// </summary>
         /// <param name="knownTypes">The dictionary of known message types for deserialization.</param>
-        public TransportMessageConverter(IDictionary<int, Type> knownTypes)
+        public TransportMessageConverter(IDictionary<string, Type> knownTypes)
         {
             _knownTypes = knownTypes;
         }
@@ -80,7 +80,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             message.MessageSource =
                 jo["messageSource"]?.ToObject<EventSource>(serializer) ??
                 new EventSource();
-            message.MessageType = jo["messageType"]?.Value<int>() ?? 0;
+            message.MessageType = jo["messageType"]?.Value<string>() ?? string.Empty;
             message.RequestAck = jo["requestAck"]?.Value<bool>() ?? false;
             message.TimeStamp =
                 jo["timeStamp"]?.Value<string>() ?? string.Empty;
@@ -89,7 +89,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             if (dataToken == null || dataToken.Type == JTokenType.Null)
                 return message;
 
-            if (_knownTypes.TryGetValue(message.MessageType,
+            if (!string.IsNullOrEmpty(message.MessageType) &&
+                _knownTypes.TryGetValue(message.MessageType,
                                        out Type? targetType) &&
                 targetType != null)
             {

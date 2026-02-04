@@ -16,6 +16,7 @@ namespace Ubicomp.Utils.NET.Tests
     [Collection("SharedTransport")]
     public class TransportComponentTests
     {
+        [MessageType("test.content")]
         private class TestContent
         {
             public string Data { get; set; } = string.Empty;
@@ -29,7 +30,6 @@ namespace Ubicomp.Utils.NET.Tests
         public async Task SendAndReceive_EndToEnd_Works()
         {
             // Arrange
-            int msgType = 999;
             var receivedEvent = new ManualResetEvent(false);
             TestContent? receivedContent = null;
             MessageContext? receivedContext = null;
@@ -42,7 +42,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
-                .RegisterHandler<TestContent>(msgType, (content, context) =>
+                .RegisterHandler<TestContent>((content, context) =>
                 {
                     receivedContent = content;
                     receivedContext = context;
@@ -57,7 +57,7 @@ namespace Ubicomp.Utils.NET.Tests
                 var content = new TestContent { Data = "Test Payload" };
 
                 // Act
-                await transport.SendAsync(content, new SendOptions { MessageType = msgType });
+                await transport.SendAsync(content);
 
                 // Assert
                 bool received = receivedEvent.WaitOne(5000);
@@ -81,7 +81,6 @@ namespace Ubicomp.Utils.NET.Tests
         public async Task SendAsync_EndToEnd_Works()
         {
             // Arrange
-            int msgType = 1000;
             var receivedEvent = new TaskCompletionSource<bool>();
             TestContent? receivedContent = null;
 
@@ -93,7 +92,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
-                .RegisterHandler<TestContent>(msgType, (content, context) =>
+                .RegisterHandler<TestContent>((content, context) =>
                 {
                     receivedContent = content;
                     receivedEvent.TrySetResult(true);
@@ -107,7 +106,7 @@ namespace Ubicomp.Utils.NET.Tests
                 var content = new TestContent { Data = "Async Test Payload" };
 
                 // Act
-                var session = await transport.SendAsync(content, new SendOptions { MessageType = msgType });
+                var session = await transport.SendAsync(content);
 
                 // Assert
                 Assert.NotNull(session);

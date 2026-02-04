@@ -42,7 +42,7 @@ namespace Ubicomp.Utils.NET.Tests
         public void TransportMessage_ShouldInitializeCorrectly()
         {
             var source = new EventSource(Guid.NewGuid(), "Host", "Desc");
-            int typeId = 123;
+            string typeId = "test.message.id";
             var content = new MockContent { Content = "TestData" };
 
             var message = new TransportMessage(source, typeId, content);
