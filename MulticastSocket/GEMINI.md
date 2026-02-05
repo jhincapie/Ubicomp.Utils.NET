@@ -17,8 +17,10 @@
 
 ## Implementation Details
 *   **Threading**: A dedicated `ReceiveAsyncLoop` offloads incoming data to a bounded Channel. Consumers process messages from this channel.
-*   **Async I/O**: Fully Task-based API (`SendAsync`, `ReceiveAsync`).
-*   **Socket Options**: Configurable via `MulticastSocketOptions` (Buffer size, TTL, Loopback).
+*   **Multi-Targeting**:
+    *   **Modern (.NET 8.0+)**: `ReceiveFromAsync` with `Memory<byte>`.
+    *   **Legacy (.NET Standard 2.0)**: APM Wrappers (`BeginReceiveFrom`).
+*   **Socket Options**: Configurable via `MulticastSocketOptions` (Buffer size, TTL, Loopback). `NoDelay` is set safely (try-catch).
 *   **Sequence ID**: Assigns a monotonic sequence ID to every received packet, enabling ordering logic in higher layers.
 
 ## Usage

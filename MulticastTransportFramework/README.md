@@ -7,8 +7,8 @@
 *   **Reliable Delivery**: Built-in acknowledgement (ACK) system with optional automatic responses.
 *   **Ordered Processing**: "GateKeeper" mechanism ensures strict message sequencing using PriorityQueues, correcting UDP out-of-order delivery.
 *   **Security**: Zero-conf encryption (AES-GCM/AES-CBC) and integrity signing (HMAC-SHA256) derived from a shared secret.
-*   **Peer Discovery**: Automatic peer detection and tracking via heartbeats.
-*   **Developer Friendly**: Strongly-typed message routing and a fluent Builder API.
+*   **Optimized Protocol**: Uses a custom `BinaryPacket` format for reduced overhead, with fallback to JSON for legacy clients.
+*   **Auto-Discovery**: Leverages Roslyn Source Generators to automatically register message types.
 *   **Diagnostic Tools**: Built-in network verification and firewall checks.
 
 ## Quick Start
@@ -43,6 +43,8 @@ var transport = new TransportBuilder()
 
 transport.Start();
 ```
+
+> **Note**: The `TransportBuilder.Build()` method uses the `Generators` component to automatically find and register all `[MessageType]` classes in your assembly.
 
 ### 3. Send a Message
 ```csharp
@@ -79,6 +81,7 @@ The `TransportBuilder` provides a fluent API for all configuration needs.
 UDP packets often arrive out of order. The framework can enforce strict sequencing.
 
 *   **How it works**: Incoming messages are assigned a sequence ID. If a gap is detected (e.g., received 1, then 3), message 3 is held in a `PriorityQueue`.
+    *   *Implementation Note*: On `.NET Standard 2.0`, a custom Min-Heap implementation of `PriorityQueue` is used.
 *   **Configuration**:
     ```csharp
     .WithEnforceOrdering(true)
@@ -119,7 +122,11 @@ foreach(var source in session.ReceivedAcks)
 **Automatic Responses:**
 Enable `WithAutoSendAcks(true)` on the receiver to automatically reply with a system ACK (`sys.ack`) whenever a message with `RequestAck=true` is successfully processed.
 
-### 4. Peer Discovery
+### 4. Protocol & Serialization
+*   **BinaryPacket**: The default wire format. Compact binary structure containing Security Headers, Sequence IDs, and Payload.
+*   **JSON Fallback**: If a message lacks the Binary Magic Byte, it is treated as a legacy JSON envelope (using `System.Text.Json`), ensuring backward compatibility with older versions of the library.
+
+### 5. Peer Discovery
 The framework can track other active nodes on the multicast group.
 
 *   **Setup**:
@@ -140,7 +147,7 @@ The framework can track other active nodes on the multicast group.
     transport.OnPeerLost += peer => Console.WriteLine($"Peer Lost: {peer.DeviceName}");
     ```
 
-### 5. Network Diagnostics
+### 6. Network Diagnostics
 Multicast can be tricky due to firewalls. The framework includes diagnostic tools.
 
 ```csharp

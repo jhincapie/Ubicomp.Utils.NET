@@ -18,7 +18,7 @@ The framework follows the **Monitor-Service-Entity (MSE)** pattern to separate c
     *   Applies business logic/aggregation.
     *   Updates the **Entity**.
     *   Handles **Persistence** (saving history).
-    *   Marshals updates to the UI thread (via `Dispatcher`).
+*   **Threading**: Base class is thread-agnostic. It does **not** automatically marshal to the UI thread.
 
 ### 3. Entity (IEntity)
 *   **Role**: The data model.
@@ -26,7 +26,8 @@ The framework follows the **Monitor-Service-Entity (MSE)** pattern to separate c
 
 ## Threading Model
 *   **Isolation**: Monitors typically run on background threads to avoid blocking the UI.
-*   **Marshalling**: `ContextService` captures the `Dispatcher` at creation. All updates to the `Entity` (and thus the UI) are automatically marshalled to the correct thread.
+*   **Marshalling**: The base `ContextService` does **not** capture a Dispatcher. Updates flow on the caller's thread (usually the Monitor's background thread).
+    *   *Implication*: If `Entity` updates are bound to a UI, the specific `ContextService` implementation or the View layer must handle the marshalling to the Main Thread (e.g., using `Dispatcher.Invoke`).
 
 ## Persistence
 *   **Pattern**: Template Method (`ExecutePersist`, `PersistEntities`).

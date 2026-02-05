@@ -56,6 +56,7 @@ public class HVACService : ContextService
     protected override void CustomUpdateMonitorReading(object sender, NotifyContextMonitorListenersEventArgs e)
     {
         // Update logic here (Runs on background thread)
+        // Note: If binding _entity to UI, you must marshal this update to the UI thread manually.
         // _entity.Value = ...
     }
 }

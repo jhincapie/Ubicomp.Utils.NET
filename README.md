@@ -33,15 +33,21 @@ The foundational layer that wraps standard .NET UDP sockets.
 - **Performance**: Utilizes `System.Threading.Channels`, `ObjectPool`, and `ArrayPool<byte>` to minimize allocations.
 - **Socket Options**: Simplified configuration via `MulticastSocketOptions`.
 
+### 4. Generators
+A Roslyn Source Generator project to automate boilerplate.
+- **Auto-Discovery**: Scans for classes with `[MessageType]` attributes and generates registration code, simplifying transport configuration.
+
 ## Project Documentation
 *   [**MulticastSocket**](MulticastSocket/README.md): Low-level multicast networking wrapper.
 *   [**MulticastTransportFramework**](MulticastTransportFramework/README.md): High-level messaging and transport layer.
 *   [**ContextAwarenessFramework**](ContextAwarenessFramework/README.md): Framework for context sensing and data management.
+*   [**Generators**](Generators/README.md): Source generation tools.
 
 ## Modernization Status
-This project targets **.NET Standard 2.0** for core libraries and **.NET 8.0** for applications and tests.
+This project employs a multi-targeting strategy to balance compatibility and performance.
+- **Core Libraries** (`MulticastSocket`, `MulticastTransportFramework`, `ContextAwarenessFramework`): Target **.NET Standard 2.0** to ensure broad compatibility with legacy .NET Framework and modern .NET Core applications.
+- **Applications & Tests**: Target **.NET 8.0** to leverage the latest language features, performance improvements, and runtime capabilities.
 - **Asynchronous**: Fully utilizes `IAsyncEnumerable`, `Channels`, and `Task`-based patterns.
-- **Dependencies**: Managed via NuGet.
 
 ## How to Run
 
