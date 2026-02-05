@@ -19,6 +19,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private bool? _enforceOrdering;
         private string? _securityKey;
         private bool _encryptionEnabled = false;
+        private IMulticastSocket? _socket;
         private readonly List<Action<TransportComponent>> _registrations = new List<Action<TransportComponent>>();
 
         /// <summary>
@@ -37,6 +38,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public TransportBuilder WithMulticastOptions(MulticastSocketOptions options)
         {
             _options = options;
+            return this;
+        }
+
+        /// <summary>
+        /// Configures the specific socket instance to use (optional, for testing).
+        /// </summary>
+        public TransportBuilder WithSocket(IMulticastSocket socket)
+        {
+            _socket = socket;
             return this;
         }
 
@@ -112,7 +122,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             if (_options == null)
                 throw new InvalidOperationException("Multicast options must be configured.");
 
-            var component = new TransportComponent(_options);
+            var component = new TransportComponent(_options, _socket);
 
             component.SecurityKey = _securityKey;
             component.EncryptionEnabled = _encryptionEnabled;

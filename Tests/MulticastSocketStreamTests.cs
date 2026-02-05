@@ -21,18 +21,10 @@ namespace Ubicomp.Utils.NET.Tests
             var options = MulticastSocketOptions.LocalNetwork(groupAddress, port);
 
             // For tests, use loopback if on Linux
-            if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
-            {
-                options.LocalIP = "127.0.0.1";
-            }
+            TestConfiguration.ConfigureOptions(options);
 
-            using var receiver = new MulticastSocketBuilder()
-                .WithOptions(options)
-                .Build();
-
-            using var sender = new MulticastSocketBuilder()
-                .WithOptions(options)
-                .Build();
+            using var receiver = TestConfiguration.CreateSocket(options);
+            using var sender = TestConfiguration.CreateSocket(options);
 
             receiver.StartReceiving();
 
@@ -64,18 +56,10 @@ namespace Ubicomp.Utils.NET.Tests
             int port = 5101;
             var options = MulticastSocketOptions.LocalNetwork(groupAddress, port);
 
-            if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
-            {
-                options.LocalIP = "127.0.0.1";
-            }
+            TestConfiguration.ConfigureOptions(options);
 
-            using var receiver = new MulticastSocketBuilder()
-                .WithOptions(options)
-                .Build();
-
-            using var sender = new MulticastSocketBuilder()
-                .WithOptions(options)
-                .Build();
+            using var receiver = TestConfiguration.CreateSocket(options);
+            using var sender = TestConfiguration.CreateSocket(options);
 
             receiver.StartReceiving();
 

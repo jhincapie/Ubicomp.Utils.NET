@@ -21,6 +21,7 @@ namespace Ubicomp.Utils.NET.Tests
             // Act
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
+                .WithSocket(TestConfiguration.CreateSocket(options))
                 .WithEnforceOrdering(true)
                 .Build();
 
@@ -44,6 +45,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
+                .WithSocket(TestConfiguration.CreateSocket(options))
                 .WithEnforceOrdering(true)
                 .Build();
 
@@ -109,6 +111,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
+                .WithSocket(TestConfiguration.CreateSocket(options))
                 .WithEnforceOrdering(false)
                 .Build();
 

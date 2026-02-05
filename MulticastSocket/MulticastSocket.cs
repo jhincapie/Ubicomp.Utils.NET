@@ -40,9 +40,13 @@ namespace Ubicomp.Utils.NET.Sockets
         /// <summary>Gets or sets the logger for this component.</summary>
         public ILogger Logger { get; set; } = NullLogger.Instance;
 
+        /// <inheritdoc />
+        public event Action<SocketMessage>? OnMessageReceived;
+
         internal Action<SocketMessage>? OnMessageReceivedAction
         {
-            get; set;
+            get => OnMessageReceived;
+            set => OnMessageReceived = value;
         }
         internal Action<SocketErrorContext>? OnErrorAction
         {

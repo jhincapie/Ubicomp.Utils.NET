@@ -26,13 +26,10 @@ namespace Ubicomp.Utils.NET.Tests
             bool? requestAckValue = null;
 
             var options = MulticastSocketOptions.WideAreaNetwork("239.1.2.7", 5006, 1);
-            if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
-            {
-                options.LocalIP = "127.0.0.1";
-            }
 
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
+                .WithSocket(TestConfiguration.CreateSocket(options))
                 .RegisterHandler<TestContent>((content, context) =>
                 {
                     requestAckValue = context.RequestAck;
@@ -64,21 +61,18 @@ namespace Ubicomp.Utils.NET.Tests
             // Arrange
             var options1 = MulticastSocketOptions.WideAreaNetwork("239.1.2.8", 5007, 1);
             var options2 = MulticastSocketOptions.WideAreaNetwork("239.1.2.8", 5007, 1);
-            if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
-            {
-                options1.LocalIP = "127.0.0.1";
-                options2.LocalIP = "127.0.0.1";
-            }
 
             // Transport A: Sends message with AckRequest
             var transportA = new TransportBuilder()
                 .WithMulticastOptions(options1)
+                .WithSocket(TestConfiguration.CreateSocket(options1))
                 .WithLocalSource("SourceA")
                 .Build();
 
             // Transport B: Receives message and should Auto-Ack
             var transportB = new TransportBuilder()
                 .WithMulticastOptions(options2)
+                .WithSocket(TestConfiguration.CreateSocket(options2))
                 .WithLocalSource("SourceB")
                 .WithAutoSendAcks(true)
                 .RegisterHandler<TestContent>((c, ctx) => { /* Just handle it */ })
@@ -110,19 +104,16 @@ namespace Ubicomp.Utils.NET.Tests
             // Arrange
             var options1 = MulticastSocketOptions.WideAreaNetwork("239.1.2.9", 5008, 1);
             var options2 = MulticastSocketOptions.WideAreaNetwork("239.1.2.9", 5008, 1);
-            if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
-            {
-                options1.LocalIP = "127.0.0.1";
-                options2.LocalIP = "127.0.0.1";
-            }
 
             var transportA = new TransportBuilder()
                 .WithMulticastOptions(options1)
+                .WithSocket(TestConfiguration.CreateSocket(options1))
                 .WithLocalSource("SourceA")
                 .Build();
 
             var transportB = new TransportBuilder()
                 .WithMulticastOptions(options2)
+                .WithSocket(TestConfiguration.CreateSocket(options2))
                 .WithLocalSource("SourceB")
                 .WithAutoSendAcks(false) // DISABLED
                 .RegisterHandler<TestContent>((c, ctx) => { })

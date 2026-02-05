@@ -58,8 +58,9 @@ namespace Ubicomp.Utils.NET.Sockets
                 {
                     while (await reader.WaitToReadAsync(_listeningCts.Token))
                     {
-                        while (reader.TryRead(out byte[] data))
+                        while (reader.TryRead(out byte[]? data))
                         {
+                            if (data == null) continue;
                             // Simulate reception
                             // Copy data to simulate network isolation
                             byte[] receivedData = data.ToArray();
@@ -81,6 +82,11 @@ namespace Ubicomp.Utils.NET.Sockets
 
         public async Task SendAsync(byte[] bytesToSend)
         {
+            if (bytesToSend.Length > MulticastSocket.MaxMessageSize)
+            {
+                throw new ArgumentException($"Message size exceeds maximum allowed size of {MulticastSocket.MaxMessageSize} bytes.");
+            }
+
             string busKey = $"{_groupAddress}:{_port}";
             if (_networkBus.TryGetValue(busKey, out var bus))
             {
@@ -102,9 +108,15 @@ namespace Ubicomp.Utils.NET.Sockets
             return SendAsync(System.Text.Encoding.UTF8.GetBytes(sendData));
         }
 
-        public IAsyncEnumerable<SocketMessage> GetMessageStream(CancellationToken cancellationToken = default)
+        public async IAsyncEnumerable<SocketMessage> GetMessageStream([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            return _receiveChannel.Reader.ReadAllAsync(cancellationToken);
+            while (await _receiveChannel.Reader.WaitToReadAsync(cancellationToken))
+            {
+                while (_receiveChannel.Reader.TryRead(out var message))
+                {
+                    yield return message;
+                }
+            }
         }
 
         public void Close()

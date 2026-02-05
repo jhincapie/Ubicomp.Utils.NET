@@ -19,24 +19,20 @@ namespace Ubicomp.Utils.NET.Tests
             // Arrange
             string groupAddress = "239.0.0.55";
             int port = TestPort;
-            string? localIP = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux) ? "127.0.0.1" : null;
-
             var options = MulticastSocketOptions.LocalNetwork(groupAddress, port);
-            options.LocalIP = localIP;
+            TestConfiguration.ConfigureOptions(options);
 
             string largeMessage = new string('A', 2000); // 2000 characters > 1024 bytes
             string? receivedMessage = null;
             var signal = new ManualResetEvent(false);
 
-            using var socket = new MulticastSocketBuilder()
-                .WithOptions(options)
-                .OnMessageReceived(msg =>
-                {
-                    receivedMessage = Encoding.UTF8.GetString(msg.Data, 0, msg.Length);
-                    msg.Dispose();
-                    signal.Set();
-                })
-                .Build();
+            using var socket = TestConfiguration.CreateSocket(options);
+            socket.OnMessageReceived += (msg) =>
+            {
+                receivedMessage = Encoding.UTF8.GetString(msg.Data, 0, msg.Length);
+                msg.Dispose();
+                signal.Set();
+            };
 
             socket.StartReceiving();
             await Task.Delay(500);
@@ -59,9 +55,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             var options = MulticastSocketOptions.LocalNetwork(groupAddress, port);
 
-            using var socket = new MulticastSocketBuilder()
-                .WithOptions(options)
-                .Build();
+            using var socket = TestConfiguration.CreateSocket(options);
 
             // Create a message slightly larger than the limit
             // MaxMessageSize is 65535, so 65536 should fail

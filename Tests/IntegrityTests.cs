@@ -19,6 +19,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
+                .WithSocket(TestConfiguration.CreateSocket(options))
                 .WithLogging(NullLoggerFactory.Instance)
                 .RegisterHandler<SimpleMessage>((msg, ctx) =>
                 {
@@ -53,6 +54,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
+                .WithSocket(TestConfiguration.CreateSocket(options))
                 .WithSecurityKey(key)
                 .WithLogging(NullLoggerFactory.Instance)
                 .RegisterHandler<SimpleMessage>((msg, ctx) =>

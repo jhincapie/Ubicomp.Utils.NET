@@ -69,33 +69,29 @@ namespace Ubicomp.Utils.NET.Tests
             int port = TestPort + 10;
             int ttl = 0;
 
-            string? localIP = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux) ? "127.0.0.1" : null;
+
 
             var receiverOptions = MulticastSocketOptions.WideAreaNetwork(groupAddress, port, ttl);
-            receiverOptions.LocalIP = localIP;
+            TestConfiguration.ConfigureOptions(receiverOptions);
 
             string? receivedMessage = null;
             var signal = new ManualResetEvent(false);
 
-            using var receiver = new MulticastSocketBuilder()
-                .WithOptions(receiverOptions)
-                .OnMessageReceived(msg =>
-                {
-                    receivedMessage = Encoding.UTF8.GetString(msg.Data, 0, msg.Length);
-                    msg.Dispose();
-                    signal.Set();
-                })
-                .Build();
+            using var receiver = TestConfiguration.CreateSocket(receiverOptions);
+            receiver.OnMessageReceived += (msg) =>
+            {
+                receivedMessage = Encoding.UTF8.GetString(msg.Data, 0, msg.Length);
+                msg.Dispose();
+                signal.Set();
+            };
 
             receiver.StartReceiving();
             Thread.Sleep(500);
 
             var senderOptions = MulticastSocketOptions.WideAreaNetwork(groupAddress, port, ttl);
-            senderOptions.LocalIP = localIP;
+            TestConfiguration.ConfigureOptions(senderOptions);
 
-            using var sender = new MulticastSocketBuilder()
-                .WithOptions(senderOptions)
-                .Build();
+            using var sender = TestConfiguration.CreateSocket(senderOptions);
 
             string msgStr = "Hello World";
             await sender.SendAsync(msgStr);
@@ -113,19 +109,16 @@ namespace Ubicomp.Utils.NET.Tests
             string? receivedMessage = null;
             var receivedEvent = new ManualResetEvent(false);
 
-            string? localIP = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux) ? "127.0.0.1" : null;
             var options = MulticastSocketOptions.LocalNetwork(ip, port);
-            options.LocalIP = localIP;
+            TestConfiguration.ConfigureOptions(options);
 
-            using var socket = new MulticastSocketBuilder()
-                .WithOptions(options)
-                .OnMessageReceived(msg =>
-                {
-                    receivedMessage = Encoding.UTF8.GetString(msg.Data, 0, msg.Length);
-                    msg.Dispose();
-                    receivedEvent.Set();
-                })
-                .Build();
+            using var socket = TestConfiguration.CreateSocket(options);
+            socket.OnMessageReceived += (msg) =>
+            {
+                receivedMessage = Encoding.UTF8.GetString(msg.Data, 0, msg.Length);
+                msg.Dispose();
+                receivedEvent.Set();
+            };
 
             socket.StartReceiving();
 

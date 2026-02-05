@@ -18,6 +18,11 @@ namespace Ubicomp.Utils.NET.Sockets
         IEnumerable<IPAddress> JoinedAddresses { get; }
 
         /// <summary>
+        /// Event raised when a message is received.
+        /// </summary>
+        event Action<SocketMessage> OnMessageReceived;
+
+        /// <summary>
         /// Starts the receive loop.
         /// </summary>
         void StartReceiving();

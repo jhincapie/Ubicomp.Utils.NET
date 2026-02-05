@@ -29,6 +29,7 @@ namespace Ubicomp.Utils.NET.Tests
             // Receiver
             var receiver = new TransportBuilder()
                 .WithMulticastOptions(options)
+                .WithSocket(TestConfiguration.CreateSocket(options))
                 .WithSecurityKey(key)
                 .WithEncryption(true)
                 .WithLogging(NullLoggerFactory.Instance)
@@ -43,6 +44,7 @@ namespace Ubicomp.Utils.NET.Tests
             // Sender
             var sender = new TransportBuilder()
                  .WithMulticastOptions(options)
+                 .WithSocket(TestConfiguration.CreateSocket(options))
                  .WithSecurityKey(key) // Same Key
                  .WithEncryption(true) // Enable Encryption
                  .WithLogging(NullLoggerFactory.Instance)
@@ -86,6 +88,7 @@ namespace Ubicomp.Utils.NET.Tests
             // Receiver (Key A)
             var receiver = new TransportBuilder()
                 .WithMulticastOptions(options)
+                .WithSocket(TestConfiguration.CreateSocket(options))
                 .WithSecurityKey(key1)
                 .WithEncryption(true)
                 .WithLogging(NullLoggerFactory.Instance)
@@ -99,6 +102,7 @@ namespace Ubicomp.Utils.NET.Tests
             // Sender (Key B)
             var sender = new TransportBuilder()
                  .WithMulticastOptions(options)
+                 .WithSocket(TestConfiguration.CreateSocket(options))
                  .WithSecurityKey(key2) // DIFFERENT KEY
                  .WithEncryption(true)
                  .WithLogging(NullLoggerFactory.Instance)
