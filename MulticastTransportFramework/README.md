@@ -33,7 +33,8 @@ Use the `TransportBuilder` to create and start the component.
 
 ```csharp
 var transport = new TransportBuilder()
-    .WithMulticastOptions(MulticastSocketOptions.Default)
+    .WithMulticastOptions(MulticastSocketOptions.LocalNetwork())
+    .WithLogging(loggerFactory)
     .WithSecurityKey("SuperSecretSharedKey123!") // Enables HMAC integrity
     .WithEncryption(true)                         // Enables AES payload encryption
     .RegisterHandler<GreetingMessage>((msg, context) =>
