@@ -543,7 +543,7 @@ namespace Ubicomp.Utils.NET.Sockets
 
         internal class StateObject
         {
-            public const int BufferSize = 1024;
+            public const int BufferSize = 65535;
             public byte[] Buffer { get; } = new byte[BufferSize];
             public Socket WorkSocket { get; set; } = null!;
         }
