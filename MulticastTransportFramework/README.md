@@ -45,7 +45,7 @@ public class SensorData
 
 ```csharp
 var transport = new TransportBuilder()
-    .WithMulticastOptions(MulticastSocketOptions.Default)
+    .WithMulticastOptions(MulticastSocketOptions.LocalNetwork())
     .WithLogging(loggerFactory)
     .WithSecurityKey("YourSharedSecretKey")
     .WithEncryption(true)
