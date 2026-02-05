@@ -353,12 +353,13 @@ namespace Ubicomp.Utils.NET.Sockets
                     {
                         var result = await _udpSocket.ReceiveFromAsync(memoryBuffer, SocketFlags.None, _localEndPoint, cancellationToken);
 
-                        // Copy the data as in the original implementation
-                        byte[] bufferCopy = new byte[result.ReceivedBytes];
+                        // Rent buffer to avoid allocation
+                        byte[] bufferCopy = ArrayPool<byte>.Shared.Rent(result.ReceivedBytes);
                         Array.Copy(buffer, 0, bufferCopy, 0, result.ReceivedBytes);
 
                         int seqId = Interlocked.Increment(ref _mConsecutive);
-                        var msg = new SocketMessage(bufferCopy, seqId);
+                        // Constructor handles isRented=true
+                        var msg = new SocketMessage(bufferCopy, result.ReceivedBytes, seqId, isRented: true);
 
                         Logger.LogTrace("Received message with SeqId {SeqId}, Length {Length}", seqId, result.ReceivedBytes);
 
