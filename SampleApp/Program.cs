@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Reactive.Linq;
 using System.Linq;
 using System.Net;
 using System.IO;
@@ -38,7 +39,8 @@ namespace Ubicomp.Utils.NET.SampleApp
                 { "--key", "Network:SecurityKey" },
                 { "--address", "Network:GroupAddress" },
                 { "--port", "Network:Port" },
-                { "--ttl", "Network:TTL" }
+                { "--ttl", "Network:TTL" },
+                { "--interface", "Network:Interface" }
             };
 
             var configBuilder = new ConfigurationBuilder()
@@ -58,6 +60,7 @@ namespace Ubicomp.Utils.NET.SampleApp
             string groupAddressStr = config["Network:GroupAddress"] ?? "239.0.0.1";
             int port = config.GetValue<int>("Network:Port", 5000);
             int ttl = config.GetValue<int>("Network:TTL", 1);
+            string? interfaceIp = config["Network:Interface"];
             string? securityKey = config["Network:SecurityKey"];
 
             bool encryptionEnabled = !string.IsNullOrEmpty(securityKey) && !noEncryption;
@@ -68,6 +71,7 @@ namespace Ubicomp.Utils.NET.SampleApp
                 Console.WriteLine($"  Address: {groupAddressStr}");
                 Console.WriteLine($"  Port: {port}");
                 Console.WriteLine($"  TTL: {ttl}");
+                if (!string.IsNullOrEmpty(interfaceIp)) Console.WriteLine($"  Interface: {interfaceIp}");
                 Console.WriteLine($"  Security Key: {(string.IsNullOrEmpty(securityKey) ? "None" : "***")}");
                 Console.WriteLine($"  Encryption: {(encryptionEnabled ? "Enabled" : "Disabled")}");
             }
@@ -88,6 +92,11 @@ namespace Ubicomp.Utils.NET.SampleApp
 
             var options = MulticastSocketOptions.WideAreaNetwork(groupAddress.ToString(), port, ttl);
             options.MulticastLoopback = allowLocal;
+
+            if (!string.IsNullOrEmpty(interfaceIp) && IPAddress.TryParse(interfaceIp, out var nicIp))
+            {
+                options.InterfaceFilter = ip => ip.Equals(nicIp);
+            }
 
             // 2. Setup TransportBuilder
             var builder = new TransportBuilder()
