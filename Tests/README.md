@@ -3,21 +3,23 @@
 This project contains the unit tests for the Ubicomp.Utils.NET solution.
 
 ## Running Tests
-You can run the tests using the .NET CLI from the solution root or the `Tests` directory:
+You can run the tests using the .NET CLI from the solution root:
 
 ```bash
-dotnet test
+dotnet test Tests/Ubicomp.Utils.NET.Tests.csproj
 ```
 
-## Coverage
-The tests currently cover:
-*   **Serialization**: Verifies that `TransportMessage` objects (including polymorphic content) are correctly serialized and deserialized using `Newtonsoft.Json`.
-*   **MulticastSocket**: Basic checks for socket initialization and configuration (integration tests may require network access).
-*   **TransportFramework**: Tests the end-to-end flow of message creation, serialization, and type resolution.
+## Scope
+The tests target **.NET 8.0** and validate the core libraries (which target `netstandard2.0`).
+*   **Serialization**: Verifies that `TransportMessage` objects (including polymorphic content) are correctly serialized/deserialized using both `Newtonsoft.Json` (Legacy) and `System.Text.Json` (Modern).
+*   **MulticastSocket**: Verification of socket options, buffer management, and async streaming.
+    *   *Note*: `NetworkChange` tests use Reflection to simulate system events.
+*   **TransportFramework**: End-to-end flow of message creation, security (Encryption/Integrity), and ordering (GateKeeper).
+*   **Generators**: Verifies that `[MessageType]` attributes are correctly discovered.
 
 ## Configuration
-The tests target `.NET 8.0` and use `xUnit` as the testing framework.
 Dependencies include:
 *   `Newtonsoft.Json`
 *   `Microsoft.NET.Test.Sdk`
 *   `xunit`
+*   `xunit.runner.visualstudio`
