@@ -1,25 +1,39 @@
 # MulticastSocket Context
 
 ## Project Scope
-**MulticastSocket** is the foundational networking library for the Ubicomp.Utils.NET solution. It wraps standard .NET UDP sockets to provide specific multicast capabilities with a modern, fluent API.
+**MulticastSocket** is the foundational networking library for the Ubicomp.Utils.NET solution. It wraps standard .NET UDP sockets to provide specific multicast capabilities with a modern, fluent, and reactive API.
+
+## Architecture
+
+![Class Diagram](assets/class_diagram.png)
 
 ## Key Components
-*   **`MulticastSocketBuilder`**: The primary entry point for configuration. Use this to set options, filters, and callbacks, and now supports `WithLogging` for diagnostic transparency.
+*   **`MulticastSocketBuilder`**: The primary entry point for configuration. Use this to set options, filters, and callbacks.
 *   **`MulticastSocket`**: The core engine. Handles socket creation, binding, joining multicast groups, and async I/O.
-    *   *Instantiation*: Via `MulticastSocketBuilder`.
-    *   *Callbacks*: Uses strongly-typed `Action` delegates (`OnMessageReceived`, `OnError`, `OnStarted`).
-    *   *Reactive Streams*: Provides `GetMessageStream()` which returns an `IAsyncEnumerable<SocketMessage>` for modern streaming processing.
-*   **`SocketMessage`**: Represents a received packet with data, sequence ID, and timestamp.
-    *   **Pooled Buffers**: Use `IDisposable` pattern to return underlying buffers to `ArrayPool<byte>.Shared` to minimize GC allocations.
-*   **`SocketErrorContext`**: Provides details about runtime exceptions.
+    *   **Streaming**: `GetMessageStream()` returns an `IAsyncEnumerable<SocketMessage>`, allowing for modern, reactive consumption using `await foreach`.
+    *   **Decoupling**: Uses `System.Threading.Channels` to decouple the high-speed receive loop from the processing logic.
+*   **`SocketMessage`**: Represents a received packet.
+    *   **Pooling**: Utilizes `ObjectPool<SocketMessage>` and `ArrayPool<byte>` to minimize Garbage Collection (GC) pressure in high-throughput scenarios.
 
 ## Implementation Details
-*   **Threading**: Incoming messages are offloaded to the `ThreadPool` before firing callbacks and pushing to the message stream. This ensures the receive loop remains responsive.
-*   **Diagnostics**: Built-in support for `ILogger` provides granular insights into socket lifecycle, interface joining, and error conditions.
-*   **Async I/O**: Supports modern Task-based sending via `SendAsync`, wrapping the internal Begin/End pattern for high performance and better developer experience.
-*   **Buffer Management**: Uses `ArrayPool<byte>` to rent buffers for incoming messages. This significantly reduces memory allocations under high load.
-*   **Sequence ID**: Every received message is assigned a consecutive ID used by higher layers (e.g., `TransportComponent`) to maintain order.
-*   **Socket Options**: Sets `ReuseAddress` (SO_REUSEADDR) to allow multiple apps to bind the same port on the same machine.
+*   **Threading**: A dedicated `ReceiveAsyncLoop` offloads incoming data to a bounded Channel. Consumers process messages from this channel.
+*   **Async I/O**: Fully Task-based API (`SendAsync`, `ReceiveAsync`).
+*   **Socket Options**: Configurable via `MulticastSocketOptions` (Buffer size, TTL, Loopback).
+*   **Sequence ID**: Assigns a monotonic sequence ID to every received packet, enabling ordering logic in higher layers.
 
 ## Usage
-This library is primarily a dependency for the **MulticastTransportFramework**, but can be used directly for low-level byte-based multicast communication.
+Used by **MulticastTransportFramework**, but valid for any low-level multicast needs.
+
+```csharp
+var socket = new MulticastSocketBuilder()
+    .WithMulticastAddress("239.0.0.1")
+    .WithPort(5000)
+    .Build();
+
+await socket.JoinGroupAsync();
+
+await foreach (var msg in socket.GetMessageStream())
+{
+    // Process msg
+}
+```

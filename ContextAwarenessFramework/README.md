@@ -1,21 +1,17 @@
 # ContextAwarenessFramework
 
-A framework for building context-aware applications by decoupling context sensing (`ContextMonitor`) from context management and application logic (`ContextService`).
+A framework for building context-aware applications by decoupling context sensing (`ContextMonitor`) from context management and application logic (`ContextService`) using the **Monitor-Service-Entity (MSE)** pattern.
 
 ## Overview
 The **ContextAwarenessFramework** provides a standard structure for:
-1.  **Sensing**: Acquiring data from sensors or software events via `ContextMonitor`.
-2.  **Processing**: Aggregating and transforming raw data via `ContextService`.
-3.  **Data Modeling**: Representing context using `IEntity` objects.
-4.  **Notification**: Thread-safe updates via observer pattern.
+1.  **Sensing**: Acquiring data from sensors or external events via `ContextMonitor`.
+2.  **Processing**: Aggregating, transforming, and persisting context via `ContextService`.
+3.  **Data Modeling**: Representing state using thread-safe `IEntity` objects.
+4.  **Notification**: Seamless UI binding support via `INotifyPropertyChanged`.
 
 ## Architecture
-The framework follows the **Monitor-Service-Entity (MSE)** pattern, designed to decouple data acquisition from business logic and data presentation.
+The framework follows the **Monitor-Service-Entity (MSE)** pattern, ensuring a clear separation of concerns.
 
-### Class Diagram
-![CAF Class Diagram](assets/class_diagram.png)
-
-### MSE Pattern Diagram
 ![MSE Pattern Diagram](assets/mse_pattern_diagram.png)
 
 ## Key Components
@@ -23,26 +19,44 @@ The framework follows the **Monitor-Service-Entity (MSE)** pattern, designed to 
 ### ContextMonitor
 Abstract base class for data producers.
 - **Update Types**: Continuous (event-based), Interval (polling), or OnRequest.
-- **Threading**: Monitors typically run their own background loop to avoid blocking the main application.
+- **Threading**: Monitors typically run their own background tasks to avoid blocking the main application.
 - **Usage**: Inherit from this to create specific sensors (e.g., `LocationMonitor`, `BatteryMonitor`).
 
 ### ContextService
-Abstract base class for data consumers/managers.
-- **Data Aggregation**: Subscribes to one or more Monitors to process raw data into high-level context.
-- **Threading**: Services are designed to be thread-safe but do **not** automatically marshal events to the UI thread. Consumers must handle cross-thread updates when binding to UI elements.
-- **Persistence**: Built-in support for multiple persistence patterns:
-    - `Periodic`: Saves state at a regular interval.
-    - `OnRequest`: Saves state only when explicitly called.
-    - `Combined`: Both periodic and on-demand.
-- **Logging**: Injects `Microsoft.Extensions.Logging` for consistent diagnostic output.
+Abstract base class for data coordinators.
+- **Subscription**: Subscribes to one or more Monitors.
+- **Marshalling**: Captures the `Dispatcher` at creation and automatically marshals updates to the UI thread, making it safe for `ObservableCollection` modifications.
+- **Persistence**: Built-in support for `Periodic`, `OnRequest`, or `Combined` persistence strategies.
+- **Integration**: Designed to work seamlessly with the `MulticastTransportFramework` for distributed context sharing.
 
 ### IEntity
 Interface for context data objects.
-- **Reactive**: Implements `INotifyPropertyChanged` for seamless integration with WPF/MAUI/Blazor data binding.
-- **Usage**: Define your domain models (e.g., `UserLocation`, `DeviceState`) implementing this interface.
+- **Reactive**: Implements `INotifyPropertyChanged` for direct integration with WPF/MAUI/Blazor data binding.
+- **Passive**: Should ideally remain a plain data holder (POCO) to simplify serialization.
 
 ## Usage Example
-... (rest of usage) ...
+
+```csharp
+// 1. Define Entity
+public class RoomTemperature : IEntity { ... }
+
+// 2. Define Monitor
+public class TempSensorMonitor : ContextMonitor { ... }
+
+// 3. Define Service
+public class HVACService : ContextService<RoomTemperature>
+{
+    public HVACService(TempSensorMonitor monitor)
+    {
+        SubscribeTo(monitor);
+    }
+    
+    protected override void UpdateEntity(object sender, ReadingEventArgs e)
+    {
+        Entity.Value = (double)e.Reading; // Marshalled to UI thread automatically
+    }
+}
+```
 
 ## Dependencies
 - `Microsoft.Extensions.Logging.Abstractions`

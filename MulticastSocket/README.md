@@ -1,29 +1,25 @@
 # MulticastSocket
 
-**MulticastSocket** is the foundational networking library for the Ubicomp.Utils.NET solution. It wraps standard .NET UDP sockets to provide specific multicast capabilities with a modern, fluent API.
+**MulticastSocket** is the foundational networking library for the Ubicomp.Utils.NET solution. It wraps standard .NET UDP sockets to provide specific multicast capabilities with a modern, fluent, and reactive API.
 
 ## Key Components
-*   **`MulticastSocketBuilder`**: The primary entry point for configuration. Use this to set options, filters, and callbacks, and now supports `WithLogging` for diagnostic transparency.
+*   **`MulticastSocketBuilder`**: The primary entry point for configuration. Use this to set options, filters, and callbacks.
 *   **`MulticastSocket`**: The core engine. Handles socket creation, binding, joining multicast groups, and async I/O.
-    *   *Instantiation*: Via `MulticastSocketBuilder`.
-    *   *Callbacks*: Uses strongly-typed `Action` delegates (`OnMessageReceived`, `OnError`, `OnStarted`).
-    *   *Reactive Streams*: Provides `GetMessageStream()` which returns an `IAsyncEnumerable<SocketMessage>` for modern streaming processing.
-*   **`SocketMessage`**: Represents a received packet with data, sequence ID, and timestamp.
-    *   **Pooled Buffers**: Use `IDisposable` pattern to return underlying buffers to `ArrayPool<byte>.Shared` to minimize GC allocations.
+    *   **Streaming**: `GetMessageStream()` returns an `IAsyncEnumerable<SocketMessage>`, allowing for modern, reactive consumption using `await foreach`.
+    *   **Decoupling**: Uses `System.Threading.Channels` to decouple the high-speed receive loop from the processing logic.
+*   **`SocketMessage`**: Represents a received packet.
+    *   **Pooling**: Utilizes `ObjectPool<SocketMessage>` and `ArrayPool<byte>` to minimize Garbage Collection (GC) pressure.
 *   **`SocketErrorContext`**: Provides details about runtime exceptions.
 
 ## Diagrams
 ![MulticastSocket Class Diagram](assets/class_diagram.png)
 
-![MulticastSocket Message Flow](assets/message_flow_diagram.png)
-
 ## Implementation Details
-*   **Threading**: Incoming messages are offloaded to the `ThreadPool` before firing callbacks and pushing to the message stream. This ensures the receive loop remains responsive.
-*   **Diagnostics**: Built-in support for `ILogger` provides granular insights into socket lifecycle, interface joining, and error conditions.
-*   **Async I/O**: Supports modern Task-based sending via `SendAsync`, wrapping the internal Begin/End pattern for high performance.
-*   **Buffer Management**: Uses `ArrayPool<byte>` to rent buffers for incoming messages. This significantly reduces memory allocations under high load.
-*   **Sequence ID**: Every received message is assigned a consecutive ID used by higher layers (e.g., `TransportComponent`) to maintain order.
-*   **Socket Options**: Sets `ReuseAddress` (SO_REUSEADDR) to allow multiple apps to bind the same port on the same machine.
+*   **Threading**: A dedicated `ReceiveAsyncLoop` offloads incoming data to a bounded `Channel`. Consumers process messages from this channel, ensuring the socket remains responsive.
+*   **Async I/O**: Fully Task-based API (`SendAsync`, `ReceiveAsync`) for high performance and scalability.
+*   **Buffer Management**: Uses `ArrayPool<byte>` for zero-allocation buffer management in the receive loop.
+*   **Sequence ID**: Assigns a monotonic sequence ID to every received packet, which is critical for higher-level ordering logic (e.g., in the Transport layer).
+*   **Socket Options**: Sets `ReuseAddress` (SO_REUSEADDR) to allow multiple applications to bind to the same port on the same host.
 
 ## Usage
 
@@ -38,14 +34,13 @@ var socket = new MulticastSocketBuilder()
     .WithLogging(loggerFactory)
     .Build();
 
-socket.StartReceiving();
+await socket.JoinGroupAsync();
 
 // Consume messages as an async stream
 await foreach (var msg in socket.GetMessageStream(cts.Token))
 {
     Console.WriteLine($"Received {msg.Data.Length} bytes. Seq: {msg.ArrivalSequenceId}");
-    // Note: msg.Dispose() is called automatically if you use the stream in a way that respects lifetime,
-    // but explicit disposal is good practice if buffering.
+    // Note: msg.Dispose() is called automatically by the stream enumerator
 }
 ```
 
@@ -60,5 +55,5 @@ await socket.SendAsync("Hello Multicast!");
 ```
 
 ## Dependencies
-- `System.Net.Sockets`
 - `Microsoft.Extensions.Logging.Abstractions`
+- `System.Threading.Channels`

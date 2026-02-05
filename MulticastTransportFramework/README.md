@@ -1,35 +1,32 @@
 # MulticastTransportFramework
 
-**MulticastTransportFramework** implements a higher-level messaging protocol over UDP multicast.
+**MulticastTransportFramework** implements a higher-level, reliable messaging protocol over UDP multicast, focusing on security, ordering, and developer productivity.
 
 ## Architecture
 
 *   **Fluent Builder**: Use `TransportBuilder` to configure and create a `TransportComponent`.
 *   **Strongly-Typed Messaging**: Generic `SendAsync<T>` methods handle internal serialization and routing via `[MessageType("id")]` attributes.
-*   **Binary Protocol**: Uses a custom binary format (`BinaryPacket`) to eliminate double serialization (JSON payload inside JSON envelope).
-    *   **Reduced Overhead**: Payload size reduced by ~66% compared to legacy JSON envelope.
-    *   **Compatibility**: Falls back to legacy JSON format if `Magic Byte` is not present, ensuring backward compatibility.
-*   **Security (AES-GCM)**:
-    *   **Modern Runtimes**: Uses `System.Security.Cryptography.AesGcm` (standard 2.1+) for authenticated encryption.
-    *   **Legacy Runtimes**: Falls back to `Aes` (CBC Mode) + HMAC for standard 2.0.
-    *   **Key Derivation**: Uses HKDF-like scheme to derive Integrity and Encryption keys from a single `SecurityKey`.
-*   **POCO Support**: Any class can be used as message content; no marker interface is required.
-*   **Diagnostic Transparency**: Uses `Microsoft.Extensions.Logging.ILogger` across both the transport and socket layers.
-*   **Auto-Discovery**: Source Generator automatically registers types with `[MessageType]` attribute (automatically during `Build()`).
+*   **Message Processing pipeline**:
+    *   **Binary Protocol**: Uses an optimized custom binary format (`BinaryPacket`) for efficiency.
+    *   **GateKeeper**: Optional mechanism that ensures strictly ordered message processing using sequence IDs and PriorityQueues.
+    *   **ReplayWindow**: Protects against replay attacks and duplicate messages using a sliding window.
+*   **Reliability (ACKs)**: Supports acknowledgement-based sessions (`AckSession`) for reliable delivery of critical messages.
+*   **Security**:
+    *   **Confidentiality**: Built-in **AES-GCM** encryption.
+    *   **Integrity**: **HMAC-SHA256** signatures ensure packets are not tampered with.
+    *   **Key Derivation**: Keys are derived from a shared secret using HKDF-like logic.
+*   **Auto-Discovery**: Compatible with Roslyn Source Generators to automatically register message types decorated with the `[MessageType]` attribute.
 
-![MulticastTransportFramework Class Diagram](assets/class_diagram.png)
-
+## Diagrams
 ![MulticastTransportFramework Flow Diagram](assets/transport_flow_diagram.png)
 
 ## Core Logic
-1.  **Incoming Data**: `MulticastSocket` receives bytes into a **pooled buffer** (`ArrayPool<byte>`) to minimize GC pressure.
+1.  **Incoming Data**: `MulticastSocket` receives bytes into a **pooled buffer**.
 2.  **Consumption**: `TransportComponent` consumes messages from the socket's `IAsyncEnumerable<SocketMessage>` stream.
-3.  **Deserialization**: `BinaryPacket.Deserialize` parses the byte stream directly.
-    *   **Polymorphism**: The `TransportComponent` resolves the concrete type of `MessageData` using the registered string ID.
-4.  **GateKeeper**: Optional mechanism that ensures sequential processing of messages.
-5.  **Dispatch**:
-    *   Strongly-typed handlers receive the data POCO and a `MessageContext`.
-    *   **Auto-Ack**: If enabled, an acknowledgement is sent automatically if requested.
+3.  **Security & Integrity**: Validates HMAC signature and decrypts payload using AES-GCM.
+4.  **Deduplication**: `ReplayWindow` checks for duplicate or expired messages.
+5.  **Ordering**: `GateKeeper` holds out-of-order messages until the gap is filled.
+6.  **Dispatch**: Routes the deserialized POCO to registered handlers based on its Message Type ID.
 
 ## Usage
 
@@ -47,40 +44,32 @@ public class SensorData
 ### 2. Configure and Build
 
 ```csharp
-var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000);
-
 var transport = new TransportBuilder()
-    .WithMulticastOptions(options)
+    .WithMulticastOptions(MulticastSocketOptions.Default)
     .WithLogging(loggerFactory)
-    .WithSecurityKey("SuperSecretKey") // Enables AES-GCM
+    .WithSecurityKey("YourSharedSecretKey")
     .WithEncryption(true)
     .Build();
 
 transport.RegisterHandler<SensorData>((data, context) =>
 {
-    Console.WriteLine($"Received: {data.Value}");
+    Console.WriteLine($"Received: {data.Value} from {context.Source}");
 });
 
-transport.Start();
+await transport.StartAsync();
 ```
 
 ### 3. Sending Messages
 
 ```csharp
-// Simple send (Encrypted & Binary Serialized automatically)
+// Simple send (Encrypted & Binary Serialized)
 await transport.SendAsync(new SensorData { Value = 25.5 });
 
 // Send with acknowledgment request
 await transport.SendAsync(new SensorData { Value = 25.5 }, new SendOptions { RequestAck = true });
 ```
 
-## Internal Components
-*   **`TransportBuilder`**: Primary entry point.
-*   **`TransportComponent`**: Orchestrator.
-*   **`MessageContext`**: Metadata (Source, Timestamp, Ack).
-*   **`BinaryPacket`**: Handles the binary wire format.
-
 ## Dependencies
 - `MulticastSocket`
-- `System.Text.Json`
+- `Newtonsoft.Json` (Legacy support)
 - `Microsoft.Extensions.Logging.Abstractions`

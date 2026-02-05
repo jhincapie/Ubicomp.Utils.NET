@@ -11,97 +11,66 @@ The project follows a layered architecture, ranging from low-level network trans
 
 ### 1. ContextAwarenessFramework (CAF)
 The top layer implements the **Monitor-Service-Entity (MSE)** pattern.
-- **ContextMonitors** collect raw data from sensors or external APIs.
-- **ContextServices** aggregate monitor data, implement business logic, and handle persistence.
-- **IEntities** represent the context data models, providing thread-safe change notifications.
-*Note: This layer is a pure .NET Standard library and does not depend on specific UI frameworks (WPF/MAUI). UI marshalling should be handled by the consumer.*
+- **ContextMonitors**: Collect raw data from sensors or external APIs (active/background threads).
+- **ContextServices**: Aggregate monitor data, implement business logic, and handle persistence.
+- **IEntities**: Represent the data models, designed for binding (INotifyPropertyChanged).
+- **Pattern**: `Monitor` -> `Service` -> `Entity`.
 
 ### 2. MulticastTransportFramework
-The middle layer provides a structured messaging protocol over UDP multicast.
-- **TransportComponent**: The central orchestrator using a lock-free actor model.
-- **Serialization**: High-performance JSON serialization using `System.Text.Json`.
-- **Security**: Built-in AES-GCM encryption and HMAC-SHA256 integrity signing.
-- **Reactive Processing**: Uses `IAsyncEnumerable` streams for efficient, non-blocking message handling.
-- **Ordering (GateKeeper)**: Ensures messages are processed in the exact order they were received, even in asynchronous environments.
-- **Reliability (Ack)**: Optional acknowledgement-based sessions for reliable message delivery.
-- **Diagnostics**: Built-in tools for network sanity and firewall checks.
+The middle layer provides a structured, reliable messaging protocol over UDP multicast.
+- **TransportComponent**: The central hub using an actor-like model for message processing.
+- **Reliability**:
+    - **GateKeeper**: Ensures strictly ordered message processing using sequence IDs and PriorityQueues.
+    - **ReplayWindow**: Protects against replay attacks and duplicate messages.
+    - **ACKs**: Optional acknowledgement sessions (`AckSession`) for critical message delivery.
+- **Security**: Built-in **AES-GCM** encryption and **HMAC-SHA256** integrity verification.
+- **Serialization**: Supports optimized `BinaryPacket` protocol and legacy JSON.
+- **Reactive**: Fully async processing pipeline.
 
 ### 3. MulticastSocket
 The foundational layer that wraps standard .NET UDP sockets.
-- **Reactive Streams**: Provides `GetMessageStream()` which returns an `IAsyncEnumerable<SocketMessage>`.
-- **Memory Efficiency**: Uses `ArrayPool<byte>` for zero-allocation buffer management where possible.
-- **Group Management**: Simplified joining and leaving of multicast groups.
-- **Sequencing**: Automatically assigns sequence numbers to incoming packets for higher-level ordering.
-- **Performance**: Optimized async I/O.
+- **Streaming**: Exposes `IAsyncEnumerable<SocketMessage>` via `GetMessageStream()`.
+- **Performance**: Utilizes `System.Threading.Channels`, `ObjectPool`, and `ArrayPool<byte>` to minimize allocations.
+- **Socket Options**: Simplified configuration via `MulticastSocketOptions`.
 
 ## Project Documentation
 *   [**MulticastSocket**](MulticastSocket/README.md): Low-level multicast networking wrapper.
 *   [**MulticastTransportFramework**](MulticastTransportFramework/README.md): High-level messaging and transport layer.
 *   [**ContextAwarenessFramework**](ContextAwarenessFramework/README.md): Framework for context sensing and data management.
 
-## Core Flow
-1.  **Network Receive**: `MulticastSocket` receives bytes, assigns a sequence ID, and pushes to an internal `Channel`.
-2.  **Stream Consumption**: `TransportComponent` consumes the `IAsyncEnumerable` stream from the socket.
-3.  **Transport Processing**: The JSON is deserialized into a typed `TransportMessage` based on its attribute-defined ID.
-4.  **Ordered Dispatch**: The `GateKeeper` holds the message until its sequence ID is next, then dispatches it to registered handlers.
-5.  **Context Update**: A `ContextService` (acting as a listener) receives the message and updates its `IEntity` state.
-
 ## Modernization Status
 This project targets **.NET Standard 2.0** for core libraries and **.NET 8.0** for applications and tests.
 - **Asynchronous**: Fully utilizes `IAsyncEnumerable`, `Channels`, and `Task`-based patterns.
-- **Serialization**: `System.Text.Json` (v8.0.5+).
-- **Logging**: `Microsoft.Extensions.Logging` (Version 8.0.x).
 - **Dependencies**: Managed via NuGet.
 
 ## How to Run
 
-### Linux (using .NET CLI)
+### Prerequisites
+*   .NET SDK (Version 8.0 recommended).
 
-1.  **Install .NET SDK**: Ensure you have the .NET SDK installed (version 8.0 recommended).
-2.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/jhincapie/Ubicomp.Utils.NET.git
-    cd Ubicomp.Utils.NET
-    ```
-3.  **Build the solution**:
-    ```bash
-    dotnet build
-    ```
-4.  **Run the Sample App**:
-    ```bash
-    dotnet run --project SampleApp/Ubicomp.Utils.NET.SampleApp.csproj
-    ```
-5.  **Run Tests**:
-    ```bash
-    dotnet test Tests/Ubicomp.Utils.NET.Tests.csproj
-    ```
-6.  **Format Code**:
-    ```bash
-    dotnet format
-    ```
+### Commands
+All commands should be run from the repository root.
 
-### Windows
+**Build Solution:**
+```bash
+dotnet build
+```
 
-#### Using Visual Studio
-1.  Open `Ubicomp.Utils.NET.sln` in Visual Studio 2022 or later.
-2.  The projects have been updated to the modern SDK-style format.
-3.  Right-click on `Ubicomp.Utils.NET.SampleApp` and select **Set as Startup Project**.
-4.  Press **F5** to run.
-5.  Open **Test Explorer** to run the unit tests.
+**Run Sample App:**
+```bash
+dotnet run --project SampleApp/Ubicomp.Utils.NET.SampleApp.csproj
+```
 
-#### Using .NET CLI (PowerShell/CMD)
-1.  **Build**: `dotnet build`
-2.  **Run Sample**: `dotnet run --project SampleApp\Ubicomp.Utils.NET.SampleApp.csproj`
-3.  **Run Tests**: `dotnet test Tests\Ubicomp.Utils.NET.Tests.csproj`
-4.  **Format Code**: `dotnet format`
+**Run Tests:**
+```bash
+dotnet test Tests/Ubicomp.Utils.NET.Tests.csproj
+```
+
+**Format Code:**
+```bash
+dotnet format
+```
 
 ## Contribution Guidelines
 *   **Do NOT push directly to the `master` branch.**
 *   Always create a feature branch and submit a Pull Request.
-
-## Contribution Guidelines
-*   **Do NOT push directly to the `master` branch.**
-*   Always create a feature branch and submit a Pull Request.
-
----
-*Note: The core libraries target `netstandard2.0` for maximum compatibility, while the Sample App and Tests target `net8.0`.*

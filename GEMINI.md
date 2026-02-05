@@ -12,23 +12,29 @@ The solution consists of core libraries targeting `netstandard2.0` for broad com
 
 The solution is structured into several key projects:
 
-### Core Libraries (Target: `netstandard2.0`)
-*   **`ContextAwarenessFramework`**: Provides the infrastructure for context monitoring, service listening, and data transformation.
-*   **`MulticastSocket`**: A utility wrapper around multicast networking capabilities.
-*   **`MulticastTransportFramework`**: Builds upon `MulticastSocket` to provide a higher-level message transport mechanism.
+### 1. ContextAwarenessFramework (`netstandard2.0`)
+*   **Pattern**: Monitor-Service-Entity (MSE).
+*   **Role**: Provides infrastructure for context monitoring and data transformation.
+*   **Key Concept**: Separates data acquisition (`ContextMonitor`) from logic (`ContextService`) and state (`IEntity`).
 
-### Applications & Tests (Target: `net8.0`)
-*   **`SampleApp`**: Demonstrates the usage of the libraries.
-*   **`ContextAwarenessFramework.TestApp`**: Specific test application for the context framework.
-*   **`Multicast.TestApp`**: Specific test application for multicast functionality.
-*   **`Tests`**: Unit tests for the solution.
+### 2. MulticastTransportFramework (`netstandard2.0`)
+*   **Role**: Higher-level reliable messaging layer over UDP multicast.
+*   **Architecture**: Actor-like model with dedicated internal loops (`GateKeeperLoop`, `ProcessingLoop`).
+*   **Key Features**:
+    - **Reliability**: `GateKeeper` (ordering via PriorityQueue), `ReplayWindow` (deduplication), `AckSession` (delivery confirmation).
+    - **Security**: AES-GCM encryption and HMAC-SHA256 integrity.
+    - **Serialization**: Dual support for `BinaryPacket` (optimized) and JSON.
 
-### Development Tools (Target: `netstandard2.0`)
-*   **`Generators`**: Roslyn Source Generator for auto-discovering message types.
+### 3. MulticastSocket (`netstandard2.0`)
+*   **Role**: Low-level wrapper for .NET UDP Sockets.
+*   **Architecture**: Uses `System.Threading.Channels` to decouple receive logic from consumption.
+*   **Key Features**: `IAsyncEnumerable` streaming, object/array pooling for performance.
 
-### External Dependencies
-*   All dependencies are managed via NuGet. The project is aligned with **.NET 8.0** standards (using version `8.0.0` or later for Microsoft extensions, with `System.Text.Json` at `8.0.5` for security).
-*   Key libraries: `Microsoft.Extensions.Logging`, `System.Threading.Channels`, `Microsoft.Bcl.AsyncInterfaces`, `System.Text.Json`.
+### Applications & Tests (`net8.0`)
+*   **`SampleApp`**: Demonstrates library usage.
+*   **`ContextAwarenessFramework.TestApp`**: Context framework testbed.
+*   **`Multicast.TestApp`**: Multicast functionality testbed.
+*   **`Tests`**: Comprehensive unit tests covering all layers.
 
 ## Development Workflow
 
@@ -44,10 +50,6 @@ All commands should be run from the repository root.
     ```
 
 *   **Run Sample App:**
-    ```bash
-    dotnet run --project SampleApp/Ubicomp.Utils.NET.SampleApp.csproj
-    ```
-    *Note: Use `--no-wait` argument for automated testing to avoid blocking on `Console.ReadKey()`.*
     ```bash
     dotnet run --project SampleApp/Ubicomp.Utils.NET.SampleApp.csproj -- --no-wait
     ```
@@ -71,5 +73,3 @@ All commands should be run from the repository root.
 ## Important Files
 *   `Ubicomp.Utils.NET.sln`: The main solution file.
 *   `README.md`: Basic instructions and authorship.
-*   `MulticastSocket/README.md`: Detailed documentation for the socket layer.
-*   `MulticastTransportFramework/README.md`: Detailed documentation for the transport layer.

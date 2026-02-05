@@ -1,31 +1,33 @@
 # ContextAwarenessFramework Context
 
 ## Architecture
-The framework follows a **Monitor-Service-Entity** pattern.
+The framework follows the **Monitor-Service-Entity (MSE)** pattern to separate concerns in context-aware applications.
 
-*   **ContextMonitor**: The source of context. Runs on its own thread (if `Interval` or `Continuous`).
-*   **ContextService**: The aggregator. Subscribes to Monitors.
-*   **IEntity**: The data model.
+![MSE Pattern Diagram](assets/mse_pattern_diagram.png)
+
+## Core Components
+
+### 1. Monitor (ContextMonitor)
+*   **Role**: The source of truth. Acquires raw data from hardware, sensors, or APIs.
+*   **Behavior**: Can be active (own thread/timer) or passive. Fires events when data changes.
+
+### 2. Service (ContextService)
+*   **Role**: The coordinator.
+*   **Responsibilities**:
+    *   Subscribes to Monitors.
+    *   Applies business logic/aggregation.
+    *   Updates the **Entity**.
+    *   Handles **Persistence** (saving history).
+    *   Marshals updates to the UI thread (via `Dispatcher`).
+
+### 3. Entity (IEntity)
+*   **Role**: The data model.
+*   **Behavior**: Passive POCOs that implement `INotifyPropertyChanged`. Designed to be bound directly to UI (WPF/MAUI) or serialized for transport.
 
 ## Threading Model
-*   **Background Execution**: `ContextMonitor` instances typically run on their own threads (especially for `Interval` or `Continuous` types) to avoid blocking.
-*   **Thread Safety**: `ContextService` uses internal locking (`lock`) to ensure safe state updates and persistence.
-*   **UI Marshalling**: This framework is a pure .NET Standard library. It does **not** handle UI thread marshalling (e.g., `Dispatcher`). Consumers (WPF, MAUI apps) must handle marshalling when updating UI-bound collections from `ContextService` events.
+*   **Isolation**: Monitors typically run on background threads to avoid blocking the UI.
+*   **Marshalling**: `ContextService` captures the `Dispatcher` at creation. All updates to the `Entity` (and thus the UI) are automatically marshalled to the correct thread.
 
 ## Persistence
-`ContextService` includes a template method pattern for persistence:
-*   `PersistenceType`: `None`, `Periodic`, `OnRequest`, `Combined`.
-*   `ExecutePersit()`: Calls `PreparePersist()` then `PersistEntities()`.
-*   Useful for logging context history or saving state.
-
-## Logging
-*   **Abstractions**: Uses `Microsoft.Extensions.Logging.Abstractions` to decouple from specific logging implementations.
-*   **Injection**: Services expose a public `Logger` property that can be set by the host application.
-
-## Key Classes
-*   **`ContextMonitor`**: Abstract. Handles the run loop and event firing.
-*   **`ContextService`**: Abstract. Handles threading, logging, and persistence.
-*   **`ContextMonitorContainer` / `ContextServiceContainer`**: Used to manage collections of monitors/services and their lifecycles.
-
-## Dependencies
-*   **External**: `Microsoft.Extensions.Logging.Abstractions`
+*   **Pattern**: Template Method (`ExecutePersist`, `PersistEntities`).
+*   **Modes**: `Periodic`, `OnRequest`, `Combined`.

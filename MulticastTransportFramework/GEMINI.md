@@ -1,37 +1,40 @@
 # MulticastTransportFramework Context
 
 ## Architecture
-**MulticastTransportFramework** implements a higher-level messaging protocol over UDP multicast.
+**MulticastTransportFramework** implements a higher-level, reliable messaging protocol over UDP multicast.
 
-*   **Fluent Builder**: Use `TransportBuilder` to configure and create a `TransportComponent`.
-*   **Strongly-Typed Messaging**: Generic `SendAsync<T>` methods handle internal serialization and routing via `[MessageType("id")]` attributes.
-*   **Binary Protocol**: Uses a custom binary format (`BinaryPacket`) to eliminate double serialization (JSON payload inside JSON envelope).
-    *   **Reduced Overhead**: Payload size reduced by ~66% compared to legacy JSON envelope.
-    *   **Compatibility**: Falls back to legacy JSON format if `Magic Byte` is not present, ensuring backward compatibility.
-*   **Security (AES-GCM)**:
+![Transport Flow Diagram](assets/transport_flow_diagram.png)
+
+## Core Logic & Features
+
+### 1. Message Processing Pipeline
+*   **Source**: Consumes `IAsyncEnumerable<SocketMessage>` from `MulticastSocket`.
+*   **Deserialization**: Supports two modes:
+    *   **BinaryPacket**: Optimized, custom binary protocol with security headers.
+        *   **Reduced Overhead**: Payload size reduced by ~66% compared to legacy JSON envelope.
+        *   **Compatibility**: Falls back to legacy JSON format if `Magic Byte` is not present, ensuring backward compatibility.
+    *   **JSON**: Legacy support via `Newtonsoft.Json`.
+*   **GateKeeper**: A priority-queue based mechanism that enforces strictly ordered message processing (`EnforceOrdering` option). It holds out-of-order messages until the gap is filled.
+*   **Dispatch**: Routes messages to registered handlers based on string IDs defined in `[MessageType("id")]`.
+*   **Auto-Discovery**: Source Generator automatically registers types with `[MessageType]` attribute (typically during `Build()`).
+
+### 2. Reliability & Integrity
+*   **ReplayWindow**: A sliding window mechanism that rejects duplicate or replayed messages based on Sequence IDs and Timestamps.
+*   **AckSession**: Provides "Reliable Multicast" semantics on a per-message basis. Senders can await explicit acknowledgements from peers.
+
+### 3. Security
+*   **Encryption**: **AES-GCM** (primary) or AES-CBC (fallback) for payload confidentiality.
     *   **Modern Runtimes**: Uses `System.Security.Cryptography.AesGcm` (standard 2.1+) for authenticated encryption.
     *   **Legacy Runtimes**: Falls back to `Aes` (CBC Mode) + HMAC for standard 2.0.
-    *   **Key Derivation**: Uses HKDF-like scheme to derive Integrity and Encryption keys from a single `SecurityKey`.
-*   **POCO Support**: Any class can be used as message content; no marker interface is required.
-*   **Diagnostic Transparency**: Uses `Microsoft.Extensions.Logging.ILogger` across both the transport and socket layers.
-*   **Auto-Discovery**: Source Generator automatically registers types with `[MessageType]` attribute (automatically during `Build()`).
-
-## Core Logic
-1.  **Incoming Data**: `MulticastSocket` receives bytes into a **pooled buffer** (`ArrayPool<byte>`) to minimize GC pressure.
-2.  **Consumption**: `TransportComponent` consumes messages from the socket's `IAsyncEnumerable<SocketMessage>` stream.
-3.  **Deserialization**: `BinaryPacket.Deserialize` parses the byte stream directly.
-    *   **Polymorphism**: The `TransportComponent` resolves the concrete type of `MessageData` using the registered string ID.
-4.  **GateKeeper**: Optional mechanism that ensures sequential processing of messages.
-5.  **Dispatch**:
-    *   Strongly-typed handlers receive the data POCO and a `MessageContext`.
-    *   **Auto-Ack**: If enabled, an acknowledgement is sent automatically if requested.
+*   **Integrity**: **HMAC-SHA256** signatures ensure packets are not tampered with.
+*   **Key Derivation**: Keys are derived from a shared secret using HKDF-like logic.
 
 ## Key Classes
-*   **`TransportBuilder`**: The primary entry point for configuration.
-*   **`TransportComponent`**: The orchestrator managing the socket and message flow.
-*   **`MessageContext`**: Provides metadata (Source, Timestamp, RequestAck) to message handlers.
-*   **`TransportMessage`**: The internal data envelope (hidden from common usage).
+*   **`TransportBuilder`**: Fluent API for configuring reliability, security, and handlers.
+*   **`TransportComponent`**: The central actor managing the lifecycle and internal loops.
+*   **`BinaryPacket`**: The wire-format structure.
+*   **`AckSession`**: Manages state for pending acknowledgements.
 
 ## Dependencies
 *   **Internal**: `MulticastSocket`
-*   **External**: `System.Text.Json`, `Microsoft.Extensions.Logging.Abstractions`
+*   **External**: `Newtonsoft.Json`, `Microsoft.Extensions.Logging.Abstractions`
