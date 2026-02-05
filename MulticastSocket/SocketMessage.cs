@@ -11,32 +11,49 @@ namespace Ubicomp.Utils.NET.Sockets
     {
         private byte[]? _rentedBuffer;
 
+        /// <summary>
+        /// Callback action to return this instance to a pool.
+        /// </summary>
+        internal Action<SocketMessage>? ReturnCallback { get; set; }
+
         /// <summary>Gets the raw data received.</summary>
         public byte[] Data
         {
-            get;
+            get; private set;
         }
 
         /// <summary>Gets the length of the valid data in the buffer.</summary>
         public int Length
         {
-            get;
+            get; private set;
         }
 
         /// <summary>Gets the arrival sequence number of the message.</summary>
         public int ArrivalSequenceId
         {
-            get;
+            get; private set;
         }
 
         /// <summary>Gets the timestamp when the message was received.</summary>
         public DateTime Timestamp
         {
-            get;
+            get; private set;
         }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SocketMessage"/> class.
+        /// </summary>
+        public SocketMessage()
+        {
+            Data = Array.Empty<byte>();
+            Length = 0;
+            ArrivalSequenceId = 0;
+            Timestamp = DateTime.MinValue;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SocketMessage"/> class.
+        ///For backward compatibility/testing.
         /// </summary>
         public SocketMessage(byte[] data, int sequenceId)
         {
@@ -46,7 +63,7 @@ namespace Ubicomp.Utils.NET.Sockets
             Timestamp = DateTime.Now;
         }
 
-        internal SocketMessage(byte[] buffer, int length, int sequenceId, bool isRented)
+        internal void Reset(byte[] buffer, int length, int sequenceId, bool isRented)
         {
             Data = buffer;
             Length = length;
@@ -65,6 +82,7 @@ namespace Ubicomp.Utils.NET.Sockets
                 ArrayPool<byte>.Shared.Return(_rentedBuffer);
                 _rentedBuffer = null;
             }
+            ReturnCallback?.Invoke(this);
         }
     }
 

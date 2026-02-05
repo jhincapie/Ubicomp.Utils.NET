@@ -12,6 +12,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.ObjectPool;
 
 namespace Ubicomp.Utils.NET.Sockets
 {
@@ -20,7 +21,7 @@ namespace Ubicomp.Utils.NET.Sockets
     /// Handles joining multicast groups on multiple interfaces and provides
     /// asynchronous sending and receiving capabilities.
     /// </summary>
-    public partial class MulticastSocket : IDisposable
+    public partial class MulticastSocket : IMulticastSocket, IDisposable
     {
         private Socket? _udpSocket;
         private int _mConsecutive;
@@ -34,6 +35,7 @@ namespace Ubicomp.Utils.NET.Sockets
 #if NET8_0_OR_GREATER
         private CancellationTokenSource? _receiveCts;
 #endif
+        private readonly ObjectPool<SocketMessage> _messagePool;
 
         /// <summary>Gets or sets the logger for this component.</summary>
         public ILogger Logger { get; set; } = NullLogger.Instance;
@@ -83,6 +85,10 @@ namespace Ubicomp.Utils.NET.Sockets
             _udpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             _mConsecutive = 0;
             _options = options;
+
+            // Initialize Object Pool
+            var provider = new DefaultObjectPoolProvider();
+            _messagePool = provider.Create(new DefaultPooledObjectPolicy<SocketMessage>());
 
             SetupSocket();
         }
@@ -358,8 +364,11 @@ namespace Ubicomp.Utils.NET.Sockets
                         Array.Copy(buffer, 0, bufferCopy, 0, result.ReceivedBytes);
 
                         int seqId = Interlocked.Increment(ref _mConsecutive);
-                        // Constructor handles isRented=true
-                        var msg = new SocketMessage(bufferCopy, result.ReceivedBytes, seqId, isRented: true);
+
+                        // Rent message from pool
+                        var msg = _messagePool.Get();
+                        msg.Reset(bufferCopy, result.ReceivedBytes, seqId, isRented: true);
+                        msg.ReturnCallback = m => _messagePool.Return(m);
 
                         Logger.LogTrace("Received message with SeqId {SeqId}, Length {Length}", seqId, result.ReceivedBytes);
 
@@ -415,7 +424,11 @@ namespace Ubicomp.Utils.NET.Sockets
                 Array.Copy(state.Buffer, 0, buffer, 0, bytesRead);
 
                 int seqId = Interlocked.Increment(ref _mConsecutive);
-                var msg = new SocketMessage(buffer, bytesRead, seqId, isRented: true);
+
+                // Rent message from pool
+                var msg = _messagePool.Get();
+                msg.Reset(buffer, bytesRead, seqId, isRented: true);
+                msg.ReturnCallback = m => _messagePool.Return(m);
 
                 LogMessageReceived(Logger, seqId, bytesRead);
 
