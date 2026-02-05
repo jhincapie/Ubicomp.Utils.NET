@@ -100,6 +100,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         /// <summary>
         /// Gets or sets the shared secret key for HMAC integrity and AES-GCM encryption.
+        /// Can be any string (e.g. a passphrase).
         /// Setting this triggers key derivation for EncryptionKey and IntegrityKey.
         /// If null, messages are signed with simple SHA256 (integrity only, no authentication).
         /// </summary>
@@ -135,7 +136,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             try
             {
-                byte[] masterKey = Convert.FromBase64String(_securityKey!);
+                byte[] masterKey = Encoding.UTF8.GetBytes(_securityKey!);
 
                 // HKDF-like derivation using HMAC-SHA256
                 // Salt is empty for simplicity in this implementation (Plan 1)

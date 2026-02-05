@@ -21,13 +21,7 @@ namespace Ubicomp.Utils.NET.Tests
         {
             // Arrange
             var options = MulticastSocketOptions.LocalNetwork("239.1.2.4", 6003);
-            string key = Convert.ToBase64String(new byte[32]); // 32 random bytes
-            // Generate random key
-            new Random().NextBytes(Convert.FromBase64String(key)); // wait, byte[] -> string is useless.
-            // Fix key gen
-            byte[] keyBytes = new byte[32];
-            new Random().NextBytes(keyBytes);
-            key = Convert.ToBase64String(keyBytes);
+            string key = "MySecretPassphrase123!"; // Plain string, not Base64
 
 
             var tcs = new TaskCompletionSource<string>();
@@ -84,11 +78,8 @@ namespace Ubicomp.Utils.NET.Tests
              // Arrange
             var options = MulticastSocketOptions.LocalNetwork("239.1.2.4", 6004);
 
-            byte[] keyBytes1 = new byte[32]; new Random().NextBytes(keyBytes1);
-            string key1 = Convert.ToBase64String(keyBytes1);
-
-            byte[] keyBytes2 = new byte[32]; new Random().NextBytes(keyBytes2);
-            string key2 = Convert.ToBase64String(keyBytes2);
+            string key1 = "KeyNum1";
+            string key2 = "KeyNum2"; // Different key string
 
             var tcs = new TaskCompletionSource<bool>();
 
