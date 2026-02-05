@@ -35,7 +35,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// </summary>
         public const string AckMessageType = "sys.ack";
 
-        private MulticastSocket? _socket;
+        private IMulticastSocket? _socket;
         private readonly MulticastSocketOptions _socketOptions;
         private CancellationTokenSource? _receiveCts;
         private Task? _receiveTask;
@@ -326,9 +326,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// Initializes a new instance of the <see cref="TransportComponent"/> class.
         /// </summary>
         /// <param name="options">The multicast socket options to use.</param>
-        public TransportComponent(MulticastSocketOptions options)
+        /// <param name="socket">Optional pre-configured socket (e.g. for testing).</param>
+        public TransportComponent(MulticastSocketOptions options, IMulticastSocket? socket = null)
         {
             _socketOptions = options;
+            _socket = socket;
             _jsonOptions = new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -405,16 +407,20 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             _gateLoopTask = Task.Run(GateKeeperLoop);
             _processingLoopTask = Task.Run(ProcessingLoop);
 
-            var builder = new MulticastSocketBuilder()
-                .WithOptions(_socketOptions)
-                .OnError(err => Logger.LogError(
-                    "Socket Error: {0}. Exception: {1}",
-                    err.Message,
-                    err.Exception?.Message));
+            if (_socket == null)
+            {
+                var builder = new MulticastSocketBuilder()
+                    .WithOptions(_socketOptions)
+                    .OnError(err => Logger.LogError(
+                        "Socket Error: {0}. Exception: {1}",
+                        err.Message,
+                        err.Exception?.Message));
 
-            builder.WithLogger(Logger);
+                builder.WithLogger(Logger);
 
-            _socket = builder.Build();
+                _socket = builder.Build();
+            }
+
             _socket.StartReceiving();
 
             _receiveTask = Task.Run(async () => await ReceiveLoop(_receiveCts.Token));
