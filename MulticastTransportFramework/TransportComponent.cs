@@ -662,11 +662,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             try
             {
-                string sMessage = Encoding.UTF8.GetString(msg.Data, 0, msg.Length);
                 TransportMessage? tMessage;
 
                 Logger.LogTrace("Importing message {0}", msg.ArrivalSequenceId);
-                tMessage = JsonSerializer.Deserialize<TransportMessage>(sMessage, _jsonOptions);
+                // Optimization: Deserialize directly from ReadOnlySpan<byte> to avoid string allocation
+                tMessage = JsonSerializer.Deserialize<TransportMessage>(new ReadOnlySpan<byte>(msg.Data, 0, msg.Length), _jsonOptions);
 
                 if (tMessage != null)
                 {
