@@ -15,11 +15,14 @@
 ![MulticastSocket Class Diagram](assets/class_diagram.png)
 
 ## Implementation Details
-*   **Threading**: A dedicated `ReceiveAsyncLoop` offloads incoming data to a bounded `Channel`. Consumers process messages from this channel, ensuring the socket remains responsive.
-*   **Async I/O**: Fully Task-based API (`SendAsync`, `ReceiveAsync`) for high performance and scalability.
+*   **Multi-Targeting**:
+    *   **.NET 8.0+**: Uses high-performance `ReceiveFromAsync` (Memory-based) and `CancellationToken`.
+    *   **.NET Standard 2.0**: Uses a compatibility wrapper around legacy APM `BeginReceiveFrom` / `EndReceiveFrom` to simulate async behavior (`ReceiveAsyncLoop`).
+*   **Threading**: A dedicated loop offloads incoming data to a bounded `Channel`. Consumers process messages from this channel, ensuring the socket remains responsive.
 *   **Buffer Management**: Uses `ArrayPool<byte>` for zero-allocation buffer management in the receive loop.
-*   **Sequence ID**: Assigns a monotonic sequence ID to every received packet, which is critical for higher-level ordering logic (e.g., in the Transport layer).
-*   **Socket Options**: Sets `ReuseAddress` (SO_REUSEADDR) to allow multiple applications to bind to the same port on the same host.
+*   **Socket Options**:
+    *   **Strict Adherence**: Boolean options (`NoDelay`, `ReuseAddress`) are strictly enforced (set to 1 or 0) regardless of OS defaults.
+    *   **Error Handling**: `SocketOptionName.NoDelay` is wrapped in a `try-catch` block as some platforms/drivers throw on this option for UDP.
 
 ## Usage
 
