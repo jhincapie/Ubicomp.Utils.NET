@@ -1,8 +1,0 @@
-{
-  "track_id": "message_ack_20260202",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-02-02T12:31:00Z",
-  "updated_at": "2026-02-02T12:31:00Z",
-  "description": "Add a new Send method (refactored) to the TransportComponent that requests the receivers to send an Ack of having received the message via an AckSession object."
-}

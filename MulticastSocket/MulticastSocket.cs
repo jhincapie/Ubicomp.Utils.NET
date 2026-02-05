@@ -352,7 +352,7 @@ namespace Ubicomp.Utils.NET.Sockets
         {
             if (_udpSocket == null) return;
 
-            byte[] buffer = new byte[StateObject.BufferSize];
+            byte[] buffer = new byte[MaxMessageSize];
             Memory<byte> memoryBuffer = buffer;
 
             try
@@ -374,7 +374,7 @@ namespace Ubicomp.Utils.NET.Sockets
                         msg.Reset(bufferCopy, result.ReceivedBytes, seqId, isRented: true);
                         msg.ReturnCallback = m => _messagePool.Return(m);
 
-                        Logger.LogTrace("Received message with SeqId {SeqId}, Length {Length}", seqId, result.ReceivedBytes);
+                        LogMessageReceived(Logger, seqId, result.ReceivedBytes);
 
                         OnMessageReceivedAction?.Invoke(msg);
                         _messageChannel.Writer.TryWrite(msg);
@@ -409,6 +409,7 @@ namespace Ubicomp.Utils.NET.Sockets
         }
 #endif
 
+#if !NET8_0_OR_GREATER
         private void Receive(StateObject state)
         {
             if (_udpSocket == null)
@@ -468,6 +469,7 @@ namespace Ubicomp.Utils.NET.Sockets
                 catch { }
             }
         }
+#endif
 
         /// <summary>
         /// Gets an asynchronous stream of messages received by the socket.
@@ -569,11 +571,13 @@ namespace Ubicomp.Utils.NET.Sockets
         [LoggerMessage(Level = LogLevel.Trace, Message = "Received message with SeqId {SeqId}, Length {Length}")]
         private static partial void LogMessageReceived(ILogger logger, int seqId, int length);
 
+#if !NET8_0_OR_GREATER
         internal class StateObject
         {
             public const int BufferSize = MaxMessageSize;
             public byte[] Buffer { get; } = new byte[BufferSize];
             public Socket WorkSocket { get; set; } = null!;
         }
+#endif
     }
 }
