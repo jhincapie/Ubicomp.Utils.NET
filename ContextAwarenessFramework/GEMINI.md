@@ -8,8 +8,9 @@ The framework follows a **Monitor-Service-Entity** pattern.
 *   **IEntity**: The data model.
 
 ## Threading Model
-*   **Dispatcher**: `ContextService` captures `Dispatcher.CurrentDispatcher` upon instantiation.
-*   **Marshalling**: When `UpdateMonitorReading` is called (usually from a background Monitor thread), the Service marshals the call to the UI thread using the captured Dispatcher. This allows safe modification of `ObservableCollection`s bound to UIs.
+*   **Background Execution**: `ContextMonitor` instances typically run on their own threads (especially for `Interval` or `Continuous` types) to avoid blocking.
+*   **Thread Safety**: `ContextService` uses internal locking (`lock`) to ensure safe state updates and persistence.
+*   **UI Marshalling**: This framework is a pure .NET Standard library. It does **not** handle UI thread marshalling (e.g., `Dispatcher`). Consumers (WPF, MAUI apps) must handle marshalling when updating UI-bound collections from `ContextService` events.
 
 ## Persistence
 `ContextService` includes a template method pattern for persistence:

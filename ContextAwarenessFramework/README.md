@@ -29,7 +29,7 @@ Abstract base class for data producers.
 ### ContextService
 Abstract base class for data consumers/managers.
 - **Data Aggregation**: Subscribes to one or more Monitors to process raw data into high-level context.
-- **Threading (UI Safety)**: The service captures the `Dispatcher` from the thread that created it. When updating state, it marshals calls back to this Dispatcher, ensuring that `ObservableCollection`s and other UI-bound properties can be updated safely from background monitor threads.
+- **Threading**: Services are designed to be thread-safe but do **not** automatically marshal events to the UI thread. Consumers must handle cross-thread updates when binding to UI elements.
 - **Persistence**: Built-in support for multiple persistence patterns:
     - `Periodic`: Saves state at a regular interval.
     - `OnRequest`: Saves state only when explicitly called.

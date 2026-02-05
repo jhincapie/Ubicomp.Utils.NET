@@ -14,11 +14,13 @@ The top layer implements the **Monitor-Service-Entity (MSE)** pattern.
 - **ContextMonitors** collect raw data from sensors or external APIs.
 - **ContextServices** aggregate monitor data, implement business logic, and handle persistence.
 - **IEntities** represent the context data models, providing thread-safe change notifications.
+*Note: This layer is a pure .NET Standard library and does not depend on specific UI frameworks (WPF/MAUI). UI marshalling should be handled by the consumer.*
 
 ### 2. MulticastTransportFramework
 The middle layer provides a structured messaging protocol over UDP multicast.
-- **TransportComponent**: The central orchestrator.
-- **Serialization**: Automated JSON serialization/deserialization with polymorphic support using `[MessageType("id")]` attributes.
+- **TransportComponent**: The central orchestrator using a lock-free actor model.
+- **Serialization**: High-performance JSON serialization using `System.Text.Json`.
+- **Security**: Built-in AES-GCM encryption and HMAC-SHA256 integrity signing.
 - **Reactive Processing**: Uses `IAsyncEnumerable` streams for efficient, non-blocking message handling.
 - **Ordering (GateKeeper)**: Ensures messages are processed in the exact order they were received, even in asynchronous environments.
 - **Reliability (Ack)**: Optional acknowledgement-based sessions for reliable message delivery.
@@ -27,9 +29,10 @@ The middle layer provides a structured messaging protocol over UDP multicast.
 ### 3. MulticastSocket
 The foundational layer that wraps standard .NET UDP sockets.
 - **Reactive Streams**: Provides `GetMessageStream()` which returns an `IAsyncEnumerable<SocketMessage>`.
+- **Memory Efficiency**: Uses `ArrayPool<byte>` for zero-allocation buffer management where possible.
 - **Group Management**: Simplified joining and leaving of multicast groups.
 - **Sequencing**: Automatically assigns sequence numbers to incoming packets for higher-level ordering.
-- **Performance**: Optimized async I/O and buffer management.
+- **Performance**: Optimized async I/O.
 
 ## Project Documentation
 *   [**MulticastSocket**](MulticastSocket/README.md): Low-level multicast networking wrapper.
@@ -42,12 +45,11 @@ The foundational layer that wraps standard .NET UDP sockets.
 3.  **Transport Processing**: The JSON is deserialized into a typed `TransportMessage` based on its attribute-defined ID.
 4.  **Ordered Dispatch**: The `GateKeeper` holds the message until its sequence ID is next, then dispatches it to registered handlers.
 5.  **Context Update**: A `ContextService` (acting as a listener) receives the message and updates its `IEntity` state.
-6.  **UI Notification**: The `ContextService` uses a captured `Dispatcher` to safely notify UI components of the change.
 
 ## Modernization Status
 This project targets **.NET Standard 2.0** for core libraries and **.NET 8.0** for applications and tests.
 - **Asynchronous**: Fully utilizes `IAsyncEnumerable`, `Channels`, and `Task`-based patterns.
-- **Serialization**: `Newtonsoft.Json` with custom polymorphic converters.
+- **Serialization**: `System.Text.Json` (v8.0.5+).
 - **Logging**: `Microsoft.Extensions.Logging` (Version 8.0.x).
 - **Dependencies**: Managed via NuGet.
 
@@ -94,11 +96,11 @@ This project targets **.NET Standard 2.0** for core libraries and **.NET 8.0** f
 4.  **Format Code**: `dotnet format`
 
 ## Contribution Guidelines
-*   **Do NOT push directly to the `master` branch.** 
+*   **Do NOT push directly to the `master` branch.**
 *   Always create a feature branch and submit a Pull Request.
 
 ## Contribution Guidelines
-*   **Do NOT push directly to the `master` branch.** 
+*   **Do NOT push directly to the `master` branch.**
 *   Always create a feature branch and submit a Pull Request.
 
 ---

@@ -21,11 +21,14 @@ The solution is structured into several key projects:
 *   **`SampleApp`**: Demonstrates the usage of the libraries.
 *   **`ContextAwarenessFramework.TestApp`**: Specific test application for the context framework.
 *   **`Multicast.TestApp`**: Specific test application for multicast functionality.
-*   **`Tests`**: Unit tests for the solution (likely using MSTest, NUnit, or xUnit - check `Ubicomp.Utils.NET.Tests.csproj`).
+*   **`Tests`**: Unit tests for the solution.
+
+### Development Tools (Target: `netstandard2.0`)
+*   **`Generators`**: Roslyn Source Generator for auto-discovering message types.
 
 ### External Dependencies
 *   All dependencies are managed via NuGet. The project is aligned with **.NET 8.0** standards (using version `8.0.0` or later for Microsoft extensions, with `System.Text.Json` at `8.0.5` for security).
-*   Key libraries: `Microsoft.Extensions.Logging`, `System.Threading.Channels`, `Microsoft.Bcl.AsyncInterfaces`, `Newtonsoft.Json`.
+*   Key libraries: `Microsoft.Extensions.Logging`, `System.Threading.Channels`, `Microsoft.Bcl.AsyncInterfaces`, `System.Text.Json`.
 
 ## Development Workflow
 
@@ -68,3 +71,5 @@ All commands should be run from the repository root.
 ## Important Files
 *   `Ubicomp.Utils.NET.sln`: The main solution file.
 *   `README.md`: Basic instructions and authorship.
+*   `MulticastSocket/README.md`: Detailed documentation for the socket layer.
+*   `MulticastTransportFramework/README.md`: Detailed documentation for the transport layer.

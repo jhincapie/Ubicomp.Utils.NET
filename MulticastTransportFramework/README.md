@@ -1,29 +1,40 @@
 # MulticastTransportFramework
 
-A high-level messaging framework built on top of `MulticastSocket`, providing JSON-based object serialization, type-based message routing, and a modern fluent API.
+**MulticastTransportFramework** implements a higher-level messaging protocol over UDP multicast.
 
-## Overview
-The **MulticastTransportFramework** abstracts raw socket communication into a structured, strongly-typed messaging system. It allows applications to send and receive POCO (Plain Old CLR Objects) without dealing with byte arrays, manual serialization, or envelope management.
+## Architecture
 
-**Key Features:**
-*   **Fluent Builder API:** guided configuration and initialization.
-*   **Strongly-Typed Handlers:** Generic handlers with automatic type mapping.
-*   **No Marker Interfaces:** Any class can be a message; no need to inherit from framework types.
-*   **Automatic Acknowledgements:** Optional auto-ack support for reliable messaging patterns.
-*   **Ordered Messaging:** Guaranteed sequential processing via an internal GateKeeper.
+*   **Fluent Builder**: Use `TransportBuilder` to configure and create a `TransportComponent`.
+*   **Strongly-Typed Messaging**: Generic `SendAsync<T>` methods handle internal serialization and routing via `[MessageType("id")]` attributes.
+*   **Binary Protocol**: Uses a custom binary format (`BinaryPacket`) to eliminate double serialization (JSON payload inside JSON envelope).
+    *   **Reduced Overhead**: Payload size reduced by ~66% compared to legacy JSON envelope.
+    *   **Compatibility**: Falls back to legacy JSON format if `Magic Byte` is not present, ensuring backward compatibility.
+*   **Security (AES-GCM)**:
+    *   **Modern Runtimes**: Uses `System.Security.Cryptography.AesGcm` (standard 2.1+) for authenticated encryption.
+    *   **Legacy Runtimes**: Falls back to `Aes` (CBC Mode) + HMAC for standard 2.0.
+    *   **Key Derivation**: Uses HKDF-like scheme to derive Integrity and Encryption keys from a single `SecurityKey`.
+*   **POCO Support**: Any class can be used as message content; no marker interface is required.
+*   **Diagnostic Transparency**: Uses `Microsoft.Extensions.Logging.ILogger` across both the transport and socket layers.
+*   **Auto-Discovery**: Source Generator automatically registers types with `[MessageType]` attribute (via `transport.RegisterDiscoveredMessages()`).
 
-## System Architecture
-
-### Class Diagram
 ![MulticastTransportFramework Class Diagram](assets/class_diagram.png)
 
-### Message Flow
 ![MulticastTransportFramework Flow Diagram](assets/transport_flow_diagram.png)
+
+## Core Logic
+1.  **Incoming Data**: `MulticastSocket` receives bytes into a **pooled buffer** (`ArrayPool<byte>`) to minimize GC pressure.
+2.  **Consumption**: `TransportComponent` consumes messages from the socket's `IAsyncEnumerable<SocketMessage>` stream.
+3.  **Deserialization**: `BinaryPacket.Deserialize` parses the byte stream directly.
+    *   **Polymorphism**: The `TransportComponent` resolves the concrete type of `MessageData` using the registered string ID.
+4.  **GateKeeper**: Optional mechanism that ensures sequential processing of messages.
+5.  **Dispatch**:
+    *   Strongly-typed handlers receive the data POCO and a `MessageContext`.
+    *   **Auto-Ack**: If enabled, an acknowledgement is sent automatically if requested.
 
 ## Usage
 
 ### 1. Define your Messages
-Decorate your message POCOs with the `[MessageType]` attribute to define their transport ID.
+Decorate your message POCOs with the `[MessageType]` attribute.
 
 ```csharp
 [MessageType("sensor.data")]
@@ -34,7 +45,6 @@ public class SensorData
 ```
 
 ### 2. Configure and Build
-Use the `TransportBuilder` to set up your network options, logging, and message handlers.
 
 ```csharp
 var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000);
@@ -42,70 +52,38 @@ var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000);
 var transport = new TransportBuilder()
     .WithMulticastOptions(options)
     .WithLogging(loggerFactory)
-    .WithLocalSource("MyDevice")
-    .WithAutoSendAcks(true)
-    .RegisterHandler<SensorData>((data, context) => 
-    {
-        Console.WriteLine($"Received: {data.Value} from {context.Source.ResourceName}");
-    })
+    .WithSecurityKey("SuperSecretKey") // Enables AES-GCM
+    .WithEncryption(true)
     .Build();
+
+// Auto-discover message types (Source Generator)
+transport.RegisterDiscoveredMessages();
+
+transport.RegisterHandler<SensorData>((data, context) =>
+{
+    Console.WriteLine($"Received: {data.Value}");
+});
 
 transport.Start();
 ```
 
-To enable ordered messaging (guaranteeing that messages are dispatched to handlers in the exact order they were assigned by the socket layer), set `EnforceOrdering` to `true` in the options:
-
-```csharp
-options.EnforceOrdering = true;
-```
-
-When enabled, the internal **GateKeeper** uses a buffering strategy and a recovery timeout (defaulting to 500ms) to handle out-of-order arrivals and sequence gaps.
-
 ### 3. Sending Messages
-Send any object directly. The framework handles the envelope and ID mapping via the attributes.
 
 ```csharp
-// Simple send
+// Simple send (Encrypted & Binary Serialized automatically)
 await transport.SendAsync(new SensorData { Value = 25.5 });
 
-// Send with options (e.g., request acknowledgement)
-var session = await transport.SendAsync(new SensorData { Value = 25.5 }, new SendOptions { RequestAck = true });
-
-session.OnAckReceived += (s, source) => Console.WriteLine($"Ack from {source.ResourceName}");
+// Send with acknowledgment request
+await transport.SendAsync(new SensorData { Value = 25.5 }, new SendOptions { RequestAck = true });
 ```
 
-### 4. Manual Acknowledgements
-If `AutoSendAcks` is disabled (the default), you can manually acknowledge messages using the `MessageContext`.
-
-```csharp
-transport.RegisterHandler<SensorData>(async (data, context) => 
-{
-    if (context.RequestAck)
-    {
-        await transport.SendAckAsync(context);
-    }
-});
-```
-
-## Key Concepts
-
-### TransportBuilder
-The entry point for the framework. It manages the assembly of the `TransportComponent` and handles JSON converter registration.
-
-### MessageContext
-A lightweight object passed to handlers that contains metadata about the message:
-- `MessageId`: Unique GUID of the message.
-- `Source`: Information about the sender.
-- `Timestamp`: When the message was sent.
-- `RequestAck`: Whether the sender expects a confirmation.
-
-### Async Processing
-The framework uses `IAsyncEnumerable` to process messages as a stream from the underlying `MulticastSocket`. This ensures that message processing is non-blocking and highly efficient.
-
-### Ordered Messaging (GateKeeper)
-UDP multicast does not guarantee packet order. The framework ensures that messages are dispatched to handlers in the exact order they were assigned by the socket layer. The internal **GateKeeper** uses a buffering strategy and a recovery timeout (defaulting to 500ms) to handle out-of-order arrivals and sequence gaps, ensuring robustness against packet loss while maintaining state consistency.
+## Internal Components
+*   **`TransportBuilder`**: Primary entry point.
+*   **`TransportComponent`**: Orchestrator.
+*   **`MessageContext`**: Metadata (Source, Timestamp, Ack).
+*   **`BinaryPacket`**: Handles the binary wire format.
 
 ## Dependencies
 - `MulticastSocket`
-- `Newtonsoft.Json`
+- `System.Text.Json`
 - `Microsoft.Extensions.Logging.Abstractions`
