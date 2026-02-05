@@ -23,8 +23,8 @@ The middle layer provides a structured, reliable messaging protocol over UDP mul
     - **GateKeeper**: Ensures strictly ordered message processing using sequence IDs and PriorityQueues.
     - **ReplayWindow**: Protects against replay attacks and duplicate messages.
     - **ACKs**: Optional acknowledgement sessions (`AckSession`) for critical message delivery.
-- **Security**: Built-in **AES-GCM** encryption and **HMAC-SHA256** integrity verification.
-- **Serialization**: Supports optimized `BinaryPacket` protocol and legacy JSON.
+- **Security**: Built-in **AES-GCM** encryption (Modern Runtimes) or **AES-CBC** (Legacy Runtimes) and **HMAC-SHA256** integrity verification.
+- **Serialization**: Supports optimized `BinaryPacket` protocol and legacy JSON (via `System.Text.Json`).
 - **Reactive**: Fully async processing pipeline.
 
 ### 3. MulticastSocket

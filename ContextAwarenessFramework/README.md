@@ -24,10 +24,9 @@ Abstract base class for data producers.
 
 ### ContextService
 Abstract base class for data coordinators.
-- **Subscription**: Subscribes to one or more Monitors.
-- **Marshalling**: Captures the `Dispatcher` at creation and automatically marshals updates to the UI thread, making it safe for `ObservableCollection` modifications.
 - **Persistence**: Built-in support for `Periodic`, `OnRequest`, or `Combined` persistence strategies.
 - **Integration**: Designed to work seamlessly with the `MulticastTransportFramework` for distributed context sharing.
+- **Threading**: Updates are received on the Monitor's background thread. UI marshalling must be handled manually if needed.
 
 ### IEntity
 Interface for context data objects.
@@ -44,16 +43,20 @@ public class RoomTemperature : IEntity { ... }
 public class TempSensorMonitor : ContextMonitor { ... }
 
 // 3. Define Service
-public class HVACService : ContextService<RoomTemperature>
+public class HVACService : ContextService
 {
+    private readonly RoomTemperature _entity = new RoomTemperature();
+
     public HVACService(TempSensorMonitor monitor)
     {
-        SubscribeTo(monitor);
+        // Manual subscription
+        monitor.OnNotifyContextServices += this.UpdateMonitorReading;
     }
     
-    protected override void UpdateEntity(object sender, ReadingEventArgs e)
+    protected override void CustomUpdateMonitorReading(object sender, NotifyContextMonitorListenersEventArgs e)
     {
-        Entity.Value = (double)e.Reading; // Marshalled to UI thread automatically
+        // Update logic here (Runs on background thread)
+        // _entity.Value = ...
     }
 }
 ```
