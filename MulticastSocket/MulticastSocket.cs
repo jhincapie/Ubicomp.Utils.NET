@@ -52,6 +52,11 @@ namespace Ubicomp.Utils.NET.Sockets
         }
 
         /// <summary>
+        /// The maximum size of a message that can be sent or received (65535 bytes).
+        /// </summary>
+        public const int MaxMessageSize = 65535;
+
+        /// <summary>
         /// Gets the collection of IP addresses that have successfully joined the multicast group.
         /// </summary>
         public IEnumerable<IPAddress> JoinedAddresses
@@ -522,6 +527,11 @@ namespace Ubicomp.Utils.NET.Sockets
         /// <returns>A task that completes when the send operation is finished.</returns>
         public Task SendAsync(byte[] buffer, int offset, int count)
         {
+            if (count > MaxMessageSize)
+            {
+                throw new ArgumentException($"Message size {count} bytes exceeds the maximum allowed size of {MaxMessageSize} bytes.", nameof(count));
+            }
+
             if (_udpSocket == null)
                 return Task.CompletedTask;
 
@@ -543,7 +553,7 @@ namespace Ubicomp.Utils.NET.Sockets
 
         internal class StateObject
         {
-            public const int BufferSize = 65535;
+            public const int BufferSize = MaxMessageSize;
             public byte[] Buffer { get; } = new byte[BufferSize];
             public Socket WorkSocket { get; set; } = null!;
         }
