@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Reflection;
 using Ubicomp.Utils.NET.MulticastTransportFramework;

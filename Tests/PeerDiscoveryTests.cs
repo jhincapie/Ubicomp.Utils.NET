@@ -14,7 +14,7 @@ namespace Ubicomp.Utils.NET.Tests
     public class PeerDiscoveryTests
     {
         [Fact]
-        public async Task Nodes_ShouldDiscoverEachOther()
+        public Task Nodes_ShouldDiscoverEachOther()
         {
             // Arrange
             string groupAddress = "239.0.0.60";
@@ -64,10 +64,12 @@ namespace Ubicomp.Utils.NET.Tests
             Assert.Single(peers2);
             Assert.Equal("Node2", peers1[0].DeviceName);
             Assert.Equal("Node1", peers2[0].DeviceName);
+
+            return Task.CompletedTask;
         }
 
         [Fact]
-        public async Task Metadata_ShouldBePropagated()
+        public Task Metadata_ShouldBePropagated()
         {
             // Arrange
             string groupAddress = "239.0.0.61";
@@ -110,10 +112,12 @@ namespace Ubicomp.Utils.NET.Tests
             Assert.True(discoveryEvent.WaitOne(2000));
             Assert.NotNull(receivedPeer);
             Assert.Equal("{\"Role\":\"Master\"}", receivedPeer!.Metadata);
+
+            return Task.CompletedTask;
         }
 
         [Fact]
-        public async Task StalePeers_ShouldBeRemoved()
+        public Task StalePeers_ShouldBeRemoved()
         {
             // Arrange
             string groupAddress = "239.0.0.62";
@@ -160,6 +164,8 @@ namespace Ubicomp.Utils.NET.Tests
             // Assert
             Assert.True(lost, "Peer was not removed after stopping heartbeats.");
             Assert.Empty(receiver.ActivePeers);
+
+            return Task.CompletedTask;
         }
     }
 }

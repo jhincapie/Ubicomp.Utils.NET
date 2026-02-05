@@ -11,7 +11,7 @@ namespace Ubicomp.Utils.NET.Tests
         [Fact]
         public void VerifySocketOptions_AreSet_Explicitly_False()
         {
-            var options = MulticastSocketOptions.LocalNetwork(port: 5001);
+            var options = MulticastSocketOptions.LocalNetwork(port: 5077);
             // Set all bool options to false
             options.ReuseAddress = false;
             options.MulticastLoopback = false;

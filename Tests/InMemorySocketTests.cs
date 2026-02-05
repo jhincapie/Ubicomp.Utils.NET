@@ -61,7 +61,7 @@ namespace Ubicomp.Utils.NET.Tests
         }
 
         [Fact]
-        public async Task Test_JoinedAddresses()
+        public Task Test_JoinedAddresses()
         {
              string groupAddr = "239.0.0.1";
              int port = 5001;
@@ -72,6 +72,7 @@ namespace Ubicomp.Utils.NET.Tests
              Assert.Single(socket.JoinedAddresses); // Should have the virtual 127.x.x.x
 
              socket.Close();
+             return Task.CompletedTask;
         }
     }
 }

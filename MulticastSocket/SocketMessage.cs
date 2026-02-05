@@ -82,7 +82,13 @@ namespace Ubicomp.Utils.NET.Sockets
                 ArrayPool<byte>.Shared.Return(_rentedBuffer);
                 _rentedBuffer = null;
             }
-            ReturnCallback?.Invoke(this);
+
+            var callback = ReturnCallback;
+            if (callback != null)
+            {
+                ReturnCallback = null;
+                callback.Invoke(this);
+            }
         }
     }
 
