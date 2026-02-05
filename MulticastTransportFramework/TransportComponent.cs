@@ -831,12 +831,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                      {
                          // msg.Data is full buffer, use Span with length
                          tMessage = BinaryPacket.Deserialize(msg.Data.AsSpan(0, msg.Length), msg.ArrivalSequenceId, _jsonOptions);
-
-                         // Decrypt if needed (BinaryPacket returns Encrypted blob as Base64 string in MessageData if IsEncrypted is true)
-                         // Wait, BinaryPacket.Deserialize DOES NOT DECRYPT automatically?
-                         // It returns MessageData as Base64 string if encrypted.
-                         // Check BinaryPacket.cs: "if (isEnc) messageData = Convert.ToBase64String(payloadSlice);"
-                         // So we need to decrypt here.
                      }
                      catch (Exception ex)
                      {
@@ -872,27 +866,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     }
                     // ------------------------------------------
 
-                    // Signature Check?
-                    // Binary Packet does NOT use the computed signature field in header (it wasn't in the spec I wrote).
-                    // The spec has Encrypted flag which implies AES-GCM (Auth Tag is the signature).
-                    // If Unencrypted?
-                    // The Binary Header spec has "Flags".
-                    // If we use HMAC-SHA256 for integrity-only mode, we need a place for it.
-                    // The spec had: [Nonce:12][Tag:16].
-                    // Tag is the signature.
-                    // If unencrypted binary packet, do we have integrity?
-                    // BinaryPacket.Serialize adds Tag if message.IsEncrypted.
-                    // If !IsEncrypted, Tag is null.
-
-                    // Legacy JSON had `Signature` field.
-                    // Binary Protocol needs to support Integrity-Only mode for backward parity?
-                    // SecurityKey != null but EncryptionEnabled == false.
-                    // Implementation Plan didn't specify Interity-Only for binary.
-                    // AES-GCM provides both.
-                    // If we only have Integrity Key (no Encryption), we should probably sign.
-                    // But `BinaryPacket` logic I wrote only adds Tag if Encrypted.
-                    // For now, assume Encryption Enabled for security.
-
                     // If it was legacy JSON, verify signature.
                     if (msg.Data[0] != BinaryPacket.MagicByte)
                     {
@@ -917,19 +890,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                          // If Binary: MessageData is Base64 String
                          // If JSON: MessageData is Base64 String (or JsonElement)
 
-                         // We need to check if it's already decrypted?
-                         // BinaryPacket.Deserialize does NOT decrypt.
-
                          if (tMessage.MessageData is string cipherText)
                          {
-                             // Decrypt
-                             // If Binary, we have Byte-based nonce/tag in properties (Base64'd by Deserialize)
-                             // Use Decrypt (String version) which internal converts base64 -> bytes.
-                             // Wait, Decrypt (String) uses _encryptionKey.
-
-                             // If it was binary packet, we put header nonce/tag into tMessage.Nonce/Tag.
-                             // So standard logic should work!
-
                              if (tMessage.Nonce != null)
                              {
                                  try

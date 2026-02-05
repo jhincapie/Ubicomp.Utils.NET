@@ -11,7 +11,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     /// <summary>
     /// Handles binary serialization for the transport protocol to avoid JSON overhead.
     /// Wire Format:
-    /// [Magic:1][Version:1][Flags:1][Reserved:13][SeqId:4][MsgId:16][SourceId:16][Tick:8][TypeLen:1][Type:N][Nonce:12?][Tag:16?][Payload:M]
+    /// [Magic:1][Version:1][Flags:1][NonceLen:1][TagLen:1][NameLen:1][Reserved:10][SeqId:4][MsgId:16][SourceId:16][Tick:8][TypeLen:1][Type:N][Name:K][Nonce:L][Tag:M][Payload:P]
     /// </summary>
     internal static class BinaryPacket
     {
@@ -24,23 +24,24 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             None = 0,
             RequestAck = 1 << 0,
             Encrypted = 1 << 1,
-            // Future flags
         }
 
         public static byte[] Serialize(TransportMessage message, int sequenceId, byte[]? nonce, byte[]? tag, byte[] payload)
         {
-            // Calculate size
+            // Calculate sizes
             string type = message.MessageType;
             int typeLen = Encoding.UTF8.GetByteCount(type);
-            if (typeLen > 255) typeLen = 255; // Cap type length
+            if (typeLen > 255) typeLen = 255;
 
-            int headerSize = 1 + 1 + 1 + 13 + 4 + 16 + 16 + 8 + 1 + typeLen;
-            int cryptoOverhead = 0;
-            if (message.IsEncrypted)
-            {
-                cryptoOverhead += (nonce?.Length ?? 0);
-                cryptoOverhead += (tag?.Length ?? 0);
-            }
+            string name = message.MessageSource.ResourceName ?? "Unknown";
+            int nameLen = Encoding.UTF8.GetByteCount(name);
+            if (nameLen > 255) nameLen = 255;
+
+            int nonceLen = nonce?.Length ?? 0;
+            int tagLen = tag?.Length ?? 0;
+
+            int headerSize = 1 + 1 + 1 + 1 + 1 + 1 + 10 + 4 + 16 + 16 + 8 + 1 + typeLen + nameLen;
+            int cryptoOverhead = nonceLen + tagLen;
 
             int totalSize = headerSize + cryptoOverhead + payload.Length;
             byte[] packet = new byte[totalSize];
@@ -55,7 +56,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             if (message.IsEncrypted) flags |= PacketFlags.Encrypted;
             span[2] = (byte)flags;
 
-            // Reserved (13 bytes) - Zeroed by default (new byte[])
+            // 2. Crypto & Metadata Lengths
+            span[3] = (byte)nonceLen;
+            span[4] = (byte)tagLen;
+            span[5] = (byte)nameLen;
+
+            // Reserved (10 bytes) 6-15
 
             // SeqId (4)
             BinaryPrimitives.WriteInt32LittleEndian(span.Slice(16), sequenceId);
@@ -83,21 +89,24 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             // Type (N)
             Encoding.UTF8.GetBytes(type, 0, type.Length, packet, 61);
+            
+            // Source Name (K)
+            Encoding.UTF8.GetBytes(name, 0, name.Length, packet, 61 + typeLen);
 
-            int offset = 61 + typeLen;
+            int offset = 61 + typeLen + nameLen;
 
             // Crypto Headers
             if (message.IsEncrypted)
             {
                 if (nonce != null)
                 {
-                    nonce.CopyTo(span.Slice(offset, nonce.Length));
-                    offset += nonce.Length;
+                    nonce.CopyTo(span.Slice(offset, nonceLen));
+                    offset += nonceLen;
                 }
                 if (tag != null)
                 {
-                    tag.CopyTo(span.Slice(offset, tag.Length));
-                    offset += tag.Length;
+                    tag.CopyTo(span.Slice(offset, tagLen));
+                    offset += tagLen;
                 }
             }
 
@@ -109,26 +118,17 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         public static TransportMessage? Deserialize(ReadOnlySpan<byte> buffer, int sequenceId, JsonSerializerOptions jsonOptions)
         {
-             if (buffer.Length < 61) return null; // Too small
+             if (buffer.Length < 61) return null;
 
-             // Check Magic
              if (buffer[0] != MagicByte) return null;
 
-             // Version check (optional, for now accept 1)
-             if (buffer[1] != ProtocolVersion)
-             {
-                 // Handle version mismatch if needed.
-             }
-
              PacketFlags flags = (PacketFlags)buffer[2];
+             
+             int nonceLen = buffer[3];
+             int tagLen = buffer[4];
+             int nameLen = buffer[5];
 
-             // Reserved: 3-15
-
-             // SeqId Check? The transport layer handles seqId checking, but we receive it in header.
              int packetSeqId = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(16));
-             // We can ignore packetSeqId if we trust the loop, OR we can use it.
-             // The incoming 'sequenceId' arg is from the socket layer (arrival order).
-             // The packetSeqId is from the sender.
 
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
              Guid msgId = new Guid(buffer.Slice(20, 16));
@@ -140,14 +140,16 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
              long ticks = BinaryPrimitives.ReadInt64LittleEndian(buffer.Slice(52));
 
              int typeLen = buffer[60];
-             if (buffer.Length < 61 + typeLen) return null;
+             if (buffer.Length < 61 + typeLen + nameLen) return null;
 
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
              string messageType = Encoding.UTF8.GetString(buffer.Slice(61, typeLen));
+             string sourceName = Encoding.UTF8.GetString(buffer.Slice(61 + typeLen, nameLen));
 #else
              string messageType = Encoding.UTF8.GetString(buffer.Slice(61, typeLen).ToArray());
+             string sourceName = Encoding.UTF8.GetString(buffer.Slice(61 + typeLen, nameLen).ToArray());
 #endif
-             int offset = 61 + typeLen;
+             int offset = 61 + typeLen + nameLen;
 
              string? nonce = null;
              string? tag = null;
@@ -155,39 +157,28 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
              if (isEnc)
              {
-                 // GCM Nonce (12) + Tag (16) = 28 bytes
-                 // OR CBC Nonce (16) + Tag (0)
-
-                 // How to distinguish?
-                 // Let's assume standard GCM sizes: Nonce 12, Tag 16.
-
-                 // If we are strictly GCM:
-                 if (offset + 12 <= buffer.Length)
+                 if (nonceLen > 0 && offset + nonceLen <= buffer.Length)
                  {
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
-                     nonce = Convert.ToBase64String(buffer.Slice(offset, 12));
+                     nonce = Convert.ToBase64String(buffer.Slice(offset, nonceLen));
 #else
-                     nonce = Convert.ToBase64String(buffer.Slice(offset, 12).ToArray());
+                     nonce = Convert.ToBase64String(buffer.Slice(offset, nonceLen).ToArray());
 #endif
-                     offset += 12;
+                     offset += nonceLen;
                  }
 
-                 if (offset + 16 <= buffer.Length)
+                 if (tagLen > 0 && offset + tagLen <= buffer.Length)
                  {
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
-                     tag = Convert.ToBase64String(buffer.Slice(offset, 16));
+                     tag = Convert.ToBase64String(buffer.Slice(offset, tagLen));
 #else
-                     tag = Convert.ToBase64String(buffer.Slice(offset, 16).ToArray());
+                     tag = Convert.ToBase64String(buffer.Slice(offset, tagLen).ToArray());
 #endif
-                     offset += 16;
+                     offset += tagLen;
                  }
             }
 
              var payloadSlice = buffer.Slice(offset);
-
-             // Payload is either Encrypted Bytes OR JSON Bytes.
-             // If Encrypted: MessageData = CipherText (Base64 String).
-             // If Not: MessageData = JSON Object (Deserialized).
 
              object messageData;
              if (isEnc)
@@ -200,25 +191,19 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
              }
              else
              {
-                 // Deserialize JSON payload
-                 var utf8Reader = new Utf8JsonReader(payloadSlice);
-                 // We need target type. We don't have it here easily without knownTypes.
-                 // So we assume JsonElement/Document for specific type logic later.
-                 // Or we return a "Raw" TransportMessage and let Component handle it.
-                 // JsonSerializer.Deserialize<object>(...) will return JsonElement.
                  messageData = JsonSerializer.Deserialize<JsonElement>(payloadSlice, jsonOptions);
              }
 
              return new TransportMessage
              {
                  MessageId = msgId,
-                 MessageSource = new EventSource(sourceId, "Unknown"), // We don't put Name in binary header to save space. Lookup?
+                 MessageSource = new EventSource(sourceId, sourceName),
                  MessageType = messageType,
                  RequestAck = flags.HasFlag(PacketFlags.RequestAck),
                  IsEncrypted = isEnc,
                  Nonce = nonce,
                  Tag = tag,
-                 TimeStamp = new DateTime(ticks).ToString(TransportMessage.DATE_FORMAT_NOW), // Conversion for compat
+                 TimeStamp = new DateTime(ticks).ToString(TransportMessage.DATE_FORMAT_NOW),
                  MessageData = messageData
              };
         }
