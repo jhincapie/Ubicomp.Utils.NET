@@ -59,7 +59,16 @@ namespace Ubicomp.Utils.NET.Sockets
         /// <summary>
         /// The size of the send buffer in bytes. 0 uses the OS default.
         /// </summary>
+        /// <summary>
+        /// The size of the send buffer in bytes. 0 uses the OS default.
+        /// </summary>
         public int SendBufferSize { get; set; } = 0;
+
+        /// <summary>
+        /// Whether to allow binding to IPAddress.Any (0.0.0.0).
+        /// Default is true for backward compatibility, but strictly discouraged for security.
+        /// </summary>
+        public bool AllowWildcardBinding { get; set; } = true;
 
         /// <summary>
         /// An optional filter to select which network interfaces to join.
