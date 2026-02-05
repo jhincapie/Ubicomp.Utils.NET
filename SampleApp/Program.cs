@@ -104,9 +104,6 @@ namespace Ubicomp.Utils.NET.SampleApp
 
             var transport = builder.Build();
 
-            // Auto-discover message types via Source Generator
-            transport.RegisterDiscoveredMessages();
-
             transport.RegisterHandler<SimpleContent>((content, context) =>
             {
                 Console.WriteLine($"Received message: {content.Text} from {context.Source.ResourceName}");
