@@ -365,6 +365,20 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         }
 
         /// <summary>
+        /// Registers a message type for deserialization without a specific handler.
+        /// Useful for auto-discovery or when using generic message processing.
+        /// </summary>
+        public void RegisterMessageType<T>(string id)
+        {
+             if (string.IsNullOrWhiteSpace(id))
+            {
+                throw new ArgumentException("Message ID cannot be null or empty.", nameof(id));
+            }
+            _typeToIdMap[typeof(T)] = id;
+            _knownTypes[id] = typeof(T);
+        }
+
+        /// <summary>
         /// Starts the transport component and starts listening for traffic.
         /// </summary>
         public void Start()

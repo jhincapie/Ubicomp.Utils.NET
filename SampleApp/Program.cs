@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
 using Ubicomp.Utils.NET.Sockets;
+using Ubicomp.Utils.NET.Generators.AutoDiscovery;
 
 namespace Ubicomp.Utils.NET.SampleApp
 {
@@ -102,6 +103,9 @@ namespace Ubicomp.Utils.NET.SampleApp
             }
 
             var transport = builder.Build();
+
+            // Auto-discover message types via Source Generator
+            transport.RegisterDiscoveredMessages();
 
             transport.RegisterHandler<SimpleContent>((content, context) =>
             {

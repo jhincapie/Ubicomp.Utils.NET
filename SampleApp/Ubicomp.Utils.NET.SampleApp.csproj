@@ -7,6 +7,7 @@
   <ItemGroup>
     <ProjectReference Include="..\MulticastSocket\MulticastSocket.csproj" />
     <ProjectReference Include="..\MulticastTransportFramework\MulticastTransportFramework.csproj" />
+    <ProjectReference Include="..\Generators\Ubicomp.Utils.NET.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
