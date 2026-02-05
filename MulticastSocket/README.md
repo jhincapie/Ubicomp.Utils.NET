@@ -15,7 +15,7 @@ The **MulticastSocket** library provides a clean, asynchronous interface for joi
 - **Fluent Builder API**: guided setup for network options and callbacks.
 - **Reactive Streams**: Provides `GetMessageStream()` for modern, non-blocking message processing via `IAsyncEnumerable`.
 - **Strongly-Typed Callbacks**: Legacy `Action` based events for messages, errors, and status.
-- **Ordered Metadata**: Every message carries a `SequenceId` and `Timestamp`.
+- **Ordered Metadata**: Every message carries a `ArrivalSequenceId` and `Timestamp`.
 - **Cross-Platform**: Handles platform-specific socket options automatically.
 
 ## Usage
@@ -35,7 +35,7 @@ socket.StartReceiving();
 // Consume messages as an async stream
 await foreach (var msg in socket.GetMessageStream(cts.Token))
 {
-    Console.WriteLine($"Received {msg.Data.Length} bytes. Seq: {msg.SequenceId}");
+    Console.WriteLine($"Received {msg.Data.Length} bytes. Seq: {msg.ArrivalSequenceId}");
 }
 ```
 
@@ -47,7 +47,7 @@ var socket = new MulticastSocketBuilder()
     .WithLocalNetwork(port: 5000)
     .OnMessageReceived(msg => 
     {
-        Console.WriteLine($"Received {msg.Data.Length} bytes. Seq: {msg.SequenceId}");
+        Console.WriteLine($"Received {msg.Data.Length} bytes. Seq: {msg.ArrivalSequenceId}");
     })
     .Build();
 

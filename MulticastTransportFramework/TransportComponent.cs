@@ -241,14 +241,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                         if (cmd is InputMsgCmd input)
                         {
                             var msg = input.Msg;
-                            if (msg.SequenceId < currentSeq)
+                            if (msg.ArrivalSequenceId < currentSeq)
                             {
-                                 Logger.LogWarning("Received late message {0} (current is {1}). Ignoring.", msg.SequenceId, currentSeq);
+                                 Logger.LogWarning("Received late message {0} (current is {1}). Ignoring.", msg.ArrivalSequenceId, currentSeq);
                                  msg.Dispose();
                                  continue;
                             }
 
-                            if (msg.SequenceId == currentSeq)
+                            if (msg.ArrivalSequenceId == currentSeq)
                             {
                                 // Correct message
                                 if (gapCts != null)
@@ -258,7 +258,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                                 }
                                 if (!_processingChannel.Writer.TryWrite(msg))
                                 {
-                                    Logger.LogWarning("Processing channel full. Dropping message {0}.", msg.SequenceId);
+                                    Logger.LogWarning("Processing channel full. Dropping message {0}.", msg.ArrivalSequenceId);
                                     msg.Dispose();
                                 }
                                 else
@@ -273,12 +273,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                                 // Future message - Check Queue Size Limit
                                 if (pq.Count >= MaxQueueSize)
                                 {
-                                     Logger.LogWarning("PriorityQueue full ({0}). Dropping future message {1} to prevent DoS.", pq.Count, msg.SequenceId);
+                                     Logger.LogWarning("PriorityQueue full ({0}). Dropping future message {1} to prevent DoS.", pq.Count, msg.ArrivalSequenceId);
                                      msg.Dispose();
                                      continue;
                                 }
 
-                                pq.Enqueue(msg, msg.SequenceId);
+                                pq.Enqueue(msg, msg.ArrivalSequenceId);
                                 if (gapCts == null)
                                 {
                                     gapCts = new CancellationTokenSource();
@@ -326,7 +326,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                      pq.Dequeue();
                      if (!output.Writer.TryWrite(nextMsg))
                      {
-                         Logger.LogWarning("Processing channel full. Dropping queued message {0}.", nextMsg.SequenceId);
+                         Logger.LogWarning("Processing channel full. Dropping queued message {0}.", nextMsg.ArrivalSequenceId);
                          nextMsg.Dispose();
                      }
                      currentSeq++;
@@ -553,7 +553,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 string sMessage = Encoding.UTF8.GetString(msg.Data, 0, msg.Length);
                 TransportMessage? tMessage;
 
-                Logger.LogTrace("Importing message {0}", msg.SequenceId);
+                Logger.LogTrace("Importing message {0}", msg.ArrivalSequenceId);
                 tMessage = JsonSerializer.Deserialize<TransportMessage>(sMessage, _jsonOptions);
 
                 if (tMessage != null)
@@ -593,14 +593,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     }
                     // --------------------------
 
-                    ProcessTransportMessage(tMessage, msg.SequenceId);
+                    ProcessTransportMessage(tMessage, msg.ArrivalSequenceId);
                 }
             }
             catch (Exception ex)
             {
                 Logger.LogError(
                     "Error Processing Received Message {0}: {1}",
-                    msg.SequenceId,
+                    msg.ArrivalSequenceId,
                     ex.Message);
             }
         }

@@ -23,8 +23,8 @@ namespace Ubicomp.Utils.NET.Sockets
             get;
         }
 
-        /// <summary>Gets the sequence number of the message.</summary>
-        public int SequenceId
+        /// <summary>Gets the arrival sequence number of the message.</summary>
+        public int ArrivalSequenceId
         {
             get;
         }
@@ -42,7 +42,7 @@ namespace Ubicomp.Utils.NET.Sockets
         {
             Data = data;
             Length = data.Length;
-            SequenceId = sequenceId;
+            ArrivalSequenceId = sequenceId;
             Timestamp = DateTime.Now;
         }
 
@@ -50,7 +50,7 @@ namespace Ubicomp.Utils.NET.Sockets
         {
             Data = buffer;
             Length = length;
-            SequenceId = sequenceId;
+            ArrivalSequenceId = sequenceId;
             Timestamp = DateTime.Now;
             if (isRented)
             {
