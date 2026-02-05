@@ -17,7 +17,18 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private bool _autoSendAcks = false;
         private bool? _enforceOrdering;
         private string? _securityKey;
+        private bool _encryptionEnabled = false;
         private readonly List<Action<TransportComponent>> _registrations = new List<Action<TransportComponent>>();
+
+        /// <summary>
+        /// Configures whether to enable AES-GCM encryption.
+        /// Requires <see cref="WithSecurityKey"/> to be set.
+        /// </summary>
+        public TransportBuilder WithEncryption(bool enabled = true)
+        {
+            _encryptionEnabled = enabled;
+            return this;
+        }
 
         /// <summary>
         /// Configures the multicast socket options.
@@ -103,6 +114,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             var component = new TransportComponent(_options);
 
             component.SecurityKey = _securityKey;
+            component.EncryptionEnabled = _encryptionEnabled;
 
             if (_enforceOrdering.HasValue)
             {

@@ -2,8 +2,11 @@
 using System;
 using System.Linq;
 using System.Net;
+using System.IO;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
 using Ubicomp.Utils.NET.Sockets;
 
@@ -28,28 +31,50 @@ namespace Ubicomp.Utils.NET.SampleApp
         /// <param name="args">Command line arguments.</param>
         public async Task RunAsync(string[] args)
         {
+            // Build Configuration
+            var switchMappings = new Dictionary<string, string>()
+            {
+                { "--key", "Network:SecurityKey" },
+                { "--address", "Network:GroupAddress" },
+                { "--port", "Network:Port" },
+                { "--ttl", "Network:TTL" }
+            };
+
+            var configBuilder = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                .AddCommandLine(args, switchMappings);
+
+            IConfiguration config = configBuilder.Build();
+
+            // Parse flags not handled by config binding
             bool noWait = args.Contains("--no-wait");
             bool verbose = args.Contains("-v") || args.Contains("--verbose");
             bool allowLocal = args.Contains("--local");
+            bool noEncryption = args.Contains("--no-encryption");
 
-            // Parse optional parameters or use defaults
-            string groupAddressStr = GetArgValue(args, "--address") ?? "239.0.0.1";
-            string portStr = GetArgValue(args, "--port") ?? "5000";
-            string ttlStr = GetArgValue(args, "--ttl") ?? "1";
+            // Read Config
+            string groupAddressStr = config["Network:GroupAddress"] ?? "239.0.0.1";
+            int port = config.GetValue<int>("Network:Port", 5000);
+            int ttl = config.GetValue<int>("Network:TTL", 1);
+            string? securityKey = config["Network:SecurityKey"];
+
+            bool encryptionEnabled = !string.IsNullOrEmpty(securityKey) && !noEncryption;
+
+            if (verbose)
+            {
+                Console.WriteLine($"Configuration:");
+                Console.WriteLine($"  Address: {groupAddressStr}");
+                Console.WriteLine($"  Port: {port}");
+                Console.WriteLine($"  TTL: {ttl}");
+                Console.WriteLine($"  Security Key: {(string.IsNullOrEmpty(securityKey) ? "None" : "***")}");
+                Console.WriteLine($"  Encryption: {(encryptionEnabled ? "Enabled" : "Disabled")}");
+            }
 
             if (!IPAddress.TryParse(groupAddressStr, out var groupAddress))
             {
+                Console.WriteLine($"Invalid IP Address: {groupAddressStr}. Defaulting to 239.0.0.1");
                 groupAddress = IPAddress.Parse("239.0.0.1");
-            }
-
-            if (!int.TryParse(portStr, out int port))
-            {
-                port = 5000;
-            }
-
-            if (!int.TryParse(ttlStr, out int ttl))
-            {
-                ttl = 1;
             }
 
             // 1. Create a logger factory
@@ -63,13 +88,20 @@ namespace Ubicomp.Utils.NET.SampleApp
             var options = MulticastSocketOptions.WideAreaNetwork(groupAddress.ToString(), port, ttl);
             options.MulticastLoopback = allowLocal;
 
-            // 2. Use the new TransportBuilder
-            var transport = new TransportBuilder()
+            // 2. Setup TransportBuilder
+            var builder = new TransportBuilder()
                 .WithMulticastOptions(options)
                 .WithLogging(loggerFactory)
                 .WithLocalSource("SampleApp")
-                .WithAutoSendAcks(false)
-                .Build();
+                .WithAutoSendAcks(false);
+
+            if (!string.IsNullOrEmpty(securityKey))
+            {
+                builder.WithSecurityKey(securityKey);
+                builder.WithEncryption(encryptionEnabled);
+            }
+
+            var transport = builder.Build();
 
             transport.RegisterHandler<SimpleContent>((content, context) =>
             {
@@ -138,17 +170,7 @@ namespace Ubicomp.Utils.NET.SampleApp
             transport.Stop();
         }
 
-        private string? GetArgValue(string[] args, string flag)
-        {
-            for (int i = 0; i < args.Length - 1; i++)
-            {
-                if (args[i].Equals(flag, StringComparison.OrdinalIgnoreCase))
-                {
-                    return args[i + 1];
-                }
-            }
-            return null;
-        }
+
     }
 
     /// <summary>

@@ -99,11 +99,110 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public int MaxQueueSize { get; set; } = 10000;
 
         /// <summary>
-        /// Gets or sets the shared secret key for HMAC integrity.
-        /// If provided, messages are signed with HMAC-SHA256.
+        /// Gets or sets the shared secret key for HMAC integrity and AES-GCM encryption.
+        /// Setting this triggers key derivation for EncryptionKey and IntegrityKey.
         /// If null, messages are signed with simple SHA256 (integrity only, no authentication).
         /// </summary>
-        public string? SecurityKey { get; set; }
+        public string? SecurityKey
+        {
+            get => _securityKey;
+            set
+            {
+                _securityKey = value;
+                DeriveKeys();
+            }
+        }
+        private string? _securityKey;
+        private byte[]? _integrityKey;
+        private byte[]? _encryptionKey;
+
+        internal byte[]? IntegrityKey => _integrityKey;
+
+        /// <summary>
+        /// Gets or sets whether to enable payload encryption.
+        /// Requires <see cref="SecurityKey"/> to be set.
+        /// </summary>
+        public bool EncryptionEnabled { get; set; }
+
+        private void DeriveKeys()
+        {
+            if (string.IsNullOrEmpty(_securityKey))
+            {
+                _integrityKey = null;
+                _encryptionKey = null;
+                return;
+            }
+
+            try
+            {
+                byte[] masterKey = Convert.FromBase64String(_securityKey!);
+
+                // HKDF-like derivation using HMAC-SHA256
+                // Salt is empty for simplicity in this implementation (Plan 1)
+                // Info strings separate the contexts
+
+                using (var hmac = new HMACSHA256(masterKey))
+                {
+                    // Derive Integrity Key
+                    byte[] infoIntegrity = Encoding.UTF8.GetBytes("Ubicomp.Utils.NET.Integrity");
+                    _integrityKey = hmac.ComputeHash(infoIntegrity);
+
+                    // Derive Encryption Key
+                    byte[] infoEncryption = Encoding.UTF8.GetBytes("Ubicomp.Utils.NET.Encryption");
+                    _encryptionKey = hmac.ComputeHash(infoEncryption);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to derive keys from SecurityKey.");
+                throw;
+            }
+        }
+
+        private (string? CipherText, string? Nonce) Encrypt(string plainText)
+        {
+            if (_encryptionKey == null) return (null, null);
+
+            using (var aes = Aes.Create())
+            {
+                aes.Key = _encryptionKey;
+                aes.GenerateIV();
+                aes.Mode = CipherMode.CBC;
+                aes.Padding = PaddingMode.PKCS7;
+
+                using (var encryptor = aes.CreateEncryptor(aes.Key, aes.IV))
+                using (var ms = new MemoryStream())
+                {
+                    using (var cs = new CryptoStream(ms, encryptor, CryptoStreamMode.Write))
+                    using (var sw = new StreamWriter(cs))
+                    {
+                        sw.Write(plainText);
+                    }
+                    return (Convert.ToBase64String(ms.ToArray()), Convert.ToBase64String(aes.IV));
+                }
+            }
+        }
+
+        private string Decrypt(string cipherText, string nonce)
+        {
+            if (_encryptionKey == null) throw new InvalidOperationException("Cannot decrypt without EncryptionKey.");
+
+            using (var aes = Aes.Create())
+            {
+                aes.Key = _encryptionKey;
+                aes.IV = Convert.FromBase64String(nonce);
+                aes.Mode = CipherMode.CBC;
+                aes.Padding = PaddingMode.PKCS7;
+
+                using (var decryptor = aes.CreateDecryptor(aes.Key, aes.IV))
+                using (var ms = new MemoryStream(Convert.FromBase64String(cipherText)))
+                using (var cs = new CryptoStream(ms, decryptor, CryptoStreamMode.Read))
+                using (var sr = new StreamReader(cs))
+                {
+                    return sr.ReadToEnd();
+                }
+            }
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TransportComponent"/> class.
@@ -481,9 +580,21 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     });
             }
 
+            // --- Encryption Logic ---
+            if (EncryptionEnabled)
+            {
+                string plainJson = JsonSerializer.Serialize(message.MessageData, _jsonOptions);
+                var (cipher, nonce) = Encrypt(plainJson);
+                if (cipher != null)
+                {
+                    message.MessageData = cipher;
+                    message.IsEncrypted = true;
+                    message.Nonce = nonce;
+                }
+            }
+
             // --- Signing Logic ---
-            var key = SecurityKey;
-            message.Signature = ComputeSignature(message, key);
+            message.Signature = ComputeSignature(message, _integrityKey);
             // ---------------------
 
             string json = JsonSerializer.Serialize(message, _jsonOptions);
@@ -583,8 +694,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                         return;
                     }
 
-                    var key = SecurityKey;
-                    string expectedSignature = ComputeSignature(tMessage, key);
+                    string expectedSignature = ComputeSignature(tMessage, _integrityKey);
 
                     if (tMessage.Signature != expectedSignature)
                     {
@@ -592,6 +702,29 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                         return;
                     }
                     // --------------------------
+
+                    // --- Decryption Logic ---
+                    if (tMessage.IsEncrypted && tMessage.Nonce != null)
+                    {
+                        try
+                        {
+                            string cipherText = tMessage.MessageData.ToString() ?? string.Empty;
+                            // Handle JsonElement case logic
+                            if (tMessage.MessageData is JsonElement cElement && cElement.ValueKind == JsonValueKind.String)
+                            {
+                                cipherText = cElement.GetString() ?? string.Empty;
+                            }
+
+                            string plainText = Decrypt(cipherText, tMessage.Nonce);
+                            tMessage.MessageData = plainText;
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogError(ex, "Decryption failed for message {0}.", tMessage.MessageId);
+                            return;
+                        }
+                    }
+                    // ------------------------
 
                     ProcessTransportMessage(tMessage, msg.ArrivalSequenceId);
                 }
@@ -618,6 +751,20 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     catch (Exception ex)
                     {
                         Logger.LogError(ex, "Failed to deserialize message content for type {0}", tMessage.MessageType);
+                    }
+                }
+            }
+            else if (tMessage.MessageData is string jsonString)
+            {
+                if (_knownTypes.TryGetValue(tMessage.MessageType, out Type? targetType))
+                {
+                    try
+                    {
+                        tMessage.MessageData = JsonSerializer.Deserialize(jsonString, targetType, _jsonOptions)!;
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "Failed to deserialize decrypted content for type {0}", tMessage.MessageType);
                     }
                 }
             }
@@ -662,7 +809,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
         }
 
-        internal string ComputeSignature(TransportMessage message, string? key)
+        internal string ComputeSignature(TransportMessage message, byte[]? keyBytes)
         {
             // Signature = Hash or HMAC of (MessageId + TimeStamp + MessageType + JsonData + RequestAck)
             var sb = new StringBuilder();
@@ -670,20 +817,18 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             sb.Append(message.TimeStamp);
             sb.Append(message.MessageType);
             sb.Append(message.RequestAck.ToString().ToLower());
+            sb.Append(message.IsEncrypted.ToString().ToLower());
+            sb.Append(message.Nonce ?? "");
 
             // Best effort serialization for signature checks
             string dataJson = JsonSerializer.Serialize(message.MessageData, _jsonOptions);
             sb.Append(dataJson);
 
-            // DEBUG LOGGING
-            // Logger.LogTrace("ComputeSig: ID={0} TS={1} Type={2} Ack={3} Data={4}", message.MessageId, message.TimeStamp, message.MessageType, message.RequestAck, dataJson);
-
             byte[] payloadBytes = Encoding.UTF8.GetBytes(sb.ToString());
 
-            if (!string.IsNullOrEmpty(key))
+            if (keyBytes != null && keyBytes.Length > 0)
             {
                 // HMAC Mode
-                byte[] keyBytes = Convert.FromBase64String(key!);
                 using (var hmac = new HMACSHA256(keyBytes))
                 {
                     byte[] hash = hmac.ComputeHash(payloadBytes);

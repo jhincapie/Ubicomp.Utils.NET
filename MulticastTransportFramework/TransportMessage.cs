@@ -53,6 +53,18 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public string? Signature { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether the MessageData is encrypted.
+        /// </summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public bool IsEncrypted { get; set; }
+
+        /// <summary>
+        /// Gets or sets the IV/Nonce used for encryption (Base64).
+        /// </summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Nonce { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="TransportMessage"/>
         /// class.
         /// </summary>
