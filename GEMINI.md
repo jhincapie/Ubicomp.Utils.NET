@@ -23,7 +23,7 @@ The solution is structured into several key projects:
 *   **Key Features**:
     - **Reliability**: `GateKeeper` (ordering via PriorityQueue), `ReplayWindow` (deduplication), `AckSession` (delivery confirmation).
     - **Security**: AES-GCM encryption and HMAC-SHA256 integrity.
-    - **Serialization**: Dual support for `BinaryPacket` (optimized) and JSON.
+    - **Serialization**: Dual support for `BinaryPacket` (optimized) and JSON (via `System.Text.Json`).
 
 ### 3. MulticastSocket (`netstandard2.0`)
 *   **Role**: Low-level wrapper for .NET UDP Sockets.

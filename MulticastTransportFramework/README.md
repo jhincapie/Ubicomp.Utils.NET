@@ -12,7 +12,7 @@
     *   **ReplayWindow**: Protects against replay attacks and duplicate messages using a sliding window.
 *   **Reliability (ACKs)**: Supports acknowledgement-based sessions (`AckSession`) for reliable delivery of critical messages.
 *   **Security**:
-    *   **Confidentiality**: Built-in **AES-GCM** encryption.
+    *   **Confidentiality**: Built-in **AES-GCM** encryption (Modern Runtimes) or **AES-CBC** (Legacy Runtimes).
     *   **Integrity**: **HMAC-SHA256** signatures ensure packets are not tampered with.
     *   **Key Derivation**: Keys are derived from a shared secret using HKDF-like logic.
 *   **Auto-Discovery**: Compatible with Roslyn Source Generators to automatically register message types decorated with the `[MessageType]` attribute.
@@ -23,7 +23,7 @@
 ## Core Logic
 1.  **Incoming Data**: `MulticastSocket` receives bytes into a **pooled buffer**.
 2.  **Consumption**: `TransportComponent` consumes messages from the socket's `IAsyncEnumerable<SocketMessage>` stream.
-3.  **Security & Integrity**: Validates HMAC signature and decrypts payload using AES-GCM.
+3.  **Security & Integrity**: Validates HMAC signature and decrypts payload using AES-GCM (or AES-CBC).
 4.  **Deduplication**: `ReplayWindow` checks for duplicate or expired messages.
 5.  **Ordering**: `GateKeeper` holds out-of-order messages until the gap is filled.
 6.  **Dispatch**: Routes the deserialized POCO to registered handlers based on its Message Type ID.
@@ -71,5 +71,5 @@ await transport.SendAsync(new SensorData { Value = 25.5 }, new SendOptions { Req
 
 ## Dependencies
 - `MulticastSocket`
-- `Newtonsoft.Json` (Legacy support)
+- `System.Text.Json`
 - `Microsoft.Extensions.Logging.Abstractions`
