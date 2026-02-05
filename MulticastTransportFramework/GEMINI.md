@@ -14,7 +14,7 @@
     *   **Key Derivation**: Uses HKDF-like scheme to derive Integrity and Encryption keys from a single `SecurityKey`.
 *   **POCO Support**: Any class can be used as message content; no marker interface is required.
 *   **Diagnostic Transparency**: Uses `Microsoft.Extensions.Logging.ILogger` across both the transport and socket layers.
-*   **Auto-Discovery**: Source Generator automatically registers types with `[MessageType]` attribute (via `transport.RegisterDiscoveredMessages()`).
+*   **Auto-Discovery**: Source Generator automatically registers types with `[MessageType]` attribute (automatically during `Build()`).
 
 ## Core Logic
 1.  **Incoming Data**: `MulticastSocket` receives bytes into a **pooled buffer** (`ArrayPool<byte>`) to minimize GC pressure.

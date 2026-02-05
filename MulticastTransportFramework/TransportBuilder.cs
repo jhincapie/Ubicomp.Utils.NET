@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Ubicomp.Utils.NET.Sockets;
 
@@ -138,7 +139,33 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 registration(component);
             }
 
+            AutoRegisterDiscoveredMessages(component);
+
             return component;
+        }
+
+        private void AutoRegisterDiscoveredMessages(TransportComponent component)
+        {
+            try
+            {
+                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    // Look for the specific generated type
+                    var type = assembly.GetType("Ubicomp.Utils.NET.Generators.AutoDiscovery.TransportExtensions");
+                    if (type != null)
+                    {
+                        var method = type.GetMethod("RegisterDiscoveredMessages", BindingFlags.Public | BindingFlags.Static);
+                        if (method != null)
+                        {
+                            method.Invoke(null, new object[] { component });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                component.Logger?.LogWarning(ex, "Failed to auto-register discovered messages.");
+            }
         }
     }
 }

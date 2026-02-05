@@ -15,7 +15,7 @@
     *   **Key Derivation**: Uses HKDF-like scheme to derive Integrity and Encryption keys from a single `SecurityKey`.
 *   **POCO Support**: Any class can be used as message content; no marker interface is required.
 *   **Diagnostic Transparency**: Uses `Microsoft.Extensions.Logging.ILogger` across both the transport and socket layers.
-*   **Auto-Discovery**: Source Generator automatically registers types with `[MessageType]` attribute (via `transport.RegisterDiscoveredMessages()`).
+*   **Auto-Discovery**: Source Generator automatically registers types with `[MessageType]` attribute (automatically during `Build()`).
 
 ![MulticastTransportFramework Class Diagram](assets/class_diagram.png)
 
@@ -55,9 +55,6 @@ var transport = new TransportBuilder()
     .WithSecurityKey("SuperSecretKey") // Enables AES-GCM
     .WithEncryption(true)
     .Build();
-
-// Auto-discover message types (Source Generator)
-transport.RegisterDiscoveredMessages();
 
 transport.RegisterHandler<SensorData>((data, context) =>
 {
