@@ -40,6 +40,10 @@ namespace Ubicomp.Utils.NET.Tests
             // Act
             var source = new EventSource(Guid.NewGuid(), "TestSource");
             var transportMsg = new TransportMessage(source, msgType, "msg2");
+
+            // Sign the message manually (since we bypass SendAsync)
+            transportMsg.Signature = transport.ComputeSignature(transportMsg, null);
+
             var jsonOptions = new System.Text.Json.JsonSerializerOptions
             {
                 PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
@@ -88,6 +92,10 @@ namespace Ubicomp.Utils.NET.Tests
             // Act
             var source = new EventSource(Guid.NewGuid(), "TestSource");
             var transportMsg = new TransportMessage(source, msgType, "msg2");
+
+            // Sign the message manually
+            transportMsg.Signature = transport.ComputeSignature(transportMsg, null);
+
             var jsonOptions = new System.Text.Json.JsonSerializerOptions
             {
                 PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,

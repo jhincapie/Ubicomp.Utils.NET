@@ -16,6 +16,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private EventSource? _localSource;
         private bool _autoSendAcks = false;
         private bool? _enforceOrdering;
+        private string? _securityKey;
         private readonly List<Action<TransportComponent>> _registrations = new List<Action<TransportComponent>>();
 
         /// <summary>
@@ -64,6 +65,16 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         }
 
         /// <summary>
+        /// Configures the shared secret key for HMAC integrity.
+        /// If not set, the component defaults to simple SHA256 integrity checks (no authentication).
+        /// </summary>
+        public TransportBuilder WithSecurityKey(string key)
+        {
+            _securityKey = key;
+            return this;
+        }
+
+        /// <summary>
         /// Registers a handler for a specific message type.
         /// </summary>
         public TransportBuilder RegisterHandler<T>(string id, Action<T, MessageContext> handler) where T : class
@@ -90,6 +101,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 throw new InvalidOperationException("Multicast options must be configured.");
 
             var component = new TransportComponent(_options);
+
+            component.SecurityKey = _securityKey;
 
             if (_enforceOrdering.HasValue)
             {

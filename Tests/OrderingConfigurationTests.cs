@@ -69,9 +69,9 @@ namespace Ubicomp.Utils.NET.Tests
             var source = new EventSource(Guid.NewGuid(), "TestSource");
 
             // Create msg 2
-            byte[] data2 = CreateSocketMessageData(source, "test.ordering", "msg2");
+            byte[] data2 = CreateSocketMessageData(source, "test.ordering", "msg2", transport);
             // Create msg 1
-            byte[] data1 = CreateSocketMessageData(source, "test.ordering", "msg1");
+            byte[] data1 = CreateSocketMessageData(source, "test.ordering", "msg1", transport);
 
             // Inject msg 2 (Sequence 2) - should be buffered because we expect 1
             transport.HandleSocketMessage(new SocketMessage(data2, 2));
@@ -128,7 +128,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             // Act
             var source = new EventSource(Guid.NewGuid(), "TestSource");
-            byte[] data2 = CreateSocketMessageData(source, "test.ordering", "msg2");
+            byte[] data2 = CreateSocketMessageData(source, "test.ordering", "msg2", transport);
 
             // Inject msg 2 (Sequence 2) - should be processed immediately
             transport.HandleSocketMessage(new SocketMessage(data2, 2));
@@ -145,13 +145,17 @@ namespace Ubicomp.Utils.NET.Tests
             }
         }
 
-        private byte[] CreateSocketMessageData<T>(EventSource source, string msgType, T content)
+        private byte[] CreateSocketMessageData<T>(EventSource source, string msgType, T content, TransportComponent transport)
         {
             var transportMsg = new TransportMessage(source, msgType, content);
 
+            // Sign the message manually
+            transportMsg.Signature = transport.ComputeSignature(transportMsg, null);
+
             var options = new JsonSerializerOptions
             {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true
             };
 
             string json = JsonSerializer.Serialize(transportMsg, options);

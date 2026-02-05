@@ -31,7 +31,7 @@ namespace Ubicomp.Utils.NET.Sockets
         }
 
         /// <summary>
-        /// Whether to allow multiple sockets to bind to the same 
+        /// Whether to allow multiple sockets to bind to the same
         /// address and port.
         /// </summary>
         public bool ReuseAddress { get; set; } = true;
@@ -70,7 +70,7 @@ namespace Ubicomp.Utils.NET.Sockets
         }
 
         /// <summary>
-        /// Initializes a new instance of the 
+        /// Initializes a new instance of the
         /// <see cref="MulticastSocketOptions"/> class.
         /// </summary>
         /// <param name="groupAddress">The multicast group IP address.</param>
@@ -102,7 +102,7 @@ namespace Ubicomp.Utils.NET.Sockets
         }
 
         /// <summary>
-        /// Creates options for a wide area network with sensible 
+        /// Creates options for a wide area network with sensible
         /// defaults (TTL=16).
         /// </summary>
         /// <param name="groupAddress">

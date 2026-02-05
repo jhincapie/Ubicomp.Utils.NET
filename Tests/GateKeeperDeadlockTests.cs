@@ -42,6 +42,9 @@ namespace Ubicomp.Utils.NET.Tests
             var source = new EventSource(Guid.NewGuid(), "TestSource");
             var validMsg = new TransportMessage(source, msgType, new EmptyContent());
 
+            // Sign the message manually
+            validMsg.Signature = transport.ComputeSignature(validMsg, null);
+
             var jsonOptions = new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

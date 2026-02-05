@@ -46,6 +46,13 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public string TimeStamp { get; set; } = string.Empty;
 
         /// <summary>
+        /// Gets or sets the HMAC signature of the message for integrity verification.
+        /// Computed over the MessageId, Timestamp, MessageType, and MessageData.
+        /// </summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Signature { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="TransportMessage"/>
         /// class.
         /// </summary>

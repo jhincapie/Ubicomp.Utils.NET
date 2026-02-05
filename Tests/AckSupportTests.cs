@@ -117,6 +117,9 @@ namespace Ubicomp.Utils.NET.Tests
             var ackSource = new EventSource(Guid.NewGuid(), "Responder");
             var ackMsg = new TransportMessage(ackSource, TransportComponent.AckMessageType, ackContent);
 
+            // Sign the message manually
+            ackMsg.Signature = tc.ComputeSignature(ackMsg, null);
+
             var jsonOptions = new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -61,6 +62,13 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public TimeSpan DefaultAckTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
         /// <summary>
+        /// Gets or sets the window of time for which messages are considered valid.
+        /// Messages older than this window (based on their timestamp) are discarded to prevent replay attacks.
+        /// Defaults to 5 seconds.
+        /// </summary>
+        public TimeSpan ReplayWindow { get; set; } = TimeSpan.FromSeconds(5);
+
+        /// <summary>
         /// Gets or sets the timeout for the GateKeeper to wait for a specific sequence number.
         /// Defaults to 500ms.
         /// </summary>
@@ -91,6 +99,13 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public int MaxQueueSize { get; set; } = 10000;
 
         /// <summary>
+        /// Gets or sets the shared secret key for HMAC integrity.
+        /// If provided, messages are signed with HMAC-SHA256.
+        /// If null, messages are signed with simple SHA256 (integrity only, no authentication).
+        /// </summary>
+        public string? SecurityKey { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="TransportComponent"/> class.
         /// </summary>
         /// <param name="options">The multicast socket options to use.</param>
@@ -102,6 +117,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                 PropertyNameCaseInsensitive = true
             };
+
             RegisterInternalTypes();
         }
 
@@ -181,7 +197,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 _socketOptions.Port,
                 _socketOptions.TimeToLive,
                 interfaces);
-            Logger.LogInformation("TransportComponent Initialized (Lock-Free Mode).");
+            Logger.LogInformation("TransportComponent Initialized (Lock-Free Mode). Integrity Check: {0}", SecurityKey != null ? "HMAC-SHA256" : "SHA256 (No Key)");
         }
 
         private async Task ReceiveLoop(CancellationToken cancellationToken)
@@ -465,6 +481,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     });
             }
 
+            // --- Signing Logic ---
+            var key = SecurityKey;
+            message.Signature = ComputeSignature(message, key);
+            // ---------------------
+
             string json = JsonSerializer.Serialize(message, _jsonOptions);
 
             if (_socket != null)
@@ -537,6 +558,41 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
                 if (tMessage != null)
                 {
+                    // --- Replay Protection (Timestamp Check) ---
+                    if (DateTime.TryParse(tMessage.TimeStamp, out var ts))
+                    {
+                        // Allow small clock skew (future messages) and enforce replay window (past messages)
+                        var now = DateTime.Now;
+                        if (ts < now.Subtract(ReplayWindow))
+                        {
+                            Logger.LogWarning("Dropped replay/old message {0} (Timestamp: {1}). Window is {2}s.", tMessage.MessageId, tMessage.TimeStamp, ReplayWindow.TotalSeconds);
+                            return;
+                        }
+                    }
+                    else
+                    {
+                         Logger.LogWarning("Dropped message {0} with invalid timestamp.", tMessage.MessageId);
+                         return;
+                    }
+                    // ------------------------------------------
+
+                    // --- Verification Logic ---
+                    if (string.IsNullOrEmpty(tMessage.Signature))
+                    {
+                        Logger.LogWarning("Dropped unsigned message {0}.", tMessage.MessageId);
+                        return;
+                    }
+
+                    var key = SecurityKey;
+                    string expectedSignature = ComputeSignature(tMessage, key);
+
+                    if (tMessage.Signature != expectedSignature)
+                    {
+                        Logger.LogWarning("Dropped message {0} with invalid signature.", tMessage.MessageId);
+                        return;
+                    }
+                    // --------------------------
+
                     ProcessTransportMessage(tMessage, msg.SequenceId);
                 }
             }
@@ -603,6 +659,45 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     "Automatically sending Ack for message {0}",
                     tMessage.MessageId);
                 _ = SendAckAsync(tMessage.MessageId);
+            }
+        }
+
+        internal string ComputeSignature(TransportMessage message, string? key)
+        {
+            // Signature = Hash or HMAC of (MessageId + TimeStamp + MessageType + JsonData + RequestAck)
+            var sb = new StringBuilder();
+            sb.Append(message.MessageId.ToString());
+            sb.Append(message.TimeStamp);
+            sb.Append(message.MessageType);
+            sb.Append(message.RequestAck.ToString().ToLower());
+
+            // Best effort serialization for signature checks
+            string dataJson = JsonSerializer.Serialize(message.MessageData, _jsonOptions);
+            sb.Append(dataJson);
+
+            // DEBUG LOGGING
+            // Logger.LogTrace("ComputeSig: ID={0} TS={1} Type={2} Ack={3} Data={4}", message.MessageId, message.TimeStamp, message.MessageType, message.RequestAck, dataJson);
+
+            byte[] payloadBytes = Encoding.UTF8.GetBytes(sb.ToString());
+
+            if (!string.IsNullOrEmpty(key))
+            {
+                // HMAC Mode
+                byte[] keyBytes = Convert.FromBase64String(key!);
+                using (var hmac = new HMACSHA256(keyBytes))
+                {
+                    byte[] hash = hmac.ComputeHash(payloadBytes);
+                    return Convert.ToBase64String(hash);
+                }
+            }
+            else
+            {
+                // Simple SHA256 Mode
+                using (var sha = SHA256.Create())
+                {
+                    byte[] hash = sha.ComputeHash(payloadBytes);
+                    return Convert.ToBase64String(hash);
+                }
             }
         }
     }
