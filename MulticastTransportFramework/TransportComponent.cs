@@ -13,6 +13,9 @@ using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Text.Json;
+using System.Diagnostics;
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using Ubicomp.Utils.NET.Sockets;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
@@ -61,6 +64,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private Task? _processingLoopTask;
         private Task? _heartbeatTask;
         private CancellationTokenSource? _heartbeatCts;
+
+        // Rx & Tracing
+        private static readonly ActivitySource _activitySource = new ActivitySource("Ubicomp.Utils.NET.Transport");
+        private readonly Subject<SocketMessage> _messageSubject = new Subject<SocketMessage>();
+
+        /// <summary>
+        /// Gets an observable stream of all raw messages received by this component.
+        /// </summary>
+        public IObservable<SocketMessage> MessageStream => _messageSubject.AsObservable();
 
         private readonly PeerTable _peerTable = new PeerTable();
 
@@ -653,7 +665,13 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     {
                         try
                         {
-                            ProcessSingleMessage(msg);
+                            using (var activity = _activitySource.StartActivity("ReceiveMessage", ActivityKind.Consumer))
+                            {
+                                activity?.SetTag("transport.seq", msg.ArrivalSequenceId);
+
+                                _messageSubject.OnNext(msg);
+                                ProcessSingleMessage(msg);
+                            }
                         }
                         finally
                         {
@@ -712,6 +730,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public void Dispose()
         {
             Stop();
+            try
+            {
+                _messageSubject.OnCompleted();
+                _messageSubject.Dispose();
+            }
+            catch { }
             GC.SuppressFinalize(this);
         }
 
@@ -825,6 +849,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             TimeSpan? ackTimeout)
         {
             var session = new AckSession(message.MessageId);
+
+            using var activity = _activitySource.StartActivity("SendMessage", ActivityKind.Producer);
+            activity?.SetTag("message.type", message.MessageType);
+            activity?.SetTag("message.id", message.MessageId.ToString());
 
             if (message.RequestAck)
             {
