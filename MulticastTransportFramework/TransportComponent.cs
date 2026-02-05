@@ -46,6 +46,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private readonly ConcurrentDictionary<Guid, AckSession> _activeSessions = new ConcurrentDictionary<Guid, AckSession>();
 
+        // Replay Protection
+        private readonly ConcurrentDictionary<Guid, ReplayWindow> _replayProtection = new ConcurrentDictionary<Guid, ReplayWindow>();
+
+        // For sequence ordering (GateKeeper)
+        private readonly ConcurrentDictionary<Guid, int> _expectedSequences = new ConcurrentDictionary<Guid, int>();
+
         private readonly JsonSerializerOptions _jsonOptions;
 
         // Lock-Free Actor Model Channels
@@ -866,6 +872,21 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     }
                     // ------------------------------------------
 
+                    // Feature 5: Strict Replay Protection
+                    // ------------------------------------------
+                    var window = _replayProtection.GetOrAdd(tMessage.MessageSource.ResourceId, _ => new ReplayWindow());
+                    if (!window.CheckAndMark(msg.ArrivalSequenceId))
+                    {
+                        if (Logger.IsEnabled(LogLevel.Warning))
+                        {
+                            Logger.LogWarning("Dropped replay/old message. Seq: {SequenceId}, Source: {Source}", msg.ArrivalSequenceId, tMessage.MessageSource.ResourceId);
+                        }
+                        return; // Drop packet
+                    }
+
+                    // ------------------------------------------
+                    // Logic to handle message processing
+                    // ------------------------------------------
                     // If it was legacy JSON, verify signature.
                     if (msg.Data[0] != BinaryPacket.MagicByte)
                     {
