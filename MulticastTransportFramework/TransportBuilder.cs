@@ -77,6 +77,28 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             return this;
         }
 
+        private TimeSpan? _heartbeatInterval;
+        private string? _instanceMetadata;
+
+        /// <summary>
+        /// Configures the heartbeat interval for peer discovery.
+        /// </summary>
+        /// <param name="interval">The interval between heartbeat messages.</param>
+        public TransportBuilder WithHeartbeat(TimeSpan interval)
+        {
+            _heartbeatInterval = interval;
+            return this;
+        }
+
+        /// <summary>
+        /// Configures custom metadata to be included in heartbeat messages.
+        /// </summary>
+        public TransportBuilder WithInstanceMetadata(string metadata)
+        {
+            _instanceMetadata = metadata;
+            return this;
+        }
+
         /// <summary>
         /// Configures whether to automatically send acknowledgements.
         /// </summary>
@@ -143,6 +165,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
 
             component.AutoSendAcks = _autoSendAcks;
+            component.HeartbeatInterval = _heartbeatInterval;
+            component.InstanceMetadata = _instanceMetadata;
 
             foreach (var registration in _registrations)
             {

@@ -22,7 +22,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     /// Handles message serialization, sequential processing via a gatekeeper,
     /// and routing messages to registered handlers.
     /// </summary>
-    public class TransportComponent
+    public class TransportComponent : IDisposable
     {
         /// <summary>Gets or sets the logger for this component.</summary>
         public ILogger Logger { get; set; } = NullLogger.Instance;
@@ -59,6 +59,33 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private Channel<SocketMessage>? _processingChannel;
         private Task? _gateLoopTask;
         private Task? _processingLoopTask;
+        private Task? _heartbeatTask;
+        private CancellationTokenSource? _heartbeatCts;
+
+        private readonly PeerTable _peerTable = new PeerTable();
+
+        /// <summary>
+        /// Gets the collection of currently active peers discovered on the network.
+        /// </summary>
+        public IEnumerable<RemotePeer> ActivePeers => _peerTable.GetActivePeers();
+
+        /// <summary>
+        /// Event raised when a new peer is discovered.
+        /// </summary>
+        public event Action<RemotePeer> OnPeerDiscovered
+        {
+            add => _peerTable.OnPeerDiscovered += value;
+            remove => _peerTable.OnPeerDiscovered -= value;
+        }
+
+        /// <summary>
+        /// Event raised when a peer times out.
+        /// </summary>
+        public event Action<RemotePeer> OnPeerLost
+        {
+            add => _peerTable.OnPeerLost += value;
+            remove => _peerTable.OnPeerLost -= value;
+        }
 
         private abstract class GateCmd { }
         private class InputMsgCmd : GateCmd { public SocketMessage Msg = null!; }
@@ -134,6 +161,17 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// Requires <see cref="SecurityKey"/> to be set.
         /// </summary>
         public bool EncryptionEnabled { get; set; }
+
+        /// <summary>
+        /// Gets or sets the interval for sending heartbeat messages.
+        /// If null, heartbeats are disabled.
+        /// </summary>
+        public TimeSpan? HeartbeatInterval { get; set; }
+
+        /// <summary>
+        /// Gets or sets the custom metadata derived for this instance to broadcast in heartbeats.
+        /// </summary>
+        public string? InstanceMetadata { get; set; }
 
         private void DeriveKeys()
         {
@@ -343,6 +381,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private void RegisterInternalTypes()
         {
             _knownTypes.TryAdd(AckMessageType, typeof(AckMessageContent));
+            _knownTypes.TryAdd("sys.heartbeat", typeof(HeartbeatMessage));
+            _typeToIdMap.TryAdd(typeof(HeartbeatMessage), "sys.heartbeat");
         }
 
         /// <summary>
@@ -447,6 +487,16 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
 
             Logger.LogInformation("TransportComponent Initialized (Lock-Free Mode). Integrity: {0}. Encryption: {1}", integrityMode, encMode);
+
+            if (HeartbeatInterval.HasValue)
+            {
+                _heartbeatCts = new CancellationTokenSource();
+                _heartbeatTask = Task.Run(async () => await HeartbeatLoop(_heartbeatCts.Token));
+                Logger.LogInformation("Heartbeat enabled with interval {0}", HeartbeatInterval.Value);
+            }
+
+            // Internal subscription for heartbeats
+            RegisterHandler<HeartbeatMessage>("sys.heartbeat", HandleHeartbeat);
         }
 
         private async Task ReceiveLoop(CancellationToken cancellationToken)
@@ -643,9 +693,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             _gateInput?.Writer.TryComplete();
             _processingChannel?.Writer.TryComplete();
 
+            _heartbeatCts?.Cancel();
             try
             {
-                Task.WaitAll(new[] { _gateLoopTask, _processingLoopTask }.Where(t => t != null).ToArray()!, 1000);
+                Task.WaitAll(new[] { _gateLoopTask, _processingLoopTask, _heartbeatTask }.Where(t => t != null).ToArray()!, 1000);
             }
             catch { }
 
@@ -653,6 +704,56 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             _aesGcmInstance?.Dispose();
             _aesGcmInstance = null;
 #endif
+        }
+
+        /// <summary>
+        /// Disposes the component and releases resources.
+        /// </summary>
+        public void Dispose()
+        {
+            Stop();
+            GC.SuppressFinalize(this);
+        }
+
+        private async Task HeartbeatLoop(CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    var heartbeat = new HeartbeatMessage
+                    {
+                        SourceId = LocalSource.ResourceId.ToString(),
+                        DeviceName = LocalSource.ResourceName,
+                        UptimeSeconds = (DateTime.UtcNow - System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime()).TotalSeconds,
+                        Metadata = InstanceMetadata
+                    };
+
+                    // Send without ACK, fire and forget
+                    await SendAsync(heartbeat);
+
+                    // Cleanup stale peers
+                    _peerTable.CleanupStalePeers(TimeSpan.FromSeconds(HeartbeatInterval!.Value.TotalSeconds * 3));
+
+                    await Task.Delay(HeartbeatInterval.Value, token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Error in Heartbeat Loop");
+                }
+            }
+        }
+
+        private void HandleHeartbeat(HeartbeatMessage msg, MessageContext context)
+        {
+            if (msg.SourceId == LocalSource.ResourceId.ToString())
+                return; // Ignore self
+
+            _peerTable.UpdatePeer(msg.SourceId, msg.DeviceName, msg.Metadata);
         }
 
         /// <summary>
