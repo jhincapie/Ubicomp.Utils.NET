@@ -981,7 +981,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 }
                 else
                 {
-                    // Legacy JSON Protocol
+                    // [LEGACY] JSON Protocol Fallback
+                    // This block is maintained for backward compatibility with older clients.
+                    // It may be removed in future major versions.
                     string sMessage = Encoding.UTF8.GetString(msg.Data, 0, msg.Length);
                     Logger.LogTrace("Importing message {0} (Legacy)", msg.ArrivalSequenceId);
                     tMessage = JsonSerializer.Deserialize<TransportMessage>(sMessage, _jsonOptions);

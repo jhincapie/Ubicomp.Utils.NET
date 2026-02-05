@@ -129,6 +129,36 @@ namespace Ubicomp.Utils.NET.SampleApp
             // Run network diagnostics
             await transport.VerifyNetworkingAsync();
 
+            // --- Feature: Reactive Extensions (Rx) ---
+            // Subscribe to the message stream using Rx
+            var rxSubscription = transport.MessageStream
+                .Where(m => m.Length > 0) // Example filter
+                .Subscribe(msg =>
+                {
+                    // This is a raw message tap
+                    // Console.WriteLine($"[Rx Tap] Received {msg.Length} bytes.");
+                });
+
+            // --- Feature: Peer Discovery ---
+            // Print active peers periodically
+            var peerMonitor = Task.Run(async () =>
+            {
+                while (true)
+                {
+                    await Task.Delay(5000);
+                    if (verbose)
+                    {
+                        var peers = transport.ActivePeers.ToList();
+                        Console.WriteLine($"\n--- Active Peers ({peers.Count}) ---");
+                        foreach (var peer in peers)
+                        {
+                            Console.WriteLine($" - {peer.DeviceName} (ID: {peer.SourceId}) Metadata: {peer.Metadata}");
+                        }
+                        Console.WriteLine("---------------------------\n");
+                    }
+                }
+            });
+
             if (args.Contains("--ack"))
             {
                 var content = new SimpleContent { Text = "Ping with Ack request" };
@@ -169,6 +199,7 @@ namespace Ubicomp.Utils.NET.SampleApp
             }
 
             transport.Stop();
+            rxSubscription.Dispose();
         }
 
 
