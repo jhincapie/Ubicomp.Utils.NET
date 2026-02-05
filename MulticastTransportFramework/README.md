@@ -9,6 +9,7 @@
 *   **Security**: Zero-conf encryption (AES-GCM/AES-CBC) and integrity signing (HMAC-SHA256) derived from a shared secret.
 *   **Optimized Protocol**: Uses a custom `BinaryPacket` format for reduced overhead, with fallback to JSON for legacy clients.
 *   **Auto-Discovery**: Leverages Roslyn Source Generators to automatically register message types.
+*   **Peer Discovery**: Automatic peer detection and tracking via heartbeats.
 *   **Diagnostic Tools**: Built-in network verification and firewall checks.
 
 ## Quick Start
