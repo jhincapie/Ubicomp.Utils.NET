@@ -65,6 +65,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public string? Nonce { get; set; }
 
         /// <summary>
+        /// Gets or sets the Authentication Tag for AES-GCM (Base64).
+        /// </summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Tag { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="TransportMessage"/>
         /// class.
         /// </summary>

@@ -119,6 +119,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         internal byte[]? IntegrityKey => _integrityKey;
 
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
+        private System.Security.Cryptography.AesGcm? _aesGcmInstance;
+#endif
+
         /// <summary>
         /// Gets or sets whether to enable payload encryption.
         /// Requires <see cref="SecurityKey"/> to be set.
@@ -151,6 +155,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     // Derive Encryption Key
                     byte[] infoEncryption = Encoding.UTF8.GetBytes("Ubicomp.Utils.NET.Encryption");
                     _encryptionKey = hmac.ComputeHash(infoEncryption);
+
+#if NET8_0_OR_GREATER
+                    _aesGcmInstance?.Dispose();
+                    _aesGcmInstance = new System.Security.Cryptography.AesGcm(_encryptionKey, 16);
+#elif NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
+                    _aesGcmInstance?.Dispose();
+                    _aesGcmInstance = new System.Security.Cryptography.AesGcm(_encryptionKey);
+#endif
                 }
             }
             catch (Exception ex)
@@ -160,10 +172,28 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
         }
 
-        private (string? CipherText, string? Nonce) Encrypt(string plainText)
+        private (string? CipherText, string? Nonce, string? Tag) Encrypt(string plainText)
         {
-            if (_encryptionKey == null) return (null, null);
+            if (_encryptionKey == null) return (null, null, null);
 
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
+            if (_aesGcmInstance != null)
+            {
+                byte[] plainBytes = Encoding.UTF8.GetBytes(plainText);
+                byte[] nonce = new byte[12]; // GCM standard nonce size
+                byte[] tag = new byte[16];   // GCM auth tag size
+                byte[] cipherBytes = new byte[plainBytes.Length];
+
+                RandomNumberGenerator.Fill(nonce);
+
+                // Thread-safety: AesGcm is thread-safe on .NET Core 3.0+
+                _aesGcmInstance.Encrypt(nonce, plainBytes, cipherBytes, tag);
+
+                return (Convert.ToBase64String(cipherBytes), Convert.ToBase64String(nonce), Convert.ToBase64String(tag));
+            }
+#endif
+
+            // Fallback to AES-CBC
             using (var aes = Aes.Create())
             {
                 aes.Key = _encryptionKey;
@@ -179,14 +209,28 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     {
                         sw.Write(plainText);
                     }
-                    return (Convert.ToBase64String(ms.ToArray()), Convert.ToBase64String(aes.IV));
+                    return (Convert.ToBase64String(ms.ToArray()), Convert.ToBase64String(aes.IV), null);
                 }
             }
         }
 
-        private string Decrypt(string cipherText, string nonce)
+        private string Decrypt(string cipherText, string nonce, string? tag)
         {
             if (_encryptionKey == null) throw new InvalidOperationException("Cannot decrypt without EncryptionKey.");
+
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
+            if (_aesGcmInstance != null && tag != null)
+            {
+                 byte[] nonceBytes = Convert.FromBase64String(nonce);
+                 byte[] cipherBytes = Convert.FromBase64String(cipherText);
+                 byte[] tagBytes = Convert.FromBase64String(tag);
+                 byte[] plainBytes = new byte[cipherBytes.Length];
+
+                 _aesGcmInstance.Decrypt(nonceBytes, cipherBytes, tagBytes, plainBytes);
+
+                 return Encoding.UTF8.GetString(plainBytes);
+            }
+#endif
 
             using (var aes = Aes.Create())
             {
@@ -297,7 +341,19 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 _socketOptions.Port,
                 _socketOptions.TimeToLive,
                 interfaces);
-            Logger.LogInformation("TransportComponent Initialized (Lock-Free Mode). Integrity Check: {0}", SecurityKey != null ? "HMAC-SHA256" : "SHA256 (No Key)");
+
+            string integrityMode = SecurityKey != null ? "HMAC-SHA256" : "SHA256 (No Key)";
+            string encMode = "Disabled";
+            if (EncryptionEnabled)
+            {
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
+                encMode = "AES-GCM (Hardware Accelerated)";
+#else
+                encMode = "AES-CBC (Composite)";
+#endif
+            }
+
+            Logger.LogInformation("TransportComponent Initialized (Lock-Free Mode). Integrity: {0}. Encryption: {1}", integrityMode, encMode);
         }
 
         private async Task ReceiveLoop(CancellationToken cancellationToken)
@@ -499,6 +555,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 Task.WaitAll(new[] { _gateLoopTask, _processingLoopTask }.Where(t => t != null).ToArray()!, 1000);
             }
             catch { }
+
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
+            _aesGcmInstance?.Dispose();
+            _aesGcmInstance = null;
+#endif
         }
 
         /// <summary>
@@ -585,12 +646,13 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             if (EncryptionEnabled)
             {
                 string plainJson = JsonSerializer.Serialize(message.MessageData, _jsonOptions);
-                var (cipher, nonce) = Encrypt(plainJson);
+                var (cipher, nonce, tag) = Encrypt(plainJson);
                 if (cipher != null)
                 {
                     message.MessageData = cipher;
                     message.IsEncrypted = true;
                     message.Nonce = nonce;
+                    message.Tag = tag;
                 }
             }
 
@@ -716,7 +778,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                                 cipherText = cElement.GetString() ?? string.Empty;
                             }
 
-                            string plainText = Decrypt(cipherText, tMessage.Nonce);
+                            string plainText = Decrypt(cipherText, tMessage.Nonce, tMessage.Tag);
                             tMessage.MessageData = plainText;
                         }
                         catch (Exception ex)
@@ -820,6 +882,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             sb.Append(message.RequestAck.ToString().ToLower());
             sb.Append(message.IsEncrypted.ToString().ToLower());
             sb.Append(message.Nonce ?? "");
+            sb.Append(message.Tag ?? "");
 
             // Best effort serialization for signature checks
             string dataJson = JsonSerializer.Serialize(message.MessageData, _jsonOptions);
