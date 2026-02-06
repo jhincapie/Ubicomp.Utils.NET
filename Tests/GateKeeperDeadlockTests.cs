@@ -27,7 +27,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             try
             {
-               transport.Start();
+                transport.Start();
             }
             catch { }
 
