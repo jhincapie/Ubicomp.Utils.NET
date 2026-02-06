@@ -6,12 +6,12 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Threading.Channels;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Text.Json;
 using Ubicomp.Utils.NET.Sockets;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
@@ -53,9 +53,17 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private Task? _gateLoopTask;
         private Task? _processingLoopTask;
 
-        private abstract class GateCmd { }
-        private class InputMsgCmd : GateCmd { public SocketMessage Msg = null!; }
-        private class TimeoutCmd : GateCmd { public int SeqId; }
+        private abstract class GateCmd
+        {
+        }
+        private class InputMsgCmd : GateCmd
+        {
+            public SocketMessage Msg = null!;
+        }
+        private class TimeoutCmd : GateCmd
+        {
+            public int SeqId;
+        }
 
         /// <summary>Gets or sets the default timeout for acknowledgements.</summary>
         public TimeSpan DefaultAckTimeout { get; set; } = TimeSpan.FromSeconds(5);
@@ -186,7 +194,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private async Task ReceiveLoop(CancellationToken cancellationToken)
         {
-            if (_socket == null) return;
+            if (_socket == null)
+                return;
 
             try
             {
@@ -214,7 +223,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             int currentSeq = 1;
             CancellationTokenSource? gapCts = null;
 
-            if (_gateInput == null || _processingChannel == null) return;
+            if (_gateInput == null || _processingChannel == null)
+                return;
 
             try
             {
@@ -227,9 +237,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                             var msg = input.Msg;
                             if (msg.SequenceId < currentSeq)
                             {
-                                 Logger.LogWarning("Received late message {0} (current is {1}). Ignoring.", msg.SequenceId, currentSeq);
-                                 msg.Dispose();
-                                 continue;
+                                Logger.LogWarning("Received late message {0} (current is {1}). Ignoring.", msg.SequenceId, currentSeq);
+                                msg.Dispose();
+                                continue;
                             }
 
                             if (msg.SequenceId == currentSeq)
@@ -257,9 +267,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                                 // Future message - Check Queue Size Limit
                                 if (pq.Count >= MaxQueueSize)
                                 {
-                                     Logger.LogWarning("PriorityQueue full ({0}). Dropping future message {1} to prevent DoS.", pq.Count, msg.SequenceId);
-                                     msg.Dispose();
-                                     continue;
+                                    Logger.LogWarning("PriorityQueue full ({0}). Dropping future message {1} to prevent DoS.", pq.Count, msg.SequenceId);
+                                    msg.Dispose();
+                                    continue;
                                 }
 
                                 pq.Enqueue(msg, msg.SequenceId);
@@ -272,7 +282,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                                     {
                                         if (!t.IsCanceled && _gateInput != null)
                                         {
-                                             _gateInput.Writer.TryWrite(new TimeoutCmd { SeqId = captureSeq });
+                                            _gateInput.Writer.TryWrite(new TimeoutCmd { SeqId = captureSeq });
                                         }
                                     });
                                 }
@@ -280,17 +290,17 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                         }
                         else if (cmd is TimeoutCmd timeout)
                         {
-                             if (timeout.SeqId == currentSeq)
-                             {
-                                 // Timeout occurred on this sequence
-                                 if (pq.Count > 0 && pq.TryPeek(out var nextMsg, out var priority))
-                                 {
-                                      Logger.LogWarning("Sequence gap detected. Timed out waiting for message {0}. Jumping to {1}.", currentSeq, priority);
-                                      currentSeq = priority;
-                                      gapCts = null;
-                                      CheckQueue(pq, ref currentSeq, _processingChannel);
-                                 }
-                             }
+                            if (timeout.SeqId == currentSeq)
+                            {
+                                // Timeout occurred on this sequence
+                                if (pq.Count > 0 && pq.TryPeek(out var nextMsg, out var priority))
+                                {
+                                    Logger.LogWarning("Sequence gap detected. Timed out waiting for message {0}. Jumping to {1}.", currentSeq, priority);
+                                    currentSeq = priority;
+                                    gapCts = null;
+                                    CheckQueue(pq, ref currentSeq, _processingChannel);
+                                }
+                            }
                         }
                     }
                 }
@@ -303,33 +313,34 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private void CheckQueue(PriorityQueue<SocketMessage> pq, ref int currentSeq, Channel<SocketMessage> output)
         {
-             while (pq.Count > 0 && pq.TryPeek(out var nextMsg, out var priority))
-             {
-                 if (priority == currentSeq)
-                 {
-                     pq.Dequeue();
-                     if (!output.Writer.TryWrite(nextMsg))
-                     {
-                         Logger.LogWarning("Processing channel full. Dropping queued message {0}.", nextMsg.SequenceId);
-                         nextMsg.Dispose();
-                     }
-                     currentSeq++;
-                 }
-                 else if (priority < currentSeq)
-                 {
-                     // Cleanup old messages
-                     pq.Dequeue().Dispose();
-                 }
-                 else
-                 {
-                     break;
-                 }
-             }
+            while (pq.Count > 0 && pq.TryPeek(out var nextMsg, out var priority))
+            {
+                if (priority == currentSeq)
+                {
+                    pq.Dequeue();
+                    if (!output.Writer.TryWrite(nextMsg))
+                    {
+                        Logger.LogWarning("Processing channel full. Dropping queued message {0}.", nextMsg.SequenceId);
+                        nextMsg.Dispose();
+                    }
+                    currentSeq++;
+                }
+                else if (priority < currentSeq)
+                {
+                    // Cleanup old messages
+                    pq.Dequeue().Dispose();
+                }
+                else
+                {
+                    break;
+                }
+            }
         }
 
         private async Task ProcessingLoop()
         {
-            if (_processingChannel == null) return;
+            if (_processingChannel == null)
+                return;
             try
             {
                 while (await _processingChannel.Reader.WaitToReadAsync())
@@ -510,8 +521,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 // Route directly to processing
                 if (!(_processingChannel?.Writer.TryWrite(msg) ?? false))
                 {
-                     // Channel full or null
-                     msg.Dispose();
+                    // Channel full or null
+                    msg.Dispose();
                 }
             }
             else
@@ -519,8 +530,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 // Route to GateKeeper
                 if (!(_gateInput?.Writer.TryWrite(new InputMsgCmd { Msg = msg }) ?? false))
                 {
-                     // Channel full or null
-                     msg.Dispose();
+                    // Channel full or null
+                    msg.Dispose();
                 }
             }
         }
@@ -576,7 +587,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     Logger.LogTrace(
                         "Received Ack for message {0} from {1}",
                         ackContent.OriginalMessageId,
-                        tMessage.MessageSource.ResourceName);
+                        SanitizeLog(tMessage.MessageSource.ResourceName));
                     session.ReportAck(tMessage.MessageSource);
                 }
             }
@@ -604,6 +615,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     tMessage.MessageId);
                 _ = SendAckAsync(tMessage.MessageId);
             }
+        }
+
+        private static string SanitizeLog(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return input;
+            // Replace newlines and carriage returns to prevent log injection
+            return input.Replace("\r", "_").Replace("\n", "_");
         }
     }
 }

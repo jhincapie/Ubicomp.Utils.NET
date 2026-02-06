@@ -47,7 +47,7 @@ namespace Ubicomp.Utils.NET.Tests
         [Fact]
         public void JoinAllInterfaces_ShouldBeThreadSafe()
         {
-             // Arrange
+            // Arrange
             var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5001);
             options.LocalIP = null;
 
@@ -55,40 +55,42 @@ namespace Ubicomp.Utils.NET.Tests
                 .WithOptions(options)
                 .Build();
 
-             var methodInfo = typeof(MulticastSocket).GetMethod("OnNetworkAddressChanged", BindingFlags.NonPublic | BindingFlags.Instance);
-             Assert.NotNull(methodInfo);
+            var methodInfo = typeof(MulticastSocket).GetMethod("OnNetworkAddressChanged", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.NotNull(methodInfo);
 
-             // Act
-             // Run multiple threads invoking the change
-             var threads = new Thread[5];
-             Exception? threadException = null;
+            // Act
+            // Run multiple threads invoking the change
+            var threads = new Thread[5];
+            Exception? threadException = null;
 
-             for(int i=0; i<threads.Length; i++)
-             {
-                 threads[i] = new Thread(() => {
-                     try
-                     {
-                         for(int j=0; j<10; j++)
-                         {
-                             methodInfo.Invoke(socket, new object[] { this, EventArgs.Empty });
-                             // Also try to read JoinedAddresses
-                             var count = socket.JoinedAddresses.Count();
-                         }
-                     }
-                     catch(Exception ex)
-                     {
-                         threadException = ex;
-                     }
-                 });
-                 threads[i].Start();
-             }
+            for (int i = 0; i < threads.Length; i++)
+            {
+                threads[i] = new Thread(() =>
+                {
+                    try
+                    {
+                        for (int j = 0; j < 10; j++)
+                        {
+                            methodInfo.Invoke(socket, new object[] { this, EventArgs.Empty });
+                            // Also try to read JoinedAddresses
+                            var count = socket.JoinedAddresses.Count();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        threadException = ex;
+                    }
+                });
+                threads[i].Start();
+            }
 
-             foreach(var t in threads) t.Join();
+            foreach (var t in threads)
+                t.Join();
 
-             Assert.Null(threadException);
+            Assert.Null(threadException);
 
-             var joined = socket.JoinedAddresses.ToList();
-             Assert.Equal(joined.Count, joined.Distinct().Count());
+            var joined = socket.JoinedAddresses.ToList();
+            Assert.Equal(joined.Count, joined.Distinct().Count());
         }
     }
 }

@@ -104,7 +104,11 @@ namespace Ubicomp.Utils.NET.Tests
             var options = MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, 1);
             var tc = new TransportComponent(options);
 
-            try { tc.Start(); } catch { }
+            try
+            {
+                tc.Start();
+            }
+            catch { }
 
             // Register a dummy type for sending
             tc.RegisterHandler<AckMessageContent>("1", (c, ctx) => { });
