@@ -48,8 +48,8 @@ namespace Ubicomp.Utils.NET.Tests
             var importedMessage =
                 JsonSerializer.Deserialize<TransportMessage>(json, options);
 
-            Assert.NotNull(importedMessage);
-            Assert.Equal(message.MessageId, importedMessage!.MessageId);
+            // Assert.NotNull(importedMessage); // Struct is never null
+            Assert.Equal(message.MessageId, importedMessage.MessageId);
             Assert.Equal(message.MessageType, importedMessage.MessageType);
         }
 
@@ -82,8 +82,8 @@ namespace Ubicomp.Utils.NET.Tests
             var importedMessage =
                 JsonSerializer.Deserialize<TransportMessage>(json, options);
 
-            Assert.NotNull(importedMessage);
-            Assert.Equal(message.MessageId, importedMessage!.MessageId);
+            // Assert.NotNull(importedMessage); // Struct is never null
+            Assert.Equal(message.MessageId, importedMessage.MessageId);
             Assert.Equal(message.MessageType, importedMessage.MessageType);
 
             // Without converter, MessageData is JsonElement

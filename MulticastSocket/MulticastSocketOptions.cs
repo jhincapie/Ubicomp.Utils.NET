@@ -13,12 +13,19 @@ namespace Ubicomp.Utils.NET.Sockets
         public string GroupAddress
         {
             get; set;
-        }
+        } = "239.0.0.1";
 
         /// <summary>The port for multicast communication.</summary>
         public int Port
         {
             get; set;
+        } = 5000;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="MulticastSocketOptions"/> class with defaults.
+        /// </summary>
+        public MulticastSocketOptions()
+        {
         }
 
         /// <summary>The multicast Time-to-Live (TTL) value.</summary>

@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Buffers;
+using System.Net;
 
 namespace Ubicomp.Utils.NET.Sockets
 {
@@ -40,6 +41,12 @@ namespace Ubicomp.Utils.NET.Sockets
             get; private set;
         }
 
+        /// <summary>Gets the remote endpoint the message was received from.</summary>
+        public EndPoint? RemoteEndpoint
+        {
+            get; private set;
+        }
+
         /// <summary>
         /// Initializes a new instance of the <see cref="SocketMessage"/> class.
         /// </summary>
@@ -63,12 +70,13 @@ namespace Ubicomp.Utils.NET.Sockets
             Timestamp = DateTime.Now;
         }
 
-        internal void Reset(byte[] buffer, int length, int sequenceId, bool isRented)
+        internal void Reset(byte[] buffer, int length, int sequenceId, bool isRented, EndPoint? remoteEndpoint = null)
         {
             Data = buffer;
             Length = length;
             ArrivalSequenceId = sequenceId;
             Timestamp = DateTime.Now;
+            RemoteEndpoint = remoteEndpoint;
             if (isRented)
             {
                 _rentedBuffer = buffer;

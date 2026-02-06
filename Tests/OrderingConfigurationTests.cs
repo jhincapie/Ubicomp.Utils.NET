@@ -10,6 +10,7 @@ using System.Text;
 
 namespace Ubicomp.Utils.NET.Tests
 {
+    [Collection("TransportBuilderTests")]
     public class OrderingConfigurationTests
     {
         [Fact]

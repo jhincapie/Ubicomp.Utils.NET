@@ -23,15 +23,17 @@ namespace Ubicomp.Utils.NET.Tests
             var source = new EventSource(Guid.NewGuid(), "Host", "Desc");
             var content = new TestMessage { Data = "Binary Payload" };
             var message = new TransportMessage(source, "test.binary", content);
-            var payload = JsonSerializer.SerializeToUtf8Bytes(content, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
             // Act
-            byte[] packet = BinaryPacket.Serialize(message, 123, null, null, payload);
+            // Use fully qualified name to avoid ambiguity with internal ArrayBufferWriter
+            var writer = new System.Buffers.ArrayBufferWriter<byte>();
+            BinaryPacket.SerializeToWriter(writer, message, 123, null, null);
+            var packet = writer.WrittenSpan.ToArray();
 
             // Assert
             Assert.True(packet.Length > 0);
-            Assert.Equal(BinaryPacket.MagicByte, packet[0]);
-            Assert.Equal(BinaryPacket.ProtocolVersion, packet[1]);
+            Assert.Equal((byte)BinaryPacket.MagicByte, packet[0]);
+            Assert.Equal((byte)BinaryPacket.ProtocolVersion, packet[1]);
         }
 
         [Fact]
@@ -41,21 +43,25 @@ namespace Ubicomp.Utils.NET.Tests
             var source = new EventSource(Guid.NewGuid(), "Host", "Desc");
             var content = new TestMessage { Data = "Roundtrip" };
             var message = new TransportMessage(source, "test.binary", content);
-            var payload = JsonSerializer.SerializeToUtf8Bytes(content, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
              // Serialize
-            byte[] packet = BinaryPacket.Serialize(message, 55, null, null, payload);
+            var writer = new System.Buffers.ArrayBufferWriter<byte>();
+            BinaryPacket.SerializeToWriter(writer, message, 55, null, null, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            var packet = writer.WrittenSpan.ToArray();
 
             // Act
-            var deserialized = BinaryPacket.Deserialize(packet, 55, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            // v2 Update: Pass null/empty keys for unencrypted
+            var deserialized = BinaryPacket.Deserialize(packet, 55, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }, null);
 
             // Assert
             Assert.NotNull(deserialized);
-            Assert.Equal(message.MessageId, deserialized!.MessageId);
-            Assert.Equal("test.binary", deserialized.MessageType);
+            var msg = deserialized.Value;
+
+            Assert.Equal(message.MessageId, msg.MessageId);
+            Assert.Equal("test.binary", msg.MessageType);
 
             // Validate payload (lazy deserialization)
-            var element = (JsonElement)deserialized.MessageData;
+            var element = (JsonElement)msg.MessageData;
             var data2 = JsonSerializer.Deserialize<TestMessage>(element.GetRawText(), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
             Assert.Equal("Roundtrip", data2?.Data);
         }

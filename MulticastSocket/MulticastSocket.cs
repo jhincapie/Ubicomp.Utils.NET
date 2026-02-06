@@ -30,12 +30,14 @@ namespace Ubicomp.Utils.NET.Sockets
         private readonly MulticastSocketOptions _options;
         private readonly List<IPAddress> _joinedAddresses = new List<IPAddress>();
         private readonly object _joinedLock = new object();
-        private readonly Channel<SocketMessage> _messageChannel = Channel.CreateUnbounded<SocketMessage>();
+        // S1: Bounded Channel to prevent Memory Exhaustion (DoS)
+        private readonly Channel<SocketMessage> _messageChannel = Channel.CreateBounded<SocketMessage>(new BoundedChannelOptions(2048) { FullMode = BoundedChannelFullMode.DropWrite });
         private volatile bool _isChannelStarted = false;
 #if NET8_0_OR_GREATER
         private CancellationTokenSource? _receiveCts;
 #endif
         private readonly ObjectPool<SocketMessage> _messagePool;
+        private readonly Action<SocketMessage> _returnCallback;
 
         /// <summary>Gets or sets the logger for this component.</summary>
         public ILogger Logger { get; set; } = NullLogger.Instance;
@@ -93,6 +95,7 @@ namespace Ubicomp.Utils.NET.Sockets
             // Initialize Object Pool
             var provider = new DefaultObjectPoolProvider();
             _messagePool = provider.Create(new DefaultPooledObjectPolicy<SocketMessage>());
+            _returnCallback = m => _messagePool.Return(m);
 
             SetupSocket();
         }
@@ -352,32 +355,39 @@ namespace Ubicomp.Utils.NET.Sockets
         {
             if (_udpSocket == null) return;
 
-            byte[] buffer = new byte[MaxMessageSize];
-            Memory<byte> memoryBuffer = buffer;
-
             try
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
+                    // P4: Zero-Copy Optimization
+                    // Rent buffer from pool directly for the socket to write into.
+                    byte[] buffer = ArrayPool<byte>.Shared.Rent(MaxMessageSize);
+                    Memory<byte> memoryBuffer = buffer;
+                    bool bufferPassedToMessage = false;
+
                     try
                     {
                         var result = await _udpSocket.ReceiveFromAsync(memoryBuffer, SocketFlags.None, _localEndPoint, cancellationToken);
-
-                        // Rent buffer to avoid allocation
-                        byte[] bufferCopy = ArrayPool<byte>.Shared.Rent(result.ReceivedBytes);
-                        Array.Copy(buffer, 0, bufferCopy, 0, result.ReceivedBytes);
 
                         int seqId = Interlocked.Increment(ref _mConsecutive);
 
                         // Rent message from pool
                         var msg = _messagePool.Get();
-                        msg.Reset(bufferCopy, result.ReceivedBytes, seqId, isRented: true);
-                        msg.ReturnCallback = m => _messagePool.Return(m);
+
+                        // Pass ownership of the rented buffer to the message
+                        msg.Reset(buffer, result.ReceivedBytes, seqId, isRented: true, result.RemoteEndPoint);
+                        msg.ReturnCallback = _returnCallback;
+
+                        bufferPassedToMessage = true;
 
                         LogMessageReceived(Logger, seqId, result.ReceivedBytes);
 
                         OnMessageReceivedAction?.Invoke(msg);
-                        _messageChannel.Writer.TryWrite(msg);
+                        if (!_messageChannel.Writer.TryWrite(msg))
+                        {
+                            Logger.LogTrace("Channel full, dropping packet.");
+                            msg.Dispose();
+                        }
                     }
                     catch (SocketException se) when (se.SocketErrorCode == SocketError.OperationAborted || se.SocketErrorCode == SocketError.Interrupted)
                     {
@@ -398,6 +408,15 @@ namespace Ubicomp.Utils.NET.Sockets
                     {
                         Logger.LogError(e, "Error during receive.");
                         OnErrorAction?.Invoke(new SocketErrorContext("Error during receive.", e));
+                    }
+                    finally
+                    {
+                        // If we didn't successfully pass the buffer to a message (e.g. exception),
+                        // we must return it to the pool to avoid leak.
+                        if (!bufferPassedToMessage)
+                        {
+                            ArrayPool<byte>.Shared.Return(buffer);
+                        }
                     }
                 }
             }
@@ -432,8 +451,10 @@ namespace Ubicomp.Utils.NET.Sockets
 
                 // Rent message from pool
                 var msg = _messagePool.Get();
-                msg.Reset(buffer, bytesRead, seqId, isRented: true);
-                msg.ReturnCallback = m => _messagePool.Return(m);
+
+                // _localEndPoint contains the remote endpoint after EndReceiveFrom
+                msg.Reset(buffer, bytesRead, seqId, isRented: true, _localEndPoint);
+                msg.ReturnCallback = _returnCallback;
 
                 LogMessageReceived(Logger, seqId, bytesRead);
 
@@ -441,7 +462,11 @@ namespace Ubicomp.Utils.NET.Sockets
 
                 if (_isChannelStarted)
                 {
-                    _messageChannel.Writer.TryWrite(msg);
+                    if (!_messageChannel.Writer.TryWrite(msg))
+                    {
+                        Logger.LogTrace("Channel full, dropping packet.");
+                        msg.Dispose();
+                    }
                 }
                 else if (OnMessageReceivedAction == null)
                 {

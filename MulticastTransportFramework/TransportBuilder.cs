@@ -161,7 +161,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             if (_localSource != null)
             {
-                component.LocalSource = _localSource;
+                component.LocalSource = _localSource.Value;
             }
 
             component.AutoSendAcks = _autoSendAcks;

@@ -15,8 +15,43 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private ulong _windowMask = 0; // Bit 0 corresponds to _highestSequenceId
         private readonly object _lock = new object(); // Simple lock for thread safety per-source
 
+        /// <summary>Gets the UTC timestamp of the last valid packet received from this source.</summary>
+        public DateTime LastActivity { get; private set; } = DateTime.UtcNow;
+
+        // Rate Limiter for S4 (Traffic Amplification Mitigation)
+        // 10 Acks per second burst, refill 1 per second.
+        private int _ackTokens = 10;
+        private const int MaxAckTokens = 10;
+        private DateTime _lastAckRefill = DateTime.UtcNow;
+        private readonly object _rateLock = new object();
+
         public ReplayWindow()
         {
+        }
+
+        public bool CheckAckRateLimit()
+        {
+            lock (_rateLock)
+            {
+                var now = DateTime.UtcNow;
+                double secondsPassed = (now - _lastAckRefill).TotalSeconds;
+                if (secondsPassed > 0)
+                {
+                   int newTokens = (int)secondsPassed; // 1 token per second
+                   if (newTokens > 0)
+                   {
+                       _ackTokens = Math.Min(MaxAckTokens, _ackTokens + newTokens);
+                       _lastAckRefill = now;
+                   }
+                }
+
+                if (_ackTokens > 0)
+                {
+                    _ackTokens--;
+                    return true;
+                }
+                return false;
+            }
         }
 
         /// <summary>
@@ -29,6 +64,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             lock (_lock)
             {
+                LastActivity = DateTime.UtcNow;
+
                 // Case 1: First packet ever
                 if (_highestSequenceId == -1)
                 {

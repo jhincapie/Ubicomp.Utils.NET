@@ -26,7 +26,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             Encrypted = 1 << 1,
         }
 
-        public static byte[] Serialize(TransportMessage message, int sequenceId, byte[]? nonce, byte[]? tag, byte[] payload)
+        public static void SerializeToWriter(IBufferWriter<byte> writer, TransportMessage message, int sequenceId, byte[]? integrityKey, byte[]? encryptionKey, JsonSerializerOptions? jsonOptions = null)
         {
             // Calculate sizes
             string type = message.MessageType;
@@ -37,98 +37,143 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             int nameLen = Encoding.UTF8.GetByteCount(name);
             if (nameLen > 255) nameLen = 255;
 
-            int nonceLen = nonce?.Length ?? 0;
-            int tagLen = tag?.Length ?? 0;
+            // Prepare Payload (Serialize to JSON first if not already bytes/string)
+            // Ideally we want to write JSON directly to the writer too, but for now we might have intermediate bytes for the payload
+            // unless we use a fresh writer for payload.
+            // optimization: TransportMessage.MessageData might already be byte[] or string.
 
-            int headerSize = 1 + 1 + 1 + 1 + 1 + 1 + 10 + 4 + 16 + 16 + 8 + 1 + typeLen + nameLen;
-            int cryptoOverhead = nonceLen + tagLen;
+            byte[] payloadBytes;
+            if (message.MessageData is byte[] b) payloadBytes = b;
+            else if (message.MessageData is string s) payloadBytes = Encoding.UTF8.GetBytes(s);
+            else payloadBytes = JsonSerializer.SerializeToUtf8Bytes(message.MessageData, jsonOptions);
 
-            int totalSize = headerSize + cryptoOverhead + payload.Length;
-            byte[] packet = new byte[totalSize];
-            var span = packet.AsSpan();
+            bool isEncrypted = encryptionKey != null && message.IsEncrypted;
+            int nonceLen = isEncrypted ? 12 : 0; // GCM Nonce
+            int tagLen = isEncrypted ? 16 : 0;   // GCM Tag
+
+            // Header: 61 bytes fixed + variable strings
+            // [Magic:1][Version:1][Flags:1][NonceLen:1][TagLen:1][NameLen:1][Reserved:10][SeqId:4][MsgId:16][SourceId:16][Tick:8][TypeLen:1]
+            // + [Type:N] + [Name:K]
+
+            int headerFixedSize = 61;
+            int headerTotalSize = headerFixedSize + typeLen + nameLen;
+
+            // Allocate Span for Header
+            Span<byte> headerSpan = writer.GetSpan(headerTotalSize);
 
             // 1. Magic & Version & Flags
-            span[0] = MagicByte;
-            span[1] = ProtocolVersion;
+            headerSpan[0] = MagicByte;
+            headerSpan[1] = ProtocolVersion;
 
             PacketFlags flags = PacketFlags.None;
             if (message.RequestAck) flags |= PacketFlags.RequestAck;
-            if (message.IsEncrypted) flags |= PacketFlags.Encrypted;
-            span[2] = (byte)flags;
+            if (isEncrypted) flags |= PacketFlags.Encrypted;
+            headerSpan[2] = (byte)flags;
 
-            // 2. Crypto & Metadata Lengths
-            span[3] = (byte)nonceLen;
-            span[4] = (byte)tagLen;
-            span[5] = (byte)nameLen;
+            // 2. Metadata Lengths
+            headerSpan[3] = (byte)nonceLen;
+            headerSpan[4] = (byte)tagLen;
+            headerSpan[5] = (byte)nameLen;
 
-            // Reserved (10 bytes) 6-15
+            // Reserved (10 bytes) 6-15 (Clear it)
+            headerSpan.Slice(6, 10).Clear();
 
             // SeqId (4)
-            BinaryPrimitives.WriteInt32LittleEndian(span.Slice(16), sequenceId);
+            BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(16), sequenceId);
 
             // MsgId (16)
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
-            message.MessageId.TryWriteBytes(span.Slice(20));
+            message.MessageId.TryWriteBytes(headerSpan.Slice(20));
+            message.MessageSource.ResourceId.TryWriteBytes(headerSpan.Slice(36));
 #else
-            Array.Copy(message.MessageId.ToByteArray(), 0, packet, 20, 16);
-#endif
-
-            // SourceId (16)
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
-            message.MessageSource.ResourceId.TryWriteBytes(span.Slice(36));
-#else
-            Array.Copy(message.MessageSource.ResourceId.ToByteArray(), 0, packet, 36, 16);
+            message.MessageId.ToByteArray().CopyTo(headerSpan.Slice(20));
+            message.MessageSource.ResourceId.ToByteArray().CopyTo(headerSpan.Slice(36));
 #endif
 
             // Timestamp (8) - Ticks
-            DateTime.TryParse(message.TimeStamp, out var dt);
-            BinaryPrimitives.WriteInt64LittleEndian(span.Slice(52), dt.Ticks);
+            long ticks = DateTime.TryParse(message.TimeStamp, out var dt) ? dt.Ticks : DateTime.Now.Ticks;
+            BinaryPrimitives.WriteInt64LittleEndian(headerSpan.Slice(52), ticks);
 
             // TypeLen (1)
-            span[60] = (byte)typeLen;
+            headerSpan[60] = (byte)typeLen;
 
             // Type (N)
-            Encoding.UTF8.GetBytes(type, 0, type.Length, packet, 61);
-            
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER || NET8_0_OR_GREATER
+            Encoding.UTF8.GetBytes(type, headerSpan.Slice(61, typeLen));
+
             // Source Name (K)
-            Encoding.UTF8.GetBytes(name, 0, name.Length, packet, 61 + typeLen);
+            Encoding.UTF8.GetBytes(name, headerSpan.Slice(61 + typeLen, nameLen));
+#else
+            var typeBytes = Encoding.UTF8.GetBytes(type);
+            typeBytes.CopyTo(headerSpan.Slice(61, typeLen));
+            var nameBytes = Encoding.UTF8.GetBytes(name);
+            nameBytes.CopyTo(headerSpan.Slice(61 + typeLen, nameLen));
+#endif
 
-            int offset = 61 + typeLen + nameLen;
+            writer.Advance(headerTotalSize);
 
-            // Crypto Headers
-            if (message.IsEncrypted)
+            // Payload & Crypto
+            if (isEncrypted && encryptionKey != null)
             {
-                if (nonce != null)
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
+                // Native GCM Encryption
+                // Req: Nonce (12), Tag (16), Ciphertext (PayloadLength)
+                int totalCryptoSize = nonceLen + tagLen + payloadBytes.Length;
+                Span<byte> cryptoSpan = writer.GetSpan(totalCryptoSize);
+
+                // Split spans
+                Span<byte> nonceSpan = cryptoSpan.Slice(0, nonceLen);
+                Span<byte> tagSpan = cryptoSpan.Slice(nonceLen, tagLen);
+                Span<byte> cipherSpan = cryptoSpan.Slice(nonceLen + tagLen, payloadBytes.Length);
+
+                // Generate Nonce
+                System.Security.Cryptography.RandomNumberGenerator.Fill(nonceSpan);
+
+                // Encrypt directly into output span
+#if NET8_0_OR_GREATER
+                 using (var aesGcm = new System.Security.Cryptography.AesGcm(encryptionKey, 16))
+#else
+                 using (var aesGcm = new System.Security.Cryptography.AesGcm(encryptionKey))
+#endif
                 {
-                    nonce.CopyTo(span.Slice(offset, nonceLen));
-                    offset += nonceLen;
+                    aesGcm.Encrypt(nonceSpan, payloadBytes, cipherSpan, tagSpan);
                 }
-                if (tag != null)
-                {
-                    tag.CopyTo(span.Slice(offset, tagLen));
-                    offset += tagLen;
-                }
+
+                writer.Advance(totalCryptoSize);
+#else
+                throw new PlatformNotSupportedException("Native AES-GCM requires .NET Standard 2.1 or .NET Core 3.0+");
+#endif
+            }
+            else
+            {
+                // Plaintext Payload
+                writer.Write(payloadBytes);
             }
 
-            // Payload
-            payload.CopyTo(span.Slice(offset));
-
-            return packet;
+            // Future helper: Integrity Signature (HMAC) could be appended here if we wanted to sign the whole packet
+            // Currently the signature is inside the payload or header?
+            // In the original code, Signature was part of JSON or checked separately.
+            // For BinaryPacket, we might want to append a signature footer if IntegrityKey is present.
+            // But the current spec doesn't show a footer in "Wire Format" comment,
+            // relying on GCM Tag for integrity (if encrypted) or external mechanism.
+            // We will stick to the format: Header + [Crypto] + Payload.
         }
 
-        public static TransportMessage? Deserialize(ReadOnlySpan<byte> buffer, int sequenceId, JsonSerializerOptions jsonOptions)
+        // Keep legacy Deserialize for now, but mark Obsolete or update it.
+        // We need an updated Reader-based Deserialize too.
+        public static TransportMessage? Deserialize(ReadOnlySpan<byte> buffer, int sequenceId, JsonSerializerOptions jsonOptions, byte[]? encryptionKey)
         {
              if (buffer.Length < 61) return null;
 
              if (buffer[0] != MagicByte) return null;
 
              PacketFlags flags = (PacketFlags)buffer[2];
-             
+
              int nonceLen = buffer[3];
              int tagLen = buffer[4];
              int nameLen = buffer[5];
 
-             int packetSeqId = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(16));
+             // int packetSeqId = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(16));
 
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
              Guid msgId = new Guid(buffer.Slice(20, 16));
@@ -151,46 +196,45 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 #endif
              int offset = 61 + typeLen + nameLen;
 
-             string? nonce = null;
-             string? tag = null;
              bool isEnc = flags.HasFlag(PacketFlags.Encrypted);
 
+             // Extract Payload (Auth/Decryption handled here for native Binary Packet)
+             object? messageData = null;
+
              if (isEnc)
              {
-                 if (nonceLen > 0 && offset + nonceLen <= buffer.Length)
-                 {
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
-                     nonce = Convert.ToBase64String(buffer.Slice(offset, nonceLen));
+                 if (encryptionKey == null) throw new System.Security.Authentication.AuthenticationException("Received encrypted packet but no key configured.");
+
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
+                 // Bounds check
+                 if (offset + nonceLen + tagLen > buffer.Length) return null;
+
+                 var nonceSpan = buffer.Slice(offset, nonceLen);
+                 var tagSpan = buffer.Slice(offset + nonceLen, tagLen);
+                 var cipherSpan = buffer.Slice(offset + nonceLen + tagLen);
+
+                 // Decrypt into temporary buffer (or string)
+                 // We don't know the plaintext length exactly but it matches ciphertext length for GCM
+                 byte[] plainBytes = new byte[cipherSpan.Length];
+
+#if NET8_0_OR_GREATER
+                 using (var aesGcm = new System.Security.Cryptography.AesGcm(encryptionKey, 16))
 #else
-                     nonce = Convert.ToBase64String(buffer.Slice(offset, nonceLen).ToArray());
+                 using (var aesGcm = new System.Security.Cryptography.AesGcm(encryptionKey))
 #endif
-                     offset += nonceLen;
+                 {
+                     aesGcm.Decrypt(nonceSpan, cipherSpan, tagSpan, plainBytes);
                  }
 
-                 if (tagLen > 0 && offset + tagLen <= buffer.Length)
-                 {
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
-                     tag = Convert.ToBase64String(buffer.Slice(offset, tagLen));
+                 // Payload is JSON bytes
+                 messageData = JsonSerializer.Deserialize<JsonElement>(plainBytes, jsonOptions);
 #else
-                     tag = Convert.ToBase64String(buffer.Slice(offset, tagLen).ToArray());
-#endif
-                     offset += tagLen;
-                 }
-            }
-
-             var payloadSlice = buffer.Slice(offset);
-
-             object messageData;
-             if (isEnc)
-             {
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
-                 messageData = Convert.ToBase64String(payloadSlice);
-#else
-                 messageData = Convert.ToBase64String(payloadSlice.ToArray());
+                 throw new PlatformNotSupportedException("Native AES-GCM requires .NET Standard 2.1 or .NET Core 3.0+");
 #endif
              }
              else
              {
+                 var payloadSlice = buffer.Slice(offset);
                  messageData = JsonSerializer.Deserialize<JsonElement>(payloadSlice, jsonOptions);
              }
 
@@ -201,10 +245,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                  MessageType = messageType,
                  RequestAck = flags.HasFlag(PacketFlags.RequestAck),
                  IsEncrypted = isEnc,
-                 Nonce = nonce,
-                 Tag = tag,
+                 Nonce = null, // Not needed for app layer anymore
+                 Tag = null,
                  TimeStamp = new DateTime(ticks).ToString(TransportMessage.DATE_FORMAT_NOW),
-                 MessageData = messageData
+                 MessageData = messageData!
              };
         }
     }

@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Buffers;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -20,6 +21,25 @@ using Ubicomp.Utils.NET.Sockets;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
 {
+    /// <summary>
+    /// The central component for managing multicast transport communication.
+    /// Handles message serialization, sequential processing via a gatekeeper,
+    /// and routing messages to registered handlers.
+    /// </summary>
+    public class MessageErrorEventArgs : EventArgs
+    {
+        public SocketMessage RawMessage { get; }
+        public Exception? Exception { get; }
+        public string Reason { get; }
+
+        public MessageErrorEventArgs(SocketMessage msg, string reason, Exception? ex = null)
+        {
+            RawMessage = msg;
+            Reason = reason;
+            Exception = ex;
+        }
+    }
+
     /// <summary>
     /// The central component for managing multicast transport communication.
     /// Handles message serialization, sequential processing via a gatekeeper,
@@ -98,6 +118,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             add => _peerTable.OnPeerLost += value;
             remove => _peerTable.OnPeerLost -= value;
         }
+
+        /// <summary>
+        /// Event raised when a message fails to process (Dead Letter).
+        /// </summary>
+        public event EventHandler<MessageErrorEventArgs>? OnMessageError;
 
         private abstract class GateCmd { }
         private class InputMsgCmd : GateCmd { public SocketMessage Msg = null!; }
@@ -198,27 +223,33 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             {
                 byte[] masterKey = Encoding.UTF8.GetBytes(_securityKey!);
 
-                // HKDF-like derivation using HMAC-SHA256
-                // Salt is empty for simplicity in this implementation (Plan 1)
-                // Info strings separate the contexts
-
-                using (var hmac = new HMACSHA256(masterKey))
+                // S2: Secure Memory Erasure (Best Effort)
+                try
                 {
-                    // Derive Integrity Key
-                    byte[] infoIntegrity = Encoding.UTF8.GetBytes("Ubicomp.Utils.NET.Integrity");
-                    _integrityKey = hmac.ComputeHash(infoIntegrity);
+                    using (var hmac = new HMACSHA256(masterKey))
+                    {
+                        // Derive Integrity Key
+                        byte[] infoIntegrity = Encoding.UTF8.GetBytes("Ubicomp.Utils.NET.Integrity");
+                        _integrityKey = hmac.ComputeHash(infoIntegrity);
+                        Array.Clear(infoIntegrity, 0, infoIntegrity.Length);
 
-                    // Derive Encryption Key
-                    byte[] infoEncryption = Encoding.UTF8.GetBytes("Ubicomp.Utils.NET.Encryption");
-                    _encryptionKey = hmac.ComputeHash(infoEncryption);
+                        // Derive Encryption Key
+                        byte[] infoEncryption = Encoding.UTF8.GetBytes("Ubicomp.Utils.NET.Encryption");
+                        _encryptionKey = hmac.ComputeHash(infoEncryption);
+                        Array.Clear(infoEncryption, 0, infoEncryption.Length);
 
 #if NET8_0_OR_GREATER
-                    _aesGcmInstance?.Dispose();
-                    _aesGcmInstance = new System.Security.Cryptography.AesGcm(_encryptionKey, 16);
+                        _aesGcmInstance?.Dispose();
+                        _aesGcmInstance = new System.Security.Cryptography.AesGcm(_encryptionKey, 16);
 #elif NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
-                    _aesGcmInstance?.Dispose();
-                    _aesGcmInstance = new System.Security.Cryptography.AesGcm(_encryptionKey);
+                        _aesGcmInstance?.Dispose();
+                        _aesGcmInstance = new System.Security.Cryptography.AesGcm(_encryptionKey);
 #endif
+                    }
+                }
+                finally
+                {
+                    Array.Clear(masterKey, 0, masterKey.Length);
                 }
             }
             catch (Exception ex)
@@ -250,6 +281,13 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 #endif
 
             // Fallback to AES-CBC
+            // S5: Authenticated Encryption Enforcement
+#if NET8_0_OR_GREATER
+            if (EncryptionEnabled)
+            {
+                 throw new CryptographicException("Legacy CBC encryption is disabled when EncryptionEnabled is true. Incoming message rejected.");
+            }
+#endif
             using (var aes = Aes.Create())
             {
                 aes.Key = _encryptionKey;
@@ -323,6 +361,13 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
 #endif
             // Fallback CBC
+            // S5: Authenticated Encryption Enforcement
+#if NET8_0_OR_GREATER
+            if (EncryptionEnabled)
+            {
+                 throw new CryptographicException("Legacy CBC encryption is disabled when EncryptionEnabled is true.");
+            }
+#endif
             using (var aes = Aes.Create())
             {
                 aes.Key = _encryptionKey;
@@ -730,6 +775,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public void Dispose()
         {
             Stop();
+            // S2: Secure Memory Erasure
+            if (_integrityKey != null) Array.Clear(_integrityKey, 0, _integrityKey.Length);
+            if (_encryptionKey != null) Array.Clear(_encryptionKey, 0, _encryptionKey.Length);
+
             try
             {
                 _messageSubject.OnCompleted();
@@ -756,6 +805,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     // Send without ACK, fire and forget
                     await SendAsync(heartbeat);
 
+                    // S3: Cleanup stale replay data
+                    CleanupReplayProtection();
+
                     // Cleanup stale peers
                     _peerTable.CleanupStalePeers(TimeSpan.FromSeconds(HeartbeatInterval!.Value.TotalSeconds * 3));
 
@@ -778,6 +830,19 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 return; // Ignore self
 
             _peerTable.UpdatePeer(msg.SourceId, msg.DeviceName, msg.Metadata);
+        }
+
+        private void CleanupReplayProtection()
+        {
+             // S3: Remove replay windows irrelevant for more than 5 minutes (or 5x Heartbeat)
+             var threshold = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(5));
+             foreach (var kvp in _replayProtection)
+             {
+                  if (kvp.Value.LastActivity < threshold)
+                  {
+                       _replayProtection.TryRemove(kvp.Key, out _);
+                  }
+             }
         }
 
         /// <summary>
@@ -864,41 +929,29 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     });
             }
 
-            // --- Encryption Logic --- (Legacy JSON logic removed effectively by binary path)
-             // ... We will use Binary Packet logic which handles encryption on bytes
+            // NEW: Zero-Allocation Serialization with Native Encryption
+            // We use ArrayBufferWriter to write directly to a buffer, avoiding intermediate arrays and Base64 strings.
+            var writer = new ArrayBufferWriter<byte>();
 
-            // Serialize Payload first
-            byte[] payloadBytes = JsonSerializer.SerializeToUtf8Bytes(message.MessageData, _jsonOptions);
-            byte[]? bNonce = null;
-            byte[]? bTag = null;
-
-            if (EncryptionEnabled)
+            try
             {
-                var (cipher, n, t) = EncryptBytes(payloadBytes);
-                if (cipher != null)
+                // Ensure the message knows it should be encrypted if enabled
+                if (EncryptionEnabled && _encryptionKey != null)
                 {
-                    payloadBytes = cipher;
                     message.IsEncrypted = true;
-                    bNonce = n;
-                    bTag = t;
-                    // message.Nonce/Tag strings not strictly needed for binary path but good for object consistency if inspected
-                    message.Nonce = n != null ? Convert.ToBase64String(n) : null;
-                    message.Tag = t != null ? Convert.ToBase64String(t) : null;
                 }
+
+                BinaryPacket.SerializeToWriter(writer, message, 0, _integrityKey, _encryptionKey, _jsonOptions);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to serialize message {0}", message.MessageId);
+                throw;
             }
 
-            // --- Binary Serialization ---
-            // Use dummy sequenceId here? The socket assigns the actual sequence ID.
-            // But our BinaryPacket puts SeqID in the header.
-            // The SocketMessage.SequenceId is assigned ON RECEIVE.
-            // The Sender should also assign a sequence ID?
-            // "GateKeeper" uses arrival order.
-            // "TransportMessage" doesn't have a SeqID field property.
-            // The binary header has it.
-            // We can send 0 for now or implement sender-side sequencing.
-            // Let's send 0.
-
-            byte[] packet = BinaryPacket.Serialize(message, 0, bNonce, bTag, payloadBytes);
+            // TODO: In Phase 3 (Socket Opt), we will pass the ReadOnlyMemory directly to the socket
+            // to avoid this ToArray() allocation.
+            byte[] packet = writer.WrittenSpan.ToArray();
 
             if (_socket != null)
             {
@@ -971,13 +1024,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                      try
                      {
                          // msg.Data is full buffer, use Span with length
-                         tMessage = BinaryPacket.Deserialize(msg.Data.AsSpan(0, msg.Length), msg.ArrivalSequenceId, _jsonOptions);
+                         // v2 Update: Pass encryption key for native decryption
+                         tMessage = BinaryPacket.Deserialize(msg.Data.AsSpan(0, msg.Length), msg.ArrivalSequenceId, _jsonOptions, _encryptionKey);
                      }
-                     catch (Exception ex)
-                     {
-                          Logger.LogError(ex, "Failed to deserialize binary packet.");
-                          return;
-                     }
+                      catch (Exception ex)
+                      {
+                           Logger.LogError(ex, "Failed to deserialize binary packet.");
+                           OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Binary Deserialization Failed", ex));
+                           return;
+                      }
                 }
                 else
                 {
@@ -991,32 +1046,34 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
                 if (tMessage != null)
                 {
+                    TransportMessage message = tMessage.Value;
+
                     // --- Replay Protection (Timestamp Check) ---
-                    if (DateTime.TryParse(tMessage.TimeStamp, out var ts))
+                    if (DateTime.TryParse(message.TimeStamp, out var ts))
                     {
                         // Allow small clock skew (future messages) and enforce replay window (past messages)
                         var now = DateTime.Now;
                         if (ts < now.Subtract(ReplayWindow))
                         {
-                            Logger.LogWarning("Dropped replay/old message {0} (Timestamp: {1}). Window is {2}s.", tMessage.MessageId, tMessage.TimeStamp, ReplayWindow.TotalSeconds);
+                            Logger.LogWarning("Dropped replay/old message {0} (Timestamp: {1}). Window is {2}s.", message.MessageId, message.TimeStamp, ReplayWindow.TotalSeconds);
                             return;
                         }
                     }
                     else
                     {
-                         Logger.LogWarning("Dropped message {0} with invalid timestamp.", tMessage.MessageId);
+                         Logger.LogWarning("Dropped message {0} with invalid timestamp.", message.MessageId);
                          return;
                     }
                     // ------------------------------------------
 
                     // Feature 5: Strict Replay Protection
                     // ------------------------------------------
-                    var window = _replayProtection.GetOrAdd(tMessage.MessageSource.ResourceId, _ => new ReplayWindow());
+                    var window = _replayProtection.GetOrAdd(message.MessageSource.ResourceId, _ => new ReplayWindow());
                     if (!window.CheckAndMark(msg.ArrivalSequenceId))
                     {
                         if (Logger.IsEnabled(LogLevel.Warning))
                         {
-                            Logger.LogWarning("Dropped replay/old message. Seq: {SequenceId}, Source: {Source}", msg.ArrivalSequenceId, tMessage.MessageSource.ResourceId);
+                            Logger.LogWarning("Dropped replay/old message. Seq: {SequenceId}, Source: {Source}", msg.ArrivalSequenceId, message.MessageSource.ResourceId);
                         }
                         return; // Drop packet
                     }
@@ -1024,50 +1081,49 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     // ------------------------------------------
                     // Logic to handle message processing
                     // ------------------------------------------
-                    // If it was legacy JSON, verify signature.
+                    // If it was legacy JSON, verify signature. (Binary Packet already verified/decrypted in steps above if using native mode)
                     if (msg.Data[0] != BinaryPacket.MagicByte)
                     {
-                        if (string.IsNullOrEmpty(tMessage.Signature))
+                        if (string.IsNullOrEmpty(message.Signature))
                         {
-                            Logger.LogWarning("Dropped unsigned message {0}.", tMessage.MessageId);
+                            Logger.LogWarning("Dropped unsigned message {0}.", message.MessageId);
+                            OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Missing Signature"));
                             return;
                         }
 
-                        string expectedSignature = ComputeSignature(tMessage, _integrityKey);
+                        string expectedSignature = ComputeSignature(message, _integrityKey);
 
-                        if (tMessage.Signature != expectedSignature)
+                        if (message.Signature != expectedSignature)
                         {
-                            Logger.LogWarning("Dropped message {0} with invalid signature.", tMessage.MessageId);
+                            Logger.LogWarning("Dropped message {0} with invalid signature.", message.MessageId);
+                            OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Invalid Signature"));
                             return;
                         }
                     }
 
                     // --- Decryption Logic ---
-                    if (tMessage.IsEncrypted)
-                    {
-                         // If Binary: MessageData is Base64 String
-                         // If JSON: MessageData is Base64 String (or JsonElement)
+                    // Legacy Support: If still IsEncrypted but MessageData is String (Base64) and Nonce is present, it might be Legacy AES-GCM/CBC.
+                    // However, new BinaryPacket.Deserialize handles decryption internally for native binary packets.
+                    // So we only need to check this for Legacy JSON packets OR if Binary deserializer returned encrypted implementation (which it shouldn't for native).
 
-                         if (tMessage.MessageData is string cipherText)
+                    if (message.IsEncrypted && message.MessageData is string cipherText && message.Nonce != null)
+                    {
+                         // This path is now primarily for LEGACY JSON encrypted flows
+                         try
                          {
-                             if (tMessage.Nonce != null)
-                             {
-                                 try
-                                 {
-                                     string plainText = Decrypt(cipherText, tMessage.Nonce, tMessage.Tag);
-                                     tMessage.MessageData = plainText; // Now it is JSON string
-                                 }
-                                 catch (Exception ex)
-                                 {
-                                     Logger.LogError(ex, "Decryption failed for message {0}.", tMessage.MessageId);
-                                     return;
-                                 }
-                             }
+                             string plainText = Decrypt(cipherText, message.Nonce, message.Tag);
+                             message.MessageData = plainText; // Now it is JSON string
+                         }
+                         catch (Exception ex)
+                         {
+                             Logger.LogError(ex, "Decryption failed for message {0}.", message.MessageId);
+                             OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Decryption Failed", ex));
+                             return;
                          }
                     }
                     // ------------------------
 
-                    ProcessTransportMessage(tMessage, msg.ArrivalSequenceId);
+                    ProcessTransportMessage(message, msg.ArrivalSequenceId);
                 }
             }
             catch (Exception ex)
@@ -1144,49 +1200,112 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             if (handled && AutoSendAcks && tMessage.RequestAck &&
                 tMessage.MessageType != AckMessageType)
             {
-                Logger.LogTrace(
-                    "Automatically sending Ack for message {0}",
-                    tMessage.MessageId);
-                _ = SendAckAsync(tMessage.MessageId);
+                // S4: Traffic Amplification Mitigation (Rate Limit Acks)
+                bool allowed = true;
+                if (_replayProtection.TryGetValue(tMessage.MessageSource.ResourceId, out var window))
+                {
+                     allowed = window.CheckAckRateLimit();
+                }
+
+                if (allowed)
+                {
+                    Logger.LogTrace(
+                        "Automatically sending Ack for message {0}",
+                        tMessage.MessageId);
+                    _ = SendAckAsync(tMessage.MessageId);
+                }
+                else
+                {
+                    Logger.LogWarning("Ack Rate Limit exceeded for {0}. Dropping Ack.", tMessage.MessageSource.ResourceId);
+                }
             }
         }
 
         internal string ComputeSignature(TransportMessage message, byte[]? keyBytes)
         {
-            // Signature = Hash or HMAC of (MessageId + TimeStamp + MessageType + JsonData + RequestAck)
-            var sb = new StringBuilder();
-            sb.Append(message.MessageId.ToString());
-            sb.Append(message.TimeStamp);
-            sb.Append(message.MessageType);
-            sb.Append(message.RequestAck.ToString().ToLower());
-            sb.Append(message.IsEncrypted.ToString().ToLower());
-            sb.Append(message.Nonce ?? "");
-            sb.Append(message.Tag ?? "");
+            // P5: Canonical Signature Optimization
+            // Use ArrayBufferWriter to avoid intermediate string allocations
+            var writer = new ArrayBufferWriter<byte>();
 
-            // Best effort serialization for signature checks
-            string dataJson = JsonSerializer.Serialize(message.MessageData, _jsonOptions);
-            sb.Append(dataJson);
+            // 1. MessageId (Guid)
+            // Use "D" format (hyphens, usually lowercase hex in .NET)
+            // Note: Guid.ToString() defaults to "D".
+            // To match exact legacy behavior: sb.Append(message.MessageId.ToString());
+            string guidStr = message.MessageId.ToString();
+            WriteAscii(writer, guidStr);
 
-            byte[] payloadBytes = Encoding.UTF8.GetBytes(sb.ToString());
+            // 2. TimeStamp
+            WriteAscii(writer, message.TimeStamp);
+
+            // 3. MessageType
+            WriteAscii(writer, message.MessageType);
+
+            // 4. RequestAck (bool -> "true"/"false")
+            WriteAscii(writer, message.RequestAck ? "true" : "false");
+
+            // 5. IsEncrypted
+            WriteAscii(writer, message.IsEncrypted ? "true" : "false");
+
+            // 6. Nonce
+            if (message.Nonce != null) WriteAscii(writer, message.Nonce);
+
+            // 7. Tag
+            if (message.Tag != null) WriteAscii(writer, message.Tag);
+
+            // 8. MessageData (JSON)
+            // Serialize directly to the writer
+            using (var jsonWriter = new Utf8JsonWriter(writer))
+            {
+                JsonSerializer.Serialize(jsonWriter, message.MessageData, _jsonOptions);
+            }
+
+            // Hashing
+            byte[] hash;
+            var payload = writer.WrittenSpan;
 
             if (keyBytes != null && keyBytes.Length > 0)
             {
-                // HMAC Mode
+#if NET8_0_OR_GREATER
+                hash = HMACSHA256.HashData(keyBytes, payload);
+#else
                 using (var hmac = new HMACSHA256(keyBytes))
                 {
-                    byte[] hash = hmac.ComputeHash(payloadBytes);
-                    return Convert.ToBase64String(hash);
+                    // ComputeHash requires byte[] on netstandard2.0 mostly, but we can verify if it accepts raw inputs
+                    // internal ArrayBufferWriter allows access to buffer? WrittenSpan can be copied if needed.
+                    // writer.WrittenSpan is ReadOnlySpan.
+                    // HMAC.ComputeHash(byte[], int, int) exists in NS2.0
+                    // ArrayBufferWriter guarantees contiguous buffer? Not necessarily if using linked list, but our implementation uses single array.
+                    // Our internal ArrayBufferWriter wraps a single array (resizes).
+                    // So we can use the underlying array if we expose it or copy.
+                    // Our ArrayBufferWriter exposes WrittenSpan.
+                    // ToArray() is safe fallback.
+                    hash = hmac.ComputeHash(writer.WrittenSpan.ToArray());
                 }
+#endif
             }
             else
             {
-                // Simple SHA256 Mode
+#if NET8_0_OR_GREATER
+                hash = SHA256.HashData(payload);
+#else
                 using (var sha = SHA256.Create())
                 {
-                    byte[] hash = sha.ComputeHash(payloadBytes);
-                    return Convert.ToBase64String(hash);
+                    hash = sha.ComputeHash(writer.WrittenSpan.ToArray());
                 }
+#endif
             }
+
+            return Convert.ToBase64String(hash);
+        }
+
+        private void WriteAscii(IBufferWriter<byte> writer, string value)
+        {
+            if (string.IsNullOrEmpty(value)) return;
+            // For ASCII/UTF8 validation, GetBytes is sufficient.
+            // In .NET 8 we could use Encoding.UTF8.GetBytes(value, writer.GetSpan(value.Length));
+            // fallback to simpler approach for now to handle both targets cleanly.
+            var bytes = Encoding.UTF8.GetBytes(value);
+            writer.Write(bytes);
         }
     }
 }

@@ -29,6 +29,7 @@ namespace Ubicomp.Utils.NET.Generators.AutoDiscovery
 
 namespace Ubicomp.Utils.NET.Tests
 {
+    [Collection("TransportBuilderTests")]
     public class TransportBuilderAutoDiscoveryTests
     {
         [Fact]

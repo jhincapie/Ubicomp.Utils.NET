@@ -11,36 +11,23 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     /// <summary>
     /// Identifies the source of a transport message.
     /// </summary>
-    public class EventSource
+    public struct EventSource
     {
         /// <summary>Gets or sets the unique ID of the resource
         /// source.</summary>
         [JsonPropertyName("resourceId")]
-        public Guid ResourceId
-        {
-            get; set;
-        }
+        public Guid ResourceId { get; set; }
 
         /// <summary>Gets or sets the name of the resource source.</summary>
         [JsonPropertyName("resourceName")]
-        public string ResourceName { get; set; } = string.Empty;
+        public string ResourceName { get; set; }
 
         /// <summary>Gets or sets a friendly name for the source.</summary>
         [JsonPropertyName("friendlyName")]
-        public string? FriendlyName
-        {
-            get; set;
-        }
+        public string? FriendlyName { get; set; }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="EventSource"/> class.
-        /// </summary>
-        public EventSource()
-        {
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="EventSource"/> class.
+        /// Initializes a new instance of the <see cref="EventSource"/> struct.
         /// </summary>
         /// <param name="resourceId">The source resource ID.</param>
         /// <param name="resourceName">The source resource name.</param>
@@ -52,7 +39,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="EventSource"/> class.
+        /// Initializes a new instance of the <see cref="EventSource"/> struct.
         /// </summary>
         /// <param name="resourceId">The source resource ID.</param>
         /// <param name="resourceName">The source resource name.</param>
