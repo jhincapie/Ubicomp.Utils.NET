@@ -16,3 +16,8 @@
 ## Dependencies
 *   `Microsoft.CodeAnalysis.CSharp`
 *   `Microsoft.CodeAnalysis.Analyzers`
+
+## Do's and Don'ts
+*   **Do** decorate message classes with `[MessageType("id")]` to enable auto-discovery.
+*   **Do** ensure the `Generators` project is referenced as an analyzer in the consuming project.
+*   **Don't** manually call `RegisterMessageType` if you are using `TransportBuilder.Build()`, as it handles this automatically.

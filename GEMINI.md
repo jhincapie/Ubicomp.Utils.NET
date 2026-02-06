@@ -36,6 +36,10 @@ The solution is structured into several key projects:
 *   **Role**: Roslyn Source Generator.
 *   **Function**: Scans code for `[MessageType]` attributes and generates extension methods to automatically register them with the Transport component.
 
+### 5. CLI
+*   **Role**: Command-line interface tools.
+*   **Function**: Provides network diagnostics (`check`) and packet sniffing (`sniff`) capabilities.
+
 ### Applications & Tests (`net8.0`)
 *   **`SampleApp`**: Demonstrates library usage.
 *   **`ContextAwarenessFramework.TestApp`**: Context framework testbed.

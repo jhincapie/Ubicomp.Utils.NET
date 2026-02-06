@@ -10,6 +10,8 @@
 *   **`SocketMessage`**: Represents a received packet.
     *   **Pooling**: Utilizes `ObjectPool<SocketMessage>` and `ArrayPool<byte>` to minimize Garbage Collection (GC) pressure.
 *   **`SocketErrorContext`**: Provides details about runtime exceptions.
+*   **`InMemoryMulticastSocket`**: An in-memory implementation of `IMulticastSocket` for unit testing.
+    *   **Simulation**: Uses a shared `ConcurrentDictionary` and `Channel` to simulate a multicast network bus within the same process.
 
 ## Diagrams
 ![MulticastSocket Class Diagram](assets/class_diagram.png)

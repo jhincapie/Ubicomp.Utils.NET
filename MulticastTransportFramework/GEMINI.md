@@ -36,6 +36,13 @@
 *   **`BinaryPacket`**: The wire-format structure.
 *   **`AckSession`**: Manages state for pending acknowledgements.
 
+## Do's and Don'ts
+*   **Do** use `TransportBuilder` to construct the component.
+*   **Do** define message types as POCOs with the `[MessageType]` attribute.
+*   **Do** ensure `GateKeeper` is enabled if message ordering is critical.
+*   **Don't** manually instantiate `TransportComponent` without the builder unless you are writing a custom factory.
+*   **Don't** modify `BinaryPacket` structure without updating the corresponding tests and versioning logic.
+
 ## Dependencies
 *   **Internal**: `MulticastSocket`
 *   **External**: `System.Text.Json`, `Microsoft.Extensions.Logging.Abstractions`

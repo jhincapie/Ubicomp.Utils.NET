@@ -32,3 +32,9 @@ The framework follows the **Monitor-Service-Entity (MSE)** pattern to separate c
 ## Persistence
 *   **Pattern**: Template Method (`ExecutePersist`, `PersistEntities`).
 *   **Modes**: `Periodic`, `OnRequest`, `Combined`.
+
+## Do's and Don'ts
+*   **Do** inherit from `ContextMonitor` for new data sources.
+*   **Do** keep `IEntity` classes simple (POCOs) for easier serialization.
+*   **Don't** perform heavy computation on the UI thread; let the Monitor's background thread handle data acquisition.
+*   **Don't** assume `ContextService` updates run on the UI thread; always marshal if updating the View.
