@@ -84,7 +84,8 @@ namespace Benchmarks
             var msg = System.Text.Json.JsonSerializer.Deserialize<TransportMessage>(_jsonSystemText, _systemTextOptions)!;
             if (msg.MessageData is JsonElement element)
             {
-                msg.MessageData = System.Text.Json.JsonSerializer.Deserialize(element.GetRawText(), _knownTypes[msg.MessageType], _systemTextOptions)!;
+                // Bolt Optimization: Deserialize directly from JsonElement
+                msg.MessageData = System.Text.Json.JsonSerializer.Deserialize(element, _knownTypes[msg.MessageType], _systemTextOptions)!;
             }
             return msg;
         }
