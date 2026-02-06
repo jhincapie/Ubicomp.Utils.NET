@@ -14,6 +14,7 @@
     *   **Decoupling**: Uses `System.Threading.Channels` to decouple the high-speed receive loop from the processing logic.
 *   **`SocketMessage`**: Represents a received packet.
     *   **Pooling**: Utilizes `ObjectPool<SocketMessage>` and `ArrayPool<byte>` to minimize Garbage Collection (GC) pressure in high-throughput scenarios.
+*   **`InMemoryMulticastSocket`**: A testing utility that simulates multicast traffic in-memory, avoiding OS networking stack calls.
 
 ## Implementation Details
 *   **Threading**: A dedicated `ReceiveAsyncLoop` offloads incoming data to a bounded Channel. Consumers process messages from this channel.
@@ -22,6 +23,12 @@
     *   **Legacy (.NET Standard 2.0)**: APM Wrappers (`BeginReceiveFrom`).
 *   **Socket Options**: Configurable via `MulticastSocketOptions` (Buffer size, TTL, Loopback). `NoDelay` is set safely (try-catch).
 *   **Sequence ID**: Assigns a monotonic sequence ID to every received packet, enabling ordering logic in higher layers.
+
+## Do's and Don'ts
+*   **Do** use `GetMessageStream()` for consuming messages in a modern, async-friendly way.
+*   **Do** use `MulticastSocketBuilder` to configure the socket.
+*   **Don't** use the legacy `ReceiveCallback` or `StateObject` unless strictly necessary for `netstandard2.0` maintenance.
+*   **Don't** forget to `Dispose()` the socket or the messages if manual handling is required.
 
 ## Usage
 Used by **MulticastTransportFramework**, but valid for any low-level multicast needs.

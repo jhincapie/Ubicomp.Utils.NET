@@ -42,6 +42,7 @@ A Roslyn Source Generator project to automate boilerplate.
 *   [**MulticastTransportFramework**](MulticastTransportFramework/README.md): High-level messaging and transport layer.
 *   [**ContextAwarenessFramework**](ContextAwarenessFramework/README.md): Framework for context sensing and data management.
 *   [**Generators**](Generators/README.md): Source generation tools.
+*   [**CLI**](CLI/README.md): Command-line diagnostic and sniffing tools.
 
 ## Modernization Status
 This project employs a multi-targeting strategy to balance compatibility and performance.
