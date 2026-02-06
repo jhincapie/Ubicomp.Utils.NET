@@ -1087,7 +1087,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 {
                     try
                     {
-                        tMessage.MessageData = JsonSerializer.Deserialize(element.GetRawText(), targetType, _jsonOptions)!;
+                        // Bolt Optimization: Deserialize directly from JsonElement to avoid string allocation from GetRawText()
+                        tMessage.MessageData = JsonSerializer.Deserialize(element, targetType, _jsonOptions)!;
                     }
                     catch (Exception ex)
                     {
