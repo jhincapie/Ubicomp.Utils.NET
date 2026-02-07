@@ -1,17 +1,18 @@
 # Multicast.TestApp Context
 
 ## Purpose
-A minimal test application focusing solely on the `MulticastSocket` layer. It bypasses the higher-level Transport Framework.
+A minimal test application using the `TransportComponent` from the `MulticastTransportFramework`.
 
 ## Use Cases
-*   **Isolation Testing**: Debugging raw socket issues without the noise of the Transport Framework (GateKeeper, Serialization, etc.).
-*   **Interface Binding**: Verifying `JoinGroup` behavior on specific network interfaces.
-*   **Packet Inspection**: Verifying raw byte arrival.
+*   **Isolation Testing**: Debugging transport issues with minimal configuration.
+*   **Interface Binding**: Verifying network interface selection.
+*   **Basic Send/Receive**: Confirming basic message flow.
 
 ## Key Files
-*   `Program.cs`: Sets up a `MulticastSocket`, joins a group, and logs received packets.
+*   `Program.cs`: Sets up a `TransportComponent` using `TransportBuilder`, registers a handler for `MockMessage`, and sends a few test messages.
+*   `MockMessage.cs`: A simple POCO used for testing.
 
 ## Do's and Don'ts
-*   **Do** use this app for isolating network interface issues.
-*   **Do** verify that `LocalIP` binding works as expected here before checking higher layers.
-*   **Don't** add complex transport logic (ACKs, ordering) here; keep it raw.
+*   **Do** use this app for quick connectivity checks.
+*   **Do** modify `Program.cs` to test specific network configurations (e.g., TTL, Interface).
+*   **Don't** assume this tests the raw socket layer directly; it still goes through the `TransportComponent`. Use the `CLI` tool's `sniff` command for raw socket inspection.

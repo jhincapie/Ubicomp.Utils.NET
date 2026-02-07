@@ -6,7 +6,6 @@ Performance verification using `BenchmarkDotNet`.
 ## Key Benchmarks
 *   **Serialization**: `Newtonsoft.Json` vs `System.Text.Json`.
     *   *Result*: `System.Text.Json` is ~2x faster and is the default for the framework.
-*   **Transport**: Measuring throughput of `TransportComponent` message processing.
 
 ## Usage
 Run in `Release` mode to get accurate results.
