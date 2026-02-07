@@ -510,6 +510,8 @@ namespace Ubicomp.Utils.NET.Sockets
             if (_udpSocket == null)
                 return;
 
+            await Task.Yield();
+
             Logger.LogTrace("Sending memory data: {Length} bytes", buffer.Length);
             var remoteEndPoint = new IPEndPoint(IPAddress.Parse(_options.GroupAddress), _options.Port);
 
