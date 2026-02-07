@@ -461,8 +461,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 throw;
             }
 
-            byte[] packet = writer.WrittenSpan.ToArray();
-            if (_socket != null) await _socket.SendAsync(packet);
+            if (_socket != null) await _socket.SendAsync(writer.WrittenMemory);
 
             if (!message.RequestAck) session.ReportAck(LocalSource);
 

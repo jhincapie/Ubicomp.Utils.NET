@@ -36,6 +36,11 @@ namespace Ubicomp.Utils.NET.Sockets
         IAsyncEnumerable<SocketMessage> GetMessageStream(CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// Sends a memory buffer asynchronously.
+        /// </summary>
+        ValueTask SendAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Sends a byte array asynchronously.
         /// </summary>
         Task SendAsync(byte[] bytesToSend);

@@ -9,3 +9,7 @@
 ## 2024-05-23 - Ordering Logic and Thread Safety
 **Learning:** The `importLock` in `TransportComponent` was `static`, meaning it locked deserialization across all instances. However, message ordering (`EnforceOrdering`) is handled by a per-instance `gate` lock. Removing the static lock does not compromise ordering logic, even for out-of-order delivery, as validated by `TransportOrderingBenchmark`.
 **Action:** Ensure logical ordering mechanisms (like buffering queues) are separate from processing safeguards (like serialization locks).
+
+## 2024-05-24 - Zero-Allocation Send with ValueTask
+**Learning:** Replacing `Task`-based APM socket methods with `ValueTask`-based `SendToAsync` allows passing `ReadOnlyMemory<byte>` directly, eliminating `byte[]` allocations and `Task` object overhead for every packet sent.
+**Action:** Prefer `ValueTask` and `ReadOnlyMemory<byte>` over `byte[]` and `Task` for high-frequency network I/O methods.
