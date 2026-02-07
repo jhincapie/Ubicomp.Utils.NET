@@ -96,8 +96,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     {
         private volatile KeySession? _currentSession;
         private volatile KeySession? _previousSession;
-        private readonly ILogger _logger;
+        private ILogger _logger;
         private readonly object _lock = new object();
+
+        public ILogger Logger
+        {
+            get => _logger;
+            set => _logger = value ?? NullLogger.Instance;
+        }
 
         public KeyManager(ILogger? logger = null)
         {
