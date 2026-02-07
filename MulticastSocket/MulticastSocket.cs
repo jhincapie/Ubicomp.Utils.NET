@@ -495,6 +495,28 @@ namespace Ubicomp.Utils.NET.Sockets
         }
 
         /// <summary>
+        /// Sends a memory buffer asynchronously over the multicast socket.
+        /// </summary>
+        /// <param name="buffer">The memory buffer containing the data to send.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A task that completes when the send operation is finished.</returns>
+        public async ValueTask SendAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (buffer.Length > MaxMessageSize)
+            {
+                throw new ArgumentException($"Message size {buffer.Length} bytes exceeds the maximum allowed size of {MaxMessageSize} bytes.", nameof(buffer));
+            }
+
+            if (_udpSocket == null)
+                return;
+
+            Logger.LogTrace("Sending memory data: {Length} bytes", buffer.Length);
+            var remoteEndPoint = new IPEndPoint(IPAddress.Parse(_options.GroupAddress), _options.Port);
+
+            await _udpSocket.SendToAsync(buffer, SocketFlags.None, remoteEndPoint, cancellationToken);
+        }
+
+        /// <summary>
         /// Sends a string asynchronously over the multicast socket.
         /// </summary>
         /// <param name="sendData">The string data to send.</param>
