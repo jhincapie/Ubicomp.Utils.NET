@@ -50,13 +50,18 @@ await foreach (var msg in socket.GetMessageStream(cts.Token))
 ```
 
 ### Sending Messages
-```csharp
-// Send raw bytes
-byte[] data = Encoding.UTF8.GetBytes("Hello Multicast!");
-await socket.SendAsync(data);
+You can send data using `ReadOnlyMemory<byte>` for zero-copy efficiency, or simple strings.
 
-// Or use the string overload
+```csharp
+// 1. Zero-Allocation Send (Preferred)
+byte[] data = Encoding.UTF8.GetBytes("Hello Multicast!");
+await socket.SendAsync(new ReadOnlyMemory<byte>(data));
+
+// 2. String Send
 await socket.SendAsync("Hello Multicast!");
+
+// 3. Byte Array Send
+await socket.SendAsync(data);
 ```
 
 ## Dependencies

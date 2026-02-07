@@ -35,6 +35,8 @@ Interface for context data objects.
 
 ## Usage Example
 
+### 1. Define Components
+
 ```csharp
 // 1. Define Entity
 public class RoomTemperature : IEntity { ... }
@@ -47,19 +49,40 @@ public class HVACService : ContextService
 {
     private readonly RoomTemperature _entity = new RoomTemperature();
 
-    public HVACService(TempSensorMonitor monitor)
-    {
-        // Manual subscription
-        monitor.OnNotifyContextServices += this.UpdateMonitorReading;
-    }
-    
     protected override void CustomUpdateMonitorReading(object sender, NotifyContextMonitorListenersEventArgs e)
     {
         // Update logic here (Runs on background thread)
-        // Note: If binding _entity to UI, you must marshal this update to the UI thread manually.
-        // _entity.Value = ...
     }
 }
+```
+
+### 2. Wiring it Up (The Container Way)
+
+The framework provides static containers to manage the lifecycle of your components.
+
+```csharp
+using Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter;
+using Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService;
+
+// Setup
+var monitor = new TempSensorMonitor();
+var service = new HVACService();
+
+// Subscribe
+monitor.OnNotifyContextServices += service.UpdateMonitorReading;
+
+// Register & Start
+ContextMonitorContainer.AddMonitor(monitor);
+ContextServiceContainer.AddContextService(service);
+
+ContextMonitorContainer.StartMonitors();
+ContextServiceContainer.StartServices();
+
+// ... Application runs ...
+
+// Shutdown
+ContextMonitorContainer.StopMonitors();
+ContextServiceContainer.StopServices();
 ```
 
 ## Dependencies

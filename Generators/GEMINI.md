@@ -1,17 +1,25 @@
 # Generators Context
 
 ## Overview
-**Ubicomp.Utils.NET.Generators** is a Roslyn Source Generator project (targeting `.net8.0`) that implements `IIncrementalGenerator`.
+**Ubicomp.Utils.NET.Generators** is a Roslyn project (targeting `.net8.0`) that implements:
+1.  `IIncrementalGenerator`: For source generation.
+2.  `DiagnosticAnalyzer`: For code analysis.
 
-## Functionality
+## Components
+
+### Source Generator (`MessageTypeGenerator`)
 *   **Target**: Classes decorated with `[MessageType("id")]`.
 *   **Output**: `TransportExtensions.g.cs`.
 *   **Namespace**: `Ubicomp.Utils.NET.Generators.AutoDiscovery`.
 *   **Method**: `RegisterDiscoveredMessages(this TransportComponent component)`.
 
+### Analyzer (`MessageTypeAnalyzer`)
+*   **ID**: `UbicompNET001`
+*   **Target**: Invocations of `TransportComponent.SendAsync<T>`.
+*   **Logic**: Verifies that `T` has the `[MessageType]` attribute.
+
 ## Integration
 *   The `TransportBuilder.Build()` method in `MulticastTransportFramework` uses reflection to find `Ubicomp.Utils.NET.Generators.AutoDiscovery.TransportExtensions` and invoke `RegisterDiscoveredMessages`.
-*   This allows consumers to simply define message types, and the framework automatically becomes aware of them without manual registration calls.
 
 ## Dependencies
 *   `Microsoft.CodeAnalysis.CSharp`

@@ -1,40 +1,40 @@
-# Ubicomp.Utils.NET CLI
+# Ubicomp.Utils.NET.CLI
 
-A command-line tool for managing, diagnosing, and inspecting the multicast environment.
+A command-line tool for diagnosing and inspecting multicast network traffic using the **MulticastSocket** and **MulticastTransportFramework**.
 
-## Installation
-The tool is built as part of the solution.
+## Target Framework
+This tool targets **.NET 8.0**.
 
-```bash
-dotnet build CLI/Ubicomp.Utils.NET.CLI.csproj
-```
-
-## Usage
-
-Run the tool using `dotnet run`:
+## Installation & Usage
+You can run the tool directly from source:
 
 ```bash
-dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- <command> [options]
+dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- <command>
 ```
 
-### Commands
+## Commands
 
-#### `check`
-Runs a suite of network diagnostic tests to verify multicast functionality.
-*   **Checks**: Firewall status, Loopback capability.
-*   **Usage**:
-    ```bash
-    dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- check
-    ```
+### `check`
+Runs a suite of network diagnostics, including firewall checks and loopback tests, to verify that the environment is correctly configured for multicast.
 
-#### `sniff`
-Listens for multicast packets on the default group and dumps their contents to the console.
-*   **Usage**:
-    ```bash
-    dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- sniff
-    ```
-*   **Output**: Displays Source IP, Sequence ID, and a hex dump of the packet payload.
+```bash
+dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- check
+```
 
-## Dependencies
-*   `Ubicomp.Utils.NET.MulticastTransportFramework`
-*   `Microsoft.Extensions.Logging.Console`
+### `sniff`
+Listens for multicast packets on the default group (239.0.0.1:5000) and prints their raw contents to the console. Useful for verifying that packets are arriving on the wire.
+
+```bash
+dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- sniff
+```
+
+### `dashboard`
+Launches an interactive, live terminal dashboard (using Spectre.Console) that displays:
+*   Transport Status
+*   Active Peers
+*   Live Logs (Placeholder)
+*   Metrics (Placeholder)
+
+```bash
+dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- dashboard
+```

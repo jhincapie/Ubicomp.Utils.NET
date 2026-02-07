@@ -1,12 +1,12 @@
 # Multicast.TestApp
 
-A simple testbed application for validating the low-level **MulticastSocket** library functionality in isolation.
+A simple testbed application for validating the **MulticastTransportFramework** functionality in isolation.
 
 ## Purpose
-Unlike the `SampleApp` (which uses the full Transport Framework), this app focuses on the raw socket layer. It is useful for:
+Unlike the `SampleApp` (which demonstrates a full-featured scenario), this app focuses on a minimal setup of the `TransportComponent`. It is useful for:
 *   Verifying multicast group joining on specific network interfaces.
-*   Testing socket options (TTL, Loopback).
-*   Debugging raw packet reception issues.
+*   Testing message sending and receiving with minimal configuration.
+*   Debugging basic connectivity issues.
 
 ## Usage
 ```bash

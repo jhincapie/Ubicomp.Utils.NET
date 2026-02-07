@@ -1,30 +1,17 @@
 # CLI Context
 
-## Overview
-**Ubicomp.Utils.NET.CLI** is a console application providing diagnostic utilities for the multicast solution.
+## Purpose
+Diagnostic and inspection tools for the multicast environment.
 
-## Commands
+## Target Framework
+**.NET 8.0**
 
-### `check`
-*   **Purpose**: Verifies that multicast traffic works on the host.
-*   **Method**: `TransportComponent.VerifyNetworkingAsync()`.
-    *   Sends a test message to itself (Loopback).
-    *   Waits for receipt.
-    *   Logs success/failure.
-
-### `sniff`
-*   **Purpose**: Packet capture and inspection tool.
-*   **Method**:
-    *   Starts a `TransportComponent`.
-    *   Subscribes to `MessageStream`.
-    *   Uses `TransportDiagnostics.DumpPacket(byte[])` to print hex output.
-    *   Runs indefinitely (`Task.Delay(-1)`).
-
-## Dependencies
-*   **Target Framework**: `net10.0` (Note: Matches the `.csproj` configuration).
-*   **Project**: `Ubicomp.Utils.NET.MulticastTransportFramework`
+## Key Commands
+*   **`check`**: Validates networking (loopback, firewall). Uses `TransportComponent.VerifyNetworkingAsync()`.
+*   **`sniff`**: Raw packet capture and hex dump. Helpful for debugging low-level wire issues.
+*   **`dashboard`**: TUI (Text User Interface) for monitoring peer status and transport metrics in real-time. Uses `Spectre.Console`.
 
 ## Do's and Don'ts
-*   **Do** use `check` to verify basic connectivity before debugging higher-level protocols.
-*   **Do** use `sniff` to capture raw packets when verifying wire formats.
-*   **Don't** rely on these tools for automated monitoring; they are designed for interactive diagnostics.
+*   **Do** use `check` first when troubleshooting connectivity issues.
+*   **Do** use `sniff` to verify if packets are physically reaching the machine.
+*   **Don't** assume the CLI has access to application-specific keys; it uses default settings unless configured otherwise.
