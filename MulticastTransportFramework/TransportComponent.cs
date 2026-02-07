@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -556,7 +557,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 Logger.LogError(
                     "Error Processing Received Message {0}: {1}",
                     msg.SequenceId,
-                    ex.Message);
+                    SanitizeLog(ex.Message));
             }
         }
 
@@ -572,7 +573,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     }
                     catch (Exception ex)
                     {
-                        Logger.LogError(ex, "Failed to deserialize message content for type {0}", tMessage.MessageType);
+                        Logger.LogError(ex, "Failed to deserialize message content for type {0}", SanitizeLog(tMessage.MessageType));
                     }
                 }
             }
@@ -598,6 +599,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             if (_genericHandlers.TryGetValue(tMessage.MessageType, out var handler))
             {
+                // Validate TimeStamp to prevent log injection and ensure integrity
+                if (!DateTime.TryParse(tMessage.TimeStamp, CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+                {
+                    Logger.LogWarning("Received message {0} with invalid timestamp: {1}. Replacing with current time.",
+                        tMessage.MessageId,
+                        SanitizeLog(tMessage.TimeStamp));
+                    tMessage.TimeStamp = DateTime.Now.ToString(TransportMessage.DATE_FORMAT_NOW);
+                }
+
                 var context = new MessageContext(
                     tMessage.MessageId,
                     tMessage.MessageSource,
