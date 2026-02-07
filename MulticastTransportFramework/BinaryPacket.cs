@@ -61,13 +61,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
              Guid msgId;
              Guid sourceId;
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
              msgId = new Guid(buffer.Slice(20, 16));
              sourceId = new Guid(buffer.Slice(36, 16));
-#else
-             msgId = new Guid(buffer.Slice(20, 16).ToArray());
-             sourceId = new Guid(buffer.Slice(36, 16).ToArray());
-#endif
              long ticks = BinaryPrimitives.ReadInt64LittleEndian(buffer.Slice(52));
 
              int typeLen = buffer[60];
@@ -75,13 +70,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
              string messageType;
              string sourceName;
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
              messageType = Encoding.UTF8.GetString(buffer.Slice(61, typeLen));
              sourceName = Encoding.UTF8.GetString(buffer.Slice(61 + typeLen, nameLen));
-#else
-             messageType = Encoding.UTF8.GetString(buffer.Slice(61, typeLen).ToArray());
-             sourceName = Encoding.UTF8.GetString(buffer.Slice(61 + typeLen, nameLen).ToArray());
-#endif
              int offset = 61 + typeLen + nameLen;
 
              bool isEnc = flags.HasFlag(PacketFlags.Encrypted);
@@ -179,13 +169,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(16), sequenceId);
 
             // MsgId (16)
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
             message.MessageId.TryWriteBytes(headerSpan.Slice(20));
             message.MessageSource.ResourceId.TryWriteBytes(headerSpan.Slice(36));
-#else
-            message.MessageId.ToByteArray().CopyTo(headerSpan.Slice(20));
-            message.MessageSource.ResourceId.ToByteArray().CopyTo(headerSpan.Slice(36));
-#endif
 
             // Timestamp (8) - Ticks
             long ticks = DateTime.TryParse(message.TimeStamp, out var dt) ? dt.Ticks : DateTime.Now.Ticks;
@@ -195,15 +180,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             headerSpan[60] = (byte)typeLen;
 
             // Type (N)
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER || NET8_0_OR_GREATER
             Encoding.UTF8.GetBytes(type, headerSpan.Slice(61, typeLen));
             Encoding.UTF8.GetBytes(name, headerSpan.Slice(61 + typeLen, nameLen));
-#else
-            var typeBytes = Encoding.UTF8.GetBytes(type);
-            typeBytes.CopyTo(headerSpan.Slice(61, typeLen));
-            var nameBytes = Encoding.UTF8.GetBytes(name);
-            nameBytes.CopyTo(headerSpan.Slice(61 + typeLen, nameLen));
-#endif
 
             writer.Advance(headerTotalSize);
 
@@ -220,16 +198,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 Span<byte> cipherSpan = cryptoSpan.Slice(nonceLen + tagLen, payloadBytes.Length);
 
                 // Generate Nonce
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
                 System.Security.Cryptography.RandomNumberGenerator.Fill(nonceSpan);
-#else
-                using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
-                {
-                    var tempNonce = new byte[nonceLen];
-                    rng.GetBytes(tempNonce);
-                    tempNonce.CopyTo(nonceSpan);
-                }
-#endif
 
                 // Encrypt directly into output span
                 encryptor(payloadBytes, cipherSpan, nonceSpan, tagSpan);
@@ -312,13 +281,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(16), sequenceId);
 
             // MsgId (16)
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
             message.MessageId.TryWriteBytes(headerSpan.Slice(20));
             message.MessageSource.ResourceId.TryWriteBytes(headerSpan.Slice(36));
-#else
-            message.MessageId.ToByteArray().CopyTo(headerSpan.Slice(20));
-            message.MessageSource.ResourceId.ToByteArray().CopyTo(headerSpan.Slice(36));
-#endif
 
             // Timestamp (8) - Ticks
             long ticks = DateTime.TryParse(message.TimeStamp, out var dt) ? dt.Ticks : DateTime.Now.Ticks;
@@ -328,24 +292,16 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             headerSpan[60] = (byte)typeLen;
 
             // Type (N)
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER || NET8_0_OR_GREATER
             Encoding.UTF8.GetBytes(type, headerSpan.Slice(61, typeLen));
 
             // Source Name (K)
             Encoding.UTF8.GetBytes(name, headerSpan.Slice(61 + typeLen, nameLen));
-#else
-            var typeBytes = Encoding.UTF8.GetBytes(type);
-            typeBytes.CopyTo(headerSpan.Slice(61, typeLen));
-            var nameBytes = Encoding.UTF8.GetBytes(name);
-            nameBytes.CopyTo(headerSpan.Slice(61 + typeLen, nameLen));
-#endif
 
             writer.Advance(headerTotalSize);
 
             // Payload & Crypto
             if (isEncrypted && encryptionKey != null)
             {
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
                 // Native GCM Encryption
                 // Req: Nonce (12), Tag (16), Ciphertext (PayloadLength)
                 int totalCryptoSize = nonceLen + tagLen + payloadBytes.Length;
@@ -360,19 +316,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 System.Security.Cryptography.RandomNumberGenerator.Fill(nonceSpan);
 
                 // Encrypt directly into output span
-#if NET8_0_OR_GREATER
                  using (var aesGcm = new System.Security.Cryptography.AesGcm(encryptionKey, 16))
-#else
-                 using (var aesGcm = new System.Security.Cryptography.AesGcm(encryptionKey))
-#endif
                 {
                     aesGcm.Encrypt(nonceSpan, payloadBytes, cipherSpan, tagSpan);
                 }
 
                 writer.Advance(totalCryptoSize);
-#else
-                throw new PlatformNotSupportedException("Native AES-GCM requires .NET Standard 2.1 or .NET Core 3.0+");
-#endif
             }
             else
             {
@@ -405,25 +354,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
              // int packetSeqId = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(16));
 
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
              Guid msgId = new Guid(buffer.Slice(20, 16));
              Guid sourceId = new Guid(buffer.Slice(36, 16));
-#else
-             Guid msgId = new Guid(buffer.Slice(20, 16).ToArray());
-             Guid sourceId = new Guid(buffer.Slice(36, 16).ToArray());
-#endif
              long ticks = BinaryPrimitives.ReadInt64LittleEndian(buffer.Slice(52));
 
              int typeLen = buffer[60];
              if (buffer.Length < 61 + typeLen + nameLen) return null;
 
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
              string messageType = Encoding.UTF8.GetString(buffer.Slice(61, typeLen));
              string sourceName = Encoding.UTF8.GetString(buffer.Slice(61 + typeLen, nameLen));
-#else
-             string messageType = Encoding.UTF8.GetString(buffer.Slice(61, typeLen).ToArray());
-             string sourceName = Encoding.UTF8.GetString(buffer.Slice(61 + typeLen, nameLen).ToArray());
-#endif
              int offset = 61 + typeLen + nameLen;
 
              bool isEnc = flags.HasFlag(PacketFlags.Encrypted);
@@ -435,7 +374,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
              {
                  if (encryptionKey == null) throw new System.Security.Authentication.AuthenticationException("Received encrypted packet but no key configured.");
 
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
+
                  // Bounds check
                  if (offset + nonceLen + tagLen > buffer.Length) return null;
 
@@ -443,24 +382,17 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                  var tagSpan = buffer.Slice(offset + nonceLen, tagLen);
                  var cipherSpan = buffer.Slice(offset + nonceLen + tagLen);
 
-                 // Decrypt into temporary buffer (or string)
-                 // We don't know the plaintext length exactly but it matches ciphertext length for GCM
-                 byte[] plainBytes = new byte[cipherSpan.Length];
+                  // Decrypt into temporary buffer (or string)
+                  // We don't know the plaintext length exactly but it matches ciphertext length for GCM
+                  byte[] plainBytes = new byte[cipherSpan.Length];
 
-#if NET8_0_OR_GREATER
-                 using (var aesGcm = new System.Security.Cryptography.AesGcm(encryptionKey, 16))
-#else
-                 using (var aesGcm = new System.Security.Cryptography.AesGcm(encryptionKey))
-#endif
-                 {
-                     aesGcm.Decrypt(nonceSpan, cipherSpan, tagSpan, plainBytes);
-                 }
+                  using (var aesGcm = new System.Security.Cryptography.AesGcm(encryptionKey, 16))
+                  {
+                      aesGcm.Decrypt(nonceSpan, cipherSpan, tagSpan, plainBytes);
+                  }
 
-                 // Payload is JSON bytes
-                 messageData = JsonSerializer.Deserialize<JsonElement>(plainBytes, jsonOptions);
-#else
-                 throw new PlatformNotSupportedException("Native AES-GCM requires .NET Standard 2.1 or .NET Core 3.0+");
-#endif
+                  // Payload is JSON bytes
+                  messageData = JsonSerializer.Deserialize<JsonElement>(plainBytes, jsonOptions);
              }
              else
              {
@@ -499,11 +431,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             if (buffer.Length < 61 + typeLen + nameLen) return false;
 
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
             string messageType = Encoding.UTF8.GetString(buffer.Slice(61, typeLen));
-#else
-            string messageType = Encoding.UTF8.GetString(buffer.Slice(61, typeLen).ToArray());
-#endif
             header = new PacketHeader(seqId, ticks, messageType);
             return true;
         }

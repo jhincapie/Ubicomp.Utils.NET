@@ -33,9 +33,7 @@ namespace Ubicomp.Utils.NET.Sockets
         // S1: Bounded Channel to prevent Memory Exhaustion (DoS)
         private readonly Channel<SocketMessage> _messageChannel = Channel.CreateBounded<SocketMessage>(new BoundedChannelOptions(2048) { FullMode = BoundedChannelFullMode.DropWrite });
         private volatile bool _isChannelStarted = false;
-#if NET8_0_OR_GREATER
         private CancellationTokenSource? _receiveCts;
-#endif
         private readonly ObjectPool<SocketMessage> _messagePool;
         private readonly Action<SocketMessage> _returnCallback;
 
@@ -342,15 +340,12 @@ namespace Ubicomp.Utils.NET.Sockets
                 throw new ApplicationException("Socket is not initialized.");
 
             Logger.LogInformation("Starting receive loop...");
-#if NET8_0_OR_GREATER
+            Logger.LogInformation("Starting receive loop...");
             _receiveCts = new CancellationTokenSource();
             _ = ReceiveAsyncLoop(_receiveCts.Token);
-#else
-            Receive(new StateObject { WorkSocket = _udpSocket });
-#endif
         }
 
-#if NET8_0_OR_GREATER
+
         private async Task ReceiveAsyncLoop(CancellationToken cancellationToken)
         {
             if (_udpSocket == null) return;
@@ -454,85 +449,9 @@ namespace Ubicomp.Utils.NET.Sockets
                  Logger.LogError(ex, "Fatal error in receive loop.");
             }
         }
-#endif
 
-#if !NET8_0_OR_GREATER
-        private void Receive(StateObject state)
-        {
-            if (_udpSocket == null)
-                return;
-            state.WorkSocket.BeginReceiveFrom(state.Buffer, 0, StateObject.BufferSize, 0, ref _localEndPoint, ReceiveCallback, state);
-        }
 
-        private void ReceiveCallback(IAsyncResult ar)
-        {
-            if (!(ar.AsyncState is StateObject state))
-                return;
 
-            try
-            {
-                int bytesRead = state.WorkSocket.EndReceiveFrom(ar, ref _localEndPoint);
-
-                int seqId = Interlocked.Increment(ref _mConsecutive);
-                var msg = _messagePool.Get();
-
-                // P1: Smart Buffer Slicing (Legacy Path)
-                if (bytesRead < 1024)
-                {
-                     // Small packet: Allocate exact heap array (no pool overhead for small inputs)
-                     byte[] exactBuffer = new byte[bytesRead];
-                     Array.Copy(state.Buffer, 0, exactBuffer, 0, bytesRead);
-                     msg.Reset(exactBuffer, bytesRead, seqId, isRented: false, _localEndPoint);
-                }
-                else
-                {
-                    // Large packet: Rent from pool
-                    byte[] rentedBuffer = ArrayPool<byte>.Shared.Rent(bytesRead); // Rent at least bytesRead
-                    Array.Copy(state.Buffer, 0, rentedBuffer, 0, bytesRead);
-                    msg.Reset(rentedBuffer, bytesRead, seqId, isRented: true, _localEndPoint);
-                }
-
-                msg.ReturnCallback = _returnCallback;
-
-                LogMessageReceived(Logger, seqId, bytesRead);
-
-                OnMessageReceivedAction?.Invoke(msg);
-
-                if (_isChannelStarted)
-                {
-                    if (!_messageChannel.Writer.TryWrite(msg))
-                    {
-                        Logger.LogTrace("Channel full, dropping packet.");
-                        msg.Dispose();
-                    }
-                }
-                else if (OnMessageReceivedAction == null)
-                {
-                    msg.Dispose();
-                }
-
-                Receive(state);
-            }
-            catch (SocketException se) when (se.SocketErrorCode == SocketError.OperationAborted || se.SocketErrorCode == SocketError.Interrupted)
-            {
-                Logger.LogInformation("Receive operation aborted or interrupted.");
-            }
-            catch (ObjectDisposedException)
-            {
-                Logger.LogDebug("Socket disposed, stopping receive loop.");
-            }
-            catch (Exception e)
-            {
-                Logger.LogError(e, "Error during receive.");
-                OnErrorAction?.Invoke(new SocketErrorContext("Error during receive.", e));
-                try
-                {
-                    Receive(state);
-                }
-                catch { }
-            }
-        }
-#endif
 
         /// <summary>
         /// Gets an asynchronous stream of messages received by the socket.
@@ -564,11 +483,9 @@ namespace Ubicomp.Utils.NET.Sockets
                 NetworkChange.NetworkAddressChanged -= OnNetworkAddressChanged;
             }
             _messageChannel.Writer.TryComplete();
-#if NET8_0_OR_GREATER
             _receiveCts?.Cancel();
             _receiveCts?.Dispose();
             _receiveCts = null;
-#endif
             try
             {
                 _udpSocket?.Close();
@@ -634,13 +551,6 @@ namespace Ubicomp.Utils.NET.Sockets
         [LoggerMessage(Level = LogLevel.Trace, Message = "Received message with SeqId {SeqId}, Length {Length}")]
         private static partial void LogMessageReceived(ILogger logger, int seqId, int length);
 
-#if !NET8_0_OR_GREATER
-        internal class StateObject
-        {
-            public const int BufferSize = MaxMessageSize;
-            public byte[] Buffer { get; } = new byte[BufferSize];
-            public Socket WorkSocket { get; set; } = null!;
-        }
-#endif
+
     }
 }

@@ -233,7 +233,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             var session = _keyManager.Current;
             if (session == null) return (null, null, null);
 
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
             if (session.AesGcmInstance != null)
             {
                 byte[] plainBytes = Encoding.UTF8.GetBytes(plainText);
@@ -246,7 +245,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
                 return (Convert.ToBase64String(cipherBytes), Convert.ToBase64String(nonce), Convert.ToBase64String(tag));
             }
-#endif
             // S5: Authenticated Encryption Enforcement
             throw new PlatformNotSupportedException("AES-GCM is required for encryption but not supported on this platform.");
         }
@@ -258,7 +256,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             var session = _keyManager.Current;
             if (session == null) throw new InvalidOperationException("Cannot decrypt without EncryptionKey.");
 
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
             if (session.AesGcmInstance != null && tag != null)
             {
                  byte[] nonceBytes = Convert.FromBase64String(nonce);
@@ -270,7 +267,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
                  return Encoding.UTF8.GetString(plainBytes);
             }
-#endif
 
             // S5: Authenticated Encryption Enforcement
             throw new PlatformNotSupportedException("AES-GCM is required for decryption but not supported on this platform, or Tag was missing.");
@@ -281,7 +277,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             var session = _keyManager.Current;
             if (session == null) return (null, null, null);
 
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
             if (session.AesGcmInstance != null)
             {
                 byte[] nonce = new byte[12];
@@ -293,7 +288,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
                 return (cipherBytes, nonce, tag);
             }
-#endif
             throw new PlatformNotSupportedException("AES-GCM is required for encryption but not supported on this platform.");
         }
 
@@ -302,14 +296,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             var session = _keyManager.Current;
              if (session == null) throw new InvalidOperationException("Cannot decrypt without EncryptionKey.");
 
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
             if (session.AesGcmInstance != null && tag != null)
             {
                  byte[] plainBytes = new byte[cipherBytes.Length];
                  session.AesGcmInstance.Decrypt(nonce, cipherBytes, tag, plainBytes);
                  return plainBytes;
             }
-#endif
             throw new PlatformNotSupportedException("AES-GCM is required for decryption but not supported on this platform, or Tag was missing.");
         }
 
@@ -439,11 +431,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             string encMode = "Disabled";
             if (EncryptionEnabled)
             {
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
                 encMode = "AES-GCM (Hardware Accelerated)";
-#else
-                encMode = "AES-CBC (Composite)";
-#endif
             }
 
             Logger.LogInformation("TransportComponent Initialized (Lock-Free Mode). Integrity: {0}. Encryption: {1}", integrityMode, encMode);
@@ -668,9 +656,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
             catch { }
 
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
             // _aesGcmInstance managed by KeyManager
-#endif
         }
 
         /// <summary>
@@ -1297,34 +1283,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             if (keyBytes != null && keyBytes.Length > 0)
             {
-#if NET8_0_OR_GREATER
                 hash = HMACSHA256.HashData(keyBytes, payload);
-#else
-                using (var hmac = new HMACSHA256(keyBytes))
-                {
-                    // ComputeHash requires byte[] on netstandard2.0 mostly, but we can verify if it accepts raw inputs
-                    // internal ArrayBufferWriter allows access to buffer? WrittenSpan can be copied if needed.
-                    // writer.WrittenSpan is ReadOnlySpan.
-                    // HMAC.ComputeHash(byte[], int, int) exists in NS2.0
-                    // ArrayBufferWriter guarantees contiguous buffer? Not necessarily if using linked list, but our implementation uses single array.
-                    // Our internal ArrayBufferWriter wraps a single array (resizes).
-                    // So we can use the underlying array if we expose it or copy.
-                    // Our ArrayBufferWriter exposes WrittenSpan.
-                    // ToArray() is safe fallback.
-                    hash = hmac.ComputeHash(writer.WrittenSpan.ToArray());
-                }
-#endif
             }
             else
             {
-#if NET8_0_OR_GREATER
                 hash = SHA256.HashData(payload);
-#else
-                using (var sha = SHA256.Create())
-                {
-                    hash = sha.ComputeHash(writer.WrittenSpan.ToArray());
-                }
-#endif
             }
 
             return Convert.ToBase64String(hash);

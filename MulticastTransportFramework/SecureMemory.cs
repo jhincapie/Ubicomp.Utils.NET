@@ -57,11 +57,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             if (_buffer != null)
             {
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER
                 CryptographicOperations.ZeroMemory(_buffer);
-#else
-                Array.Clear(_buffer, 0, _buffer.Length);
-#endif
                 _buffer = null;
             }
 

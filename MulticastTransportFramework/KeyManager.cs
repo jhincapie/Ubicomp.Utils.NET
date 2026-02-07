@@ -16,9 +16,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public SecureMemory EncryptionKey { get; }
 
         // Cache AesGcm instance for performance (thread-safe)
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
         public AesGcm? AesGcmInstance { get; }
-#endif
 
         public KeySession(string masterKey)
         {
@@ -50,11 +48,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
 
             // Init AesGcm
-#if NET8_0_OR_GREATER
+            // Init AesGcm
             AesGcmInstance = new AesGcm(EncryptionKey.Memory.Span, 16); // 16-byte tag
-#elif NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
-            AesGcmInstance = new AesGcm(EncryptionKey.Memory.Span);
-#endif
         }
 
         public void Dispose()
@@ -65,26 +60,22 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         public byte[] Decrypt(ReadOnlySpan<byte> nonce, ReadOnlySpan<byte> tag, ReadOnlySpan<byte> cipherText)
         {
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
             if (AesGcmInstance != null)
             {
                 byte[] plainBytes = new byte[cipherText.Length];
                 AesGcmInstance.Decrypt(nonce, cipherText, tag, plainBytes);
                 return plainBytes;
             }
-#endif
             throw new PlatformNotSupportedException("AES-GCM is not supported on this platform.");
         }
 
         public void Encrypt(ReadOnlySpan<byte> plainText, Span<byte> cipherText, Span<byte> nonce, Span<byte> tag)
         {
-#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP3_0_OR_GREATER
             if (AesGcmInstance != null)
             {
                  AesGcmInstance.Encrypt(nonce, plainText, cipherText, tag);
                  return;
             }
-#endif
              throw new PlatformNotSupportedException("AES-GCM is not supported on this platform.");
         }
     }
