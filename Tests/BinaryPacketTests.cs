@@ -44,7 +44,7 @@ namespace Ubicomp.Utils.NET.Tests
             var content = new TestMessage { Data = "Roundtrip" };
             var message = new TransportMessage(source, "test.binary", content);
 
-             // Serialize
+            // Serialize
             var writer = new System.Buffers.ArrayBufferWriter<byte>();
             BinaryPacket.SerializeToWriter(writer, message, 55, null, (byte[]?)null, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
             var packet = writer.WrittenSpan.ToArray();

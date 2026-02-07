@@ -34,11 +34,14 @@ namespace Ubicomp.Utils.NET.Sockets
                 if (ip.AddressFamily == AddressFamily.InterNetwork)
                 {
                     // 10.x.x.x
-                    if (bytes[0] == 10) return true;
+                    if (bytes[0] == 10)
+                        return true;
                     // 172.16.x.x - 172.31.x.x
-                    if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
+                    if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
+                        return true;
                     // 192.168.x.x
-                    if (bytes[0] == 192 && bytes[1] == 168) return true;
+                    if (bytes[0] == 192 && bytes[1] == 168)
+                        return true;
                 }
                 return false;
             };
@@ -69,7 +72,8 @@ namespace Ubicomp.Utils.NET.Sockets
         /// </summary>
         public MulticastSocketBuilder WithInterface(Func<NetworkInterface, bool> predicate)
         {
-            if (_options == null) throw new InvalidOperationException("Options must be initialized before setting interface.");
+            if (_options == null)
+                throw new InvalidOperationException("Options must be initialized before setting interface.");
 
             var nics = NetworkInterface.GetAllNetworkInterfaces();
             var nic = nics.FirstOrDefault(predicate);

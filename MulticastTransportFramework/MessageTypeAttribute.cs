@@ -12,7 +12,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// <summary>
         /// Gets the unique message type identifier.
         /// </summary>
-        public string MsgId { get; }
+        public string MsgId
+        {
+            get;
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="MessageTypeAttribute"/> class.

@@ -1,11 +1,11 @@
 #nullable enable
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
-using System.Buffers;
 using System.Text;
 using System.Threading;
 using System.Threading.Channels;
@@ -348,7 +348,8 @@ namespace Ubicomp.Utils.NET.Sockets
 
         private async Task ReceiveAsyncLoop(CancellationToken cancellationToken)
         {
-            if (_udpSocket == null) return;
+            if (_udpSocket == null)
+                return;
 
             try
             {
@@ -415,7 +416,7 @@ namespace Ubicomp.Utils.NET.Sockets
                         Logger.LogInformation("Receive operation aborted or interrupted.");
                         break;
                     }
-                     catch (OperationCanceledException)
+                    catch (OperationCanceledException)
                     {
                         Logger.LogDebug("Receive operation cancelled.");
                         break;
@@ -445,8 +446,8 @@ namespace Ubicomp.Utils.NET.Sockets
             }
             catch (Exception ex)
             {
-                 // Outer catch just in case
-                 Logger.LogError(ex, "Fatal error in receive loop.");
+                // Outer catch just in case
+                Logger.LogError(ex, "Fatal error in receive loop.");
             }
         }
 

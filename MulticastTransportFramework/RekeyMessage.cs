@@ -24,6 +24,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// Gets or sets the time when this key becomes effective (UTC).
         /// If null or past, effective immediately.
         /// </summary>
-        public DateTime? EffectiveFrom { get; set; }
+        public DateTime? EffectiveFrom
+        {
+            get; set;
+        }
     }
 }

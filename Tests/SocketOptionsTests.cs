@@ -80,13 +80,13 @@ namespace Ubicomp.Utils.NET.Tests
             int dontFragment = (int)udpSocket.GetSocketOption(SocketOptionLevel.IP, SocketOptionName.DontFragment);
             Assert.NotEqual(0, dontFragment);
 
-             // NoDelay
-             try
-             {
-                 int noDelay = (int)udpSocket.GetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoDelay);
-                 Assert.NotEqual(0, noDelay);
-             }
-             catch {}
+            // NoDelay
+            try
+            {
+                int noDelay = (int)udpSocket.GetSocketOption(SocketOptionLevel.Udp, SocketOptionName.NoDelay);
+                Assert.NotEqual(0, noDelay);
+            }
+            catch { }
         }
     }
 }

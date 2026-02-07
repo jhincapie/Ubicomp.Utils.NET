@@ -41,12 +41,14 @@ namespace Ubicomp.Utils.NET.Tests
 
             node1.OnPeerDiscovered += (p) =>
             {
-                if (p.DeviceName == "Node2") peer1Discovered.Set();
+                if (p.DeviceName == "Node2")
+                    peer1Discovered.Set();
             };
 
             node2.OnPeerDiscovered += (p) =>
             {
-                if (p.DeviceName == "Node1") peer2Discovered.Set();
+                if (p.DeviceName == "Node1")
+                    peer2Discovered.Set();
             };
 
             // Act

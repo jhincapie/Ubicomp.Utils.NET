@@ -26,7 +26,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         public SecureMemory(byte[] source)
         {
-            if (source == null) throw new ArgumentNullException(nameof(source));
+            if (source == null)
+                throw new ArgumentNullException(nameof(source));
             _buffer = new byte[source.Length];
             source.CopyTo(_buffer, 0);
             _handle = GCHandle.Alloc(_buffer, GCHandleType.Pinned);
@@ -53,7 +54,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         public void Dispose()
         {
-            if (_disposed) return;
+            if (_disposed)
+                return;
 
             if (_buffer != null)
             {

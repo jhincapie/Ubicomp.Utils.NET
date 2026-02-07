@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
 using Ubicomp.Utils.NET.Sockets;
 using Xunit;
-using System.Text.Json;
-using System.Text;
 
 namespace Ubicomp.Utils.NET.Tests
 {
@@ -50,7 +50,11 @@ namespace Ubicomp.Utils.NET.Tests
                 .WithEnforceOrdering(true)
                 .Build();
 
-            try { transport.Start(); } catch { }
+            try
+            {
+                transport.Start();
+            }
+            catch { }
 
             var processedMessages = new List<string>();
             var completionSource = new TaskCompletionSource<bool>();
@@ -80,7 +84,7 @@ namespace Ubicomp.Utils.NET.Tests
             transport.HandleSocketMessage(new SocketMessage(data2, 2));
 
             // Check it hasn't been processed yet
-            lock(processedMessages)
+            lock (processedMessages)
             {
                 Assert.Empty(processedMessages);
             }
@@ -116,7 +120,11 @@ namespace Ubicomp.Utils.NET.Tests
                 .WithEnforceOrdering(false)
                 .Build();
 
-            try { transport.Start(); } catch { }
+            try
+            {
+                transport.Start();
+            }
+            catch { }
 
             var processedMessages = new List<string>();
             var msgEvent = new AutoResetEvent(false);

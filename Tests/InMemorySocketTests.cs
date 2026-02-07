@@ -63,16 +63,16 @@ namespace Ubicomp.Utils.NET.Tests
         [Fact]
         public Task Test_JoinedAddresses()
         {
-             string groupAddr = "239.0.0.1";
-             int port = 5001;
-             var socket = new InMemoryMulticastSocket(groupAddr, port);
+            string groupAddr = "239.0.0.1";
+            int port = 5001;
+            var socket = new InMemoryMulticastSocket(groupAddr, port);
 
-             socket.StartReceiving();
+            socket.StartReceiving();
 
-             Assert.Single(socket.JoinedAddresses); // Should have the virtual 127.x.x.x
+            Assert.Single(socket.JoinedAddresses); // Should have the virtual 127.x.x.x
 
-             socket.Close();
-             return Task.CompletedTask;
+            socket.Close();
+            return Task.CompletedTask;
         }
     }
 }

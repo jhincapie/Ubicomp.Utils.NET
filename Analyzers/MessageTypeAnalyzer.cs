@@ -36,15 +36,18 @@ namespace Ubicomp.Utils.NET.Analyzers
             var method = invocation.TargetMethod;
 
             // Check if method is SendAsync
-            if (method.Name != "SendAsync") return;
+            if (method.Name != "SendAsync")
+                return;
 
             // Check if containing type is TransportComponent or IMulticastSocket equivalent (usually TransportComponent)
             // We can check strict type name or just trust usage of generic SendAsync with 1 type arg
             var containingType = method.ContainingType;
-            if (containingType?.Name != "TransportComponent" && containingType?.Name != "ITransportComponent") return;
+            if (containingType?.Name != "TransportComponent" && containingType?.Name != "ITransportComponent")
+                return;
 
             // Check if it's the generic overload sending the object
-            if (!method.IsGenericMethod) return;
+            if (!method.IsGenericMethod)
+                return;
 
             var typeArg = method.TypeArguments[0];
 

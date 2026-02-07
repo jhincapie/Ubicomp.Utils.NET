@@ -77,7 +77,7 @@ namespace Ubicomp.Utils.NET.Tests
         [Fact]
         public async Task IntegrityKey_Mismatch_DropsMessage()
         {
-             // Arrange
+            // Arrange
             var options = MulticastSocketOptions.LocalNetwork("239.1.2.4", 6004);
 
             string key1 = "KeyNum1";
@@ -109,7 +109,7 @@ namespace Ubicomp.Utils.NET.Tests
                  .Build();
             sender.Start();
 
-             try
+            try
             {
                 // Act
                 await sender.SendAsync(new SecretMessage { Secret = "Attack" });

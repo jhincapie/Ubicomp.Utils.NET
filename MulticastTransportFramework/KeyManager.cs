@@ -12,11 +12,20 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     /// </summary>
     public class KeySession : IDisposable
     {
-        public SecureMemory IntegrityKey { get; }
-        public SecureMemory EncryptionKey { get; }
+        public SecureMemory IntegrityKey
+        {
+            get;
+        }
+        public SecureMemory EncryptionKey
+        {
+            get;
+        }
 
         // Cache AesGcm instance for performance (thread-safe)
-        public AesGcm? AesGcmInstance { get; }
+        public AesGcm? AesGcmInstance
+        {
+            get;
+        }
 
         public KeySession(string masterKey)
         {
@@ -73,10 +82,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             if (AesGcmInstance != null)
             {
-                 AesGcmInstance.Encrypt(nonce, plainText, cipherText, tag);
-                 return;
+                AesGcmInstance.Encrypt(nonce, plainText, cipherText, tag);
+                return;
             }
-             throw new PlatformNotSupportedException("AES-GCM is not supported on this platform.");
+            throw new PlatformNotSupportedException("AES-GCM is not supported on this platform.");
         }
     }
 
@@ -136,7 +145,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// </summary>
         public void ClearPreviousKey()
         {
-             lock (_lock)
+            lock (_lock)
             {
                 if (_previousSession != null)
                 {

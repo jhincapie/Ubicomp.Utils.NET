@@ -1,22 +1,22 @@
 #nullable enable
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Buffers;
 using System.Net;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Threading.Channels;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-using System.Text.Json;
-using System.Diagnostics;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Channels;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Ubicomp.Utils.NET.Sockets;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
@@ -28,9 +28,18 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     /// </summary>
     public class MessageErrorEventArgs : EventArgs
     {
-        public SocketMessage RawMessage { get; }
-        public Exception? Exception { get; }
-        public string Reason { get; }
+        public SocketMessage RawMessage
+        {
+            get;
+        }
+        public Exception? Exception
+        {
+            get;
+        }
+        public string Reason
+        {
+            get;
+        }
 
         public MessageErrorEventArgs(SocketMessage msg, string reason, Exception? ex = null)
         {
@@ -128,9 +137,17 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// </summary>
         public event EventHandler<MessageErrorEventArgs>? OnMessageError;
 
-        private abstract class GateCmd { }
-        private class InputMsgCmd : GateCmd { public SocketMessage Msg = null!; }
-        private class TimeoutCmd : GateCmd { public int SeqId; }
+        private abstract class GateCmd
+        {
+        }
+        private class InputMsgCmd : GateCmd
+        {
+            public SocketMessage Msg = null!;
+        }
+        private class TimeoutCmd : GateCmd
+        {
+            public int SeqId;
+        }
 
         /// <summary>Gets or sets the default timeout for acknowledgements.</summary>
         public TimeSpan DefaultAckTimeout { get; set; } = TimeSpan.FromSeconds(5);
@@ -196,18 +213,27 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// Gets or sets whether to enable payload encryption.
         /// Requires <see cref="SecurityKey"/> to be set.
         /// </summary>
-        public bool EncryptionEnabled { get; set; }
+        public bool EncryptionEnabled
+        {
+            get; set;
+        }
 
         /// <summary>
         /// Gets or sets the interval for sending heartbeat messages.
         /// If null, heartbeats are disabled.
         /// </summary>
-        public TimeSpan? HeartbeatInterval { get; set; }
+        public TimeSpan? HeartbeatInterval
+        {
+            get; set;
+        }
 
         /// <summary>
         /// Gets or sets the custom metadata derived for this instance to broadcast in heartbeats.
         /// </summary>
-        public string? InstanceMetadata { get; set; }
+        public string? InstanceMetadata
+        {
+            get; set;
+        }
 
         private void UpdateKey()
         {
@@ -231,7 +257,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private (string? CipherText, string? Nonce, string? Tag) Encrypt(string plainText)
         {
             var session = _keyManager.Current;
-            if (session == null) return (null, null, null);
+            if (session == null)
+                return (null, null, null);
 
             if (session.AesGcmInstance != null)
             {
@@ -254,18 +281,19 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private string Decrypt(string cipherText, string nonce, string? tag)
         {
             var session = _keyManager.Current;
-            if (session == null) throw new InvalidOperationException("Cannot decrypt without EncryptionKey.");
+            if (session == null)
+                throw new InvalidOperationException("Cannot decrypt without EncryptionKey.");
 
             if (session.AesGcmInstance != null && tag != null)
             {
-                 byte[] nonceBytes = Convert.FromBase64String(nonce);
-                 byte[] cipherBytes = Convert.FromBase64String(cipherText);
-                 byte[] tagBytes = Convert.FromBase64String(tag);
-                 byte[] plainBytes = new byte[cipherBytes.Length];
+                byte[] nonceBytes = Convert.FromBase64String(nonce);
+                byte[] cipherBytes = Convert.FromBase64String(cipherText);
+                byte[] tagBytes = Convert.FromBase64String(tag);
+                byte[] plainBytes = new byte[cipherBytes.Length];
 
-                 session.AesGcmInstance.Decrypt(nonceBytes, cipherBytes, tagBytes, plainBytes);
+                session.AesGcmInstance.Decrypt(nonceBytes, cipherBytes, tagBytes, plainBytes);
 
-                 return Encoding.UTF8.GetString(plainBytes);
+                return Encoding.UTF8.GetString(plainBytes);
             }
 
             // S5: Authenticated Encryption Enforcement
@@ -275,7 +303,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private (byte[]? CipherBytes, byte[]? Nonce, byte[]? Tag) EncryptBytes(byte[] plainBytes)
         {
             var session = _keyManager.Current;
-            if (session == null) return (null, null, null);
+            if (session == null)
+                return (null, null, null);
 
             if (session.AesGcmInstance != null)
             {
@@ -294,13 +323,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private byte[] DecryptBytes(byte[] cipherBytes, byte[] nonce, byte[]? tag)
         {
             var session = _keyManager.Current;
-             if (session == null) throw new InvalidOperationException("Cannot decrypt without EncryptionKey.");
+            if (session == null)
+                throw new InvalidOperationException("Cannot decrypt without EncryptionKey.");
 
             if (session.AesGcmInstance != null && tag != null)
             {
-                 byte[] plainBytes = new byte[cipherBytes.Length];
-                 session.AesGcmInstance.Decrypt(nonce, cipherBytes, tag, plainBytes);
-                 return plainBytes;
+                byte[] plainBytes = new byte[cipherBytes.Length];
+                session.AesGcmInstance.Decrypt(nonce, cipherBytes, tag, plainBytes);
+                return plainBytes;
             }
             throw new PlatformNotSupportedException("AES-GCM is required for decryption but not supported on this platform, or Tag was missing.");
         }
@@ -370,7 +400,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// </summary>
         public void RegisterMessageType<T>(string id)
         {
-             if (string.IsNullOrWhiteSpace(id))
+            if (string.IsNullOrWhiteSpace(id))
             {
                 throw new ArgumentException("Message ID cannot be null or empty.", nameof(id));
             }
@@ -451,7 +481,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private async Task ReceiveLoop(CancellationToken cancellationToken)
         {
-            if (_socket == null) return;
+            if (_socket == null)
+                return;
 
             try
             {
@@ -479,7 +510,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             int currentSeq = 1;
             CancellationTokenSource? gapCts = null;
 
-            if (_gateInput == null || _processingChannel == null) return;
+            if (_gateInput == null || _processingChannel == null)
+                return;
 
             try
             {
@@ -492,9 +524,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                             var msg = input.Msg;
                             if (msg.ArrivalSequenceId < currentSeq)
                             {
-                                 Logger.LogWarning("Received late message {0} (current is {1}). Ignoring.", msg.ArrivalSequenceId, currentSeq);
-                                 msg.Dispose();
-                                 continue;
+                                Logger.LogWarning("Received late message {0} (current is {1}). Ignoring.", msg.ArrivalSequenceId, currentSeq);
+                                msg.Dispose();
+                                continue;
                             }
 
                             if (msg.ArrivalSequenceId == currentSeq)
@@ -522,9 +554,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                                 // Future message - Check Queue Size Limit
                                 if (pq.Count >= MaxQueueSize)
                                 {
-                                     Logger.LogWarning("PriorityQueue full ({0}). Dropping future message {1} to prevent DoS.", pq.Count, msg.ArrivalSequenceId);
-                                     msg.Dispose();
-                                     continue;
+                                    Logger.LogWarning("PriorityQueue full ({0}). Dropping future message {1} to prevent DoS.", pq.Count, msg.ArrivalSequenceId);
+                                    msg.Dispose();
+                                    continue;
                                 }
 
                                 pq.Enqueue(msg, msg.ArrivalSequenceId);
@@ -537,7 +569,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                                     {
                                         if (!t.IsCanceled && _gateInput != null)
                                         {
-                                             _gateInput.Writer.TryWrite(new TimeoutCmd { SeqId = captureSeq });
+                                            _gateInput.Writer.TryWrite(new TimeoutCmd { SeqId = captureSeq });
                                         }
                                     });
                                 }
@@ -545,17 +577,17 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                         }
                         else if (cmd is TimeoutCmd timeout)
                         {
-                             if (timeout.SeqId == currentSeq)
-                             {
-                                 // Timeout occurred on this sequence
-                                 if (pq.Count > 0 && pq.TryPeek(out var nextMsg, out var priority))
-                                 {
-                                      Logger.LogWarning("Sequence gap detected. Timed out waiting for message {0}. Jumping to {1}.", currentSeq, priority);
-                                      currentSeq = priority;
-                                      gapCts = null;
-                                      CheckQueue(pq, ref currentSeq, _processingChannel);
-                                 }
-                             }
+                            if (timeout.SeqId == currentSeq)
+                            {
+                                // Timeout occurred on this sequence
+                                if (pq.Count > 0 && pq.TryPeek(out var nextMsg, out var priority))
+                                {
+                                    Logger.LogWarning("Sequence gap detected. Timed out waiting for message {0}. Jumping to {1}.", currentSeq, priority);
+                                    currentSeq = priority;
+                                    gapCts = null;
+                                    CheckQueue(pq, ref currentSeq, _processingChannel);
+                                }
+                            }
                         }
                     }
                 }
@@ -568,33 +600,34 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private void CheckQueue(PriorityQueue<SocketMessage> pq, ref int currentSeq, Channel<SocketMessage> output)
         {
-             while (pq.Count > 0 && pq.TryPeek(out var nextMsg, out var priority))
-             {
-                 if (priority == currentSeq)
-                 {
-                     pq.Dequeue();
-                     if (!output.Writer.TryWrite(nextMsg))
-                     {
-                         Logger.LogWarning("Processing channel full. Dropping queued message {0}.", nextMsg.ArrivalSequenceId);
-                         nextMsg.Dispose();
-                     }
-                     currentSeq++;
-                 }
-                 else if (priority < currentSeq)
-                 {
-                     // Cleanup old messages
-                     pq.Dequeue().Dispose();
-                 }
-                 else
-                 {
-                     break;
-                 }
-             }
+            while (pq.Count > 0 && pq.TryPeek(out var nextMsg, out var priority))
+            {
+                if (priority == currentSeq)
+                {
+                    pq.Dequeue();
+                    if (!output.Writer.TryWrite(nextMsg))
+                    {
+                        Logger.LogWarning("Processing channel full. Dropping queued message {0}.", nextMsg.ArrivalSequenceId);
+                        nextMsg.Dispose();
+                    }
+                    currentSeq++;
+                }
+                else if (priority < currentSeq)
+                {
+                    // Cleanup old messages
+                    pq.Dequeue().Dispose();
+                }
+                else
+                {
+                    break;
+                }
+            }
         }
 
         private async Task ProcessingLoop()
         {
-            if (_processingChannel == null) return;
+            if (_processingChannel == null)
+                return;
             try
             {
                 while (await _processingChannel.Reader.WaitToReadAsync())
@@ -725,23 +758,23 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             try
             {
-                 Logger.LogInformation("Received Rekey Message (KeyId: {0}). Rotating keys...", msg.KeyId);
-                 if (string.Compare(LocalSource.ResourceId.ToString(), context.Source.ResourceId.ToString(), StringComparison.OrdinalIgnoreCase) == 0)
-                 {
-                     // Ignore self-sent rekey
-                     return;
-                 }
+                Logger.LogInformation("Received Rekey Message (KeyId: {0}). Rotating keys...", msg.KeyId);
+                if (string.Compare(LocalSource.ResourceId.ToString(), context.Source.ResourceId.ToString(), StringComparison.OrdinalIgnoreCase) == 0)
+                {
+                    // Ignore self-sent rekey
+                    return;
+                }
 
-                 // Apply new key with grace period
-                 _keyManager.SetKey(msg.NewKey, retainPrevious: true);
+                // Apply new key with grace period
+                _keyManager.SetKey(msg.NewKey, retainPrevious: true);
 
-                 // Schedule cleanup after ReplayWindow (plus buffer)
-                 var gracePeriod = ReplayWindow.Add(TimeSpan.FromSeconds(5));
-                 Task.Delay(gracePeriod).ContinueWith(_ => _keyManager.ClearPreviousKey());
+                // Schedule cleanup after ReplayWindow (plus buffer)
+                var gracePeriod = ReplayWindow.Add(TimeSpan.FromSeconds(5));
+                Task.Delay(gracePeriod).ContinueWith(_ => _keyManager.ClearPreviousKey());
             }
             catch (Exception ex)
             {
-                 Logger.LogError(ex, "Failed to process RekeyMessage.");
+                Logger.LogError(ex, "Failed to process RekeyMessage.");
             }
         }
 
@@ -749,15 +782,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private void CleanupReplayProtection()
         {
-             // S3: Remove replay windows irrelevant for more than 5 minutes (or 5x Heartbeat)
-             var threshold = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(5));
-             foreach (var kvp in _replayProtection)
-             {
-                  if (kvp.Value.LastActivity < threshold)
-                  {
-                       _replayProtection.TryRemove(kvp.Key, out _);
-                  }
-             }
+            // S3: Remove replay windows irrelevant for more than 5 minutes (or 5x Heartbeat)
+            var threshold = DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(5));
+            foreach (var kvp in _replayProtection)
+            {
+                if (kvp.Value.LastActivity < threshold)
+                {
+                    _replayProtection.TryRemove(kvp.Key, out _);
+                }
+            }
         }
 
         /// <summary>
@@ -916,7 +949,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 // The processing loop owns the message disposal
                 if (!(_processingChannel?.Writer.TryWrite(msg) ?? false))
                 {
-                     msg.Dispose();
+                    msg.Dispose();
                 }
             }
             else
@@ -924,8 +957,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 // Route to GateKeeper
                 if (!(_gateInput?.Writer.TryWrite(new InputMsgCmd { Msg = msg }) ?? false))
                 {
-                     // Channel full or null
-                     msg.Dispose();
+                    // Channel full or null
+                    msg.Dispose();
                 }
             }
         }
@@ -953,10 +986,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                         // We use a simplified check: Ticks must be > Now - Window
                         if (ticks < nowTicks - windowTicks)
                         {
-                             // Too old
-                             if (Logger.IsEnabled(LogLevel.Trace))
+                            // Too old
+                            if (Logger.IsEnabled(LogLevel.Trace))
                                 Logger.LogTrace("Dropped old message {0} (Ticks: {1}).", header.SequenceId, ticks);
-                             return;
+                            return;
                         }
 
                         // Feature 5 FIX: Strict Replay Protection using SENDER Sequence ID
@@ -975,42 +1008,43 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     }
 
 
-                     // Binary Protocol
-                     try
-                     {
-                          var current = _keyManager.Current;
-                          var previous = _keyManager.Previous;
+                    // Binary Protocol
+                    try
+                    {
+                        var current = _keyManager.Current;
+                        var previous = _keyManager.Previous;
 
-                          try
-                          {
-                              // Try Current
-                              tMessage = BinaryPacket.Deserialize(
-                                  msg.Data.AsSpan(0, msg.Length),
-                                  msg.ArrivalSequenceId,
-                                  _jsonOptions,
-                                  current != null ? (DecryptorDelegate?)current.Decrypt : null);
-                          }
-                          catch (System.Security.Cryptography.CryptographicException)
-                          {
-                              // Failed auth? Try previous if avail
-                              if (previous != null)
-                              {
-                                   tMessage = BinaryPacket.Deserialize(
-                                       msg.Data.AsSpan(0, msg.Length),
-                                       msg.ArrivalSequenceId,
-                                       _jsonOptions,
-                                       (DecryptorDelegate?)previous.Decrypt);
-                              }
-                              else throw;
-                          }
-                     }
+                        try
+                        {
+                            // Try Current
+                            tMessage = BinaryPacket.Deserialize(
+                                msg.Data.AsSpan(0, msg.Length),
+                                msg.ArrivalSequenceId,
+                                _jsonOptions,
+                                current != null ? (DecryptorDelegate?)current.Decrypt : null);
+                        }
+                        catch (System.Security.Cryptography.CryptographicException)
+                        {
+                            // Failed auth? Try previous if avail
+                            if (previous != null)
+                            {
+                                tMessage = BinaryPacket.Deserialize(
+                                    msg.Data.AsSpan(0, msg.Length),
+                                    msg.ArrivalSequenceId,
+                                    _jsonOptions,
+                                    (DecryptorDelegate?)previous.Decrypt);
+                            }
+                            else
+                                throw;
+                        }
+                    }
 
-                      catch (Exception ex)
-                      {
-                           Logger.LogError(ex, "Failed to deserialize binary packet.");
-                           OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Binary Deserialization Failed", ex));
-                           return;
-                      }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "Failed to deserialize binary packet.");
+                        OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Binary Deserialization Failed", ex));
+                        return;
+                    }
                 }
                 else
                 {
@@ -1072,12 +1106,13 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
                     if (senderSequenceId != -1)
                     {
-                         if (!window.CheckAndMark(senderSequenceId))
-                         {
-                             // Drop
-                             if (Logger.IsEnabled(LogLevel.Trace)) Logger.LogTrace("Replay/Duplicate detected for Seq {0}", senderSequenceId);
-                             return;
-                         }
+                        if (!window.CheckAndMark(senderSequenceId))
+                        {
+                            // Drop
+                            if (Logger.IsEnabled(LogLevel.Trace))
+                                Logger.LogTrace("Replay/Duplicate detected for Seq {0}", senderSequenceId);
+                            return;
+                        }
                     }
                     else
                     {
@@ -1105,10 +1140,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                         // This legacy path is non-optimal but preserved for old clients
                         byte[]? tempInt = _keyManager.Current?.IntegrityKey.Memory.ToArray();
                         string expectedSignature;
-                        try {
-                             expectedSignature = ComputeSignature(message, tempInt);
-                        } finally {
-                             if (tempInt != null) Array.Clear(tempInt, 0, tempInt.Length);
+                        try
+                        {
+                            expectedSignature = ComputeSignature(message, tempInt);
+                        }
+                        finally
+                        {
+                            if (tempInt != null)
+                                Array.Clear(tempInt, 0, tempInt.Length);
                         }
 
                         if (message.Signature != expectedSignature)
@@ -1126,18 +1165,18 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
                     if (message.IsEncrypted && message.MessageData is string cipherText && message.Nonce != null)
                     {
-                         // This path is now primarily for LEGACY JSON encrypted flows
-                         try
-                         {
-                             string plainText = Decrypt(cipherText, message.Nonce, message.Tag);
-                             message.MessageData = plainText; // Now it is JSON string
-                         }
-                         catch (Exception ex)
-                         {
-                             Logger.LogError(ex, "Decryption failed for message {0}.", message.MessageId);
-                             OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Decryption Failed", ex));
-                             return;
-                         }
+                        // This path is now primarily for LEGACY JSON encrypted flows
+                        try
+                        {
+                            string plainText = Decrypt(cipherText, message.Nonce, message.Tag);
+                            message.MessageData = plainText; // Now it is JSON string
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogError(ex, "Decryption failed for message {0}.", message.MessageId);
+                            OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Decryption Failed", ex));
+                            return;
+                        }
                     }
                     // ------------------------
 
@@ -1222,7 +1261,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 bool allowed = true;
                 if (_replayProtection.TryGetValue(tMessage.MessageSource.ResourceId, out var window))
                 {
-                     allowed = window.CheckAckRateLimit();
+                    allowed = window.CheckAckRateLimit();
                 }
 
                 if (allowed)
@@ -1265,10 +1304,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             WriteAscii(writer, message.IsEncrypted ? "true" : "false");
 
             // 6. Nonce
-            if (message.Nonce != null) WriteAscii(writer, message.Nonce);
+            if (message.Nonce != null)
+                WriteAscii(writer, message.Nonce);
 
             // 7. Tag
-            if (message.Tag != null) WriteAscii(writer, message.Tag);
+            if (message.Tag != null)
+                WriteAscii(writer, message.Tag);
 
             // 8. MessageData (JSON)
             // Serialize directly to the writer
@@ -1295,7 +1336,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private void WriteAscii(IBufferWriter<byte> writer, string value)
         {
-            if (string.IsNullOrEmpty(value)) return;
+            if (string.IsNullOrEmpty(value))
+                return;
             // For ASCII/UTF8 validation, GetBytes is sufficient.
             // In .NET 8 we could use Encoding.UTF8.GetBytes(value, writer.GetSpan(value.Length));
             // fallback to simpler approach for now to handle both targets cleanly.

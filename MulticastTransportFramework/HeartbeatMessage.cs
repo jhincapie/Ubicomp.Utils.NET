@@ -22,11 +22,17 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// <summary>
         /// Processing uptime in seconds.
         /// </summary>
-        public double UptimeSeconds { get; set; }
+        public double UptimeSeconds
+        {
+            get; set;
+        }
 
         /// <summary>
         /// Optional metadata (JSON string) for application-specific info.
         /// </summary>
-        public string? Metadata { get; set; }
+        public string? Metadata
+        {
+            get; set;
+        }
     }
 }

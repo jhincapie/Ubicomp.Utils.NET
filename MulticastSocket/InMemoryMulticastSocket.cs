@@ -1,12 +1,12 @@
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
-using System.Buffers;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using System.Runtime.CompilerServices;
 using Ubicomp.Utils.NET.Sockets;
 
 namespace Ubicomp.Utils.NET.Sockets
@@ -97,26 +97,29 @@ namespace Ubicomp.Utils.NET.Sockets
 
         public Task SendAsync(byte[] buffer, int offset, int count)
         {
-             if (_disposed) throw new ObjectDisposedException(nameof(InMemoryMulticastSocket));
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(InMemoryMulticastSocket));
 
-             if (string.IsNullOrEmpty(_groupAddress)) return Task.CompletedTask;
+            if (string.IsNullOrEmpty(_groupAddress))
+                return Task.CompletedTask;
 
-             if (count > 65535) throw new ArgumentException("Message size exceeds maximum allowed size.", nameof(count));
+            if (count > 65535)
+                throw new ArgumentException("Message size exceeds maximum allowed size.", nameof(count));
 
-             var groupKey = $"{_groupAddress}:{_port}";
-             if (_networkGroups.TryGetValue(groupKey, out var peers))
-             {
-                 foreach (var peer in peers)
-                 {
-                     if (peer.IsJoined && !peer._disposed)
-                     {
-                         // Allow loopback for tests (peer == this is OK)
-                         peer.ReceiveInternal(buffer.AsSpan(offset, count), _localEP);
-                     }
-                 }
-             }
+            var groupKey = $"{_groupAddress}:{_port}";
+            if (_networkGroups.TryGetValue(groupKey, out var peers))
+            {
+                foreach (var peer in peers)
+                {
+                    if (peer.IsJoined && !peer._disposed)
+                    {
+                        // Allow loopback for tests (peer == this is OK)
+                        peer.ReceiveInternal(buffer.AsSpan(offset, count), _localEP);
+                    }
+                }
+            }
 
-             return Task.CompletedTask;
+            return Task.CompletedTask;
         }
 
         public Task SendAsync(string sendData)
@@ -130,7 +133,8 @@ namespace Ubicomp.Utils.NET.Sockets
 
         private void ReceiveInternal(ReadOnlySpan<byte> data, EndPoint sender)
         {
-            if (_disposed) return;
+            if (_disposed)
+                return;
 
             // Copy data to simulate network buffer isolation
             byte[] buffer = ArrayPool<byte>.Shared.Rent(data.Length);
@@ -142,13 +146,16 @@ namespace Ubicomp.Utils.NET.Sockets
             msg.Reset(buffer, data.Length, seq, isRented: true, sender);
             msg.ReturnCallback = (m) =>
             {
-                 if (m.Data != null) ArrayPool<byte>.Shared.Return(m.Data);
+                if (m.Data != null)
+                    ArrayPool<byte>.Shared.Return(m.Data);
             };
 
             // 1. Event (Legacy/Synchronous)
-            try {
+            try
+            {
                 OnMessageReceived?.Invoke(msg);
-            } catch { }
+            }
+            catch { }
 
             // 2. Channel (Async Stream)
             if (!_receiveChannel.Writer.TryWrite(msg))
@@ -175,7 +182,8 @@ namespace Ubicomp.Utils.NET.Sockets
 
         public void Dispose()
         {
-            if (_disposed) return;
+            if (_disposed)
+                return;
             _disposed = true;
             _receiveChannel.Writer.TryComplete();
 

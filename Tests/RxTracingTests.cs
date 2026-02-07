@@ -50,7 +50,7 @@ namespace Ubicomp.Utils.NET.Tests
         [Fact]
         public async Task Activities_ShouldBeCreated()
         {
-             // Arrange
+            // Arrange
             string groupAddress = "239.0.0.71";
             int port = 5106;
             var options = MulticastSocketOptions.LocalNetwork(groupAddress, port);
@@ -72,7 +72,8 @@ namespace Ubicomp.Utils.NET.Tests
                 Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
                 ActivityStarted = activity =>
                 {
-                    lock(lockObj) {
+                    lock (lockObj)
+                    {
                         if (activity.OperationName == "SendMessage" || activity.OperationName == "ReceiveMessage")
                         {
                             activityStarted = true;

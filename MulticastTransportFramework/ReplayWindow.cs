@@ -37,12 +37,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 double secondsPassed = (now - _lastAckRefill).TotalSeconds;
                 if (secondsPassed > 0)
                 {
-                   int newTokens = (int)secondsPassed; // 1 token per second
-                   if (newTokens > 0)
-                   {
-                       _ackTokens = Math.Min(MaxAckTokens, _ackTokens + newTokens);
-                       _lastAckRefill = now;
-                   }
+                    int newTokens = (int)secondsPassed; // 1 token per second
+                    if (newTokens > 0)
+                    {
+                        _ackTokens = Math.Min(MaxAckTokens, _ackTokens + newTokens);
+                        _lastAckRefill = now;
+                    }
                 }
 
                 if (_ackTokens > 0)

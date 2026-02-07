@@ -10,10 +10,22 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     /// </summary>
     public class RemotePeer
     {
-        public string SourceId { get; }
-        public string DeviceName { get; }
-        public DateTime LastSeen { get; private set; }
-        public string? Metadata { get; }
+        public string SourceId
+        {
+            get;
+        }
+        public string DeviceName
+        {
+            get;
+        }
+        public DateTime LastSeen
+        {
+            get; private set;
+        }
+        public string? Metadata
+        {
+            get;
+        }
 
         public RemotePeer(string sourceId, string deviceName, string? metadata)
         {

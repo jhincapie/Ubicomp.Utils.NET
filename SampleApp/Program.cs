@@ -1,16 +1,16 @@
 #nullable enable
 using System;
-using System.Reactive.Linq;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
-using System.IO;
-using System.Collections.Generic;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Ubicomp.Utils.NET.Generators.AutoDiscovery;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
 using Ubicomp.Utils.NET.Sockets;
-using Ubicomp.Utils.NET.Generators.AutoDiscovery;
 
 namespace Ubicomp.Utils.NET.SampleApp
 {
@@ -71,7 +71,8 @@ namespace Ubicomp.Utils.NET.SampleApp
                 Console.WriteLine($"  Address: {groupAddressStr}");
                 Console.WriteLine($"  Port: {port}");
                 Console.WriteLine($"  TTL: {ttl}");
-                if (!string.IsNullOrEmpty(interfaceIp)) Console.WriteLine($"  Interface: {interfaceIp}");
+                if (!string.IsNullOrEmpty(interfaceIp))
+                    Console.WriteLine($"  Interface: {interfaceIp}");
                 Console.WriteLine($"  Security Key: {(string.IsNullOrEmpty(securityKey) ? "None" : "***")}");
                 Console.WriteLine($"  Encryption: {(encryptionEnabled ? "Enabled" : "Disabled")}");
             }

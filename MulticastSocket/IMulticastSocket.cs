@@ -15,7 +15,10 @@ namespace Ubicomp.Utils.NET.Sockets
         /// <summary>
         /// Gets the collection of IP addresses that have successfully joined the multicast group.
         /// </summary>
-        IEnumerable<IPAddress> JoinedAddresses { get; }
+        IEnumerable<IPAddress> JoinedAddresses
+        {
+            get;
+        }
 
         /// <summary>
         /// Event raised when a message is received.

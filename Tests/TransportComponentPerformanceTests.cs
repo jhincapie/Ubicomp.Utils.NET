@@ -32,7 +32,11 @@ namespace Ubicomp.Utils.NET.Tests
                 Logger = NullLogger.Instance,
                 EnforceOrdering = true
             };
-            try { component.Start(); } catch { }
+            try
+            {
+                component.Start();
+            }
+            catch { }
             return component;
         }
 

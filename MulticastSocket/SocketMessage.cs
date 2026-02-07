@@ -15,7 +15,10 @@ namespace Ubicomp.Utils.NET.Sockets
         /// <summary>
         /// Callback action to return this instance to a pool.
         /// </summary>
-        internal Action<SocketMessage>? ReturnCallback { get; set; }
+        internal Action<SocketMessage>? ReturnCallback
+        {
+            get; set;
+        }
 
         /// <summary>Gets the raw data received.</summary>
         public byte[] Data

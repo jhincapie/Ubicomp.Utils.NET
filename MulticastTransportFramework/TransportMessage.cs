@@ -18,48 +18,78 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         /// <summary>Gets or sets the unique identifier for the
         /// message.</summary>
-        public Guid MessageId { get; set; }
+        public Guid MessageId
+        {
+            get; set;
+        }
 
         /// <summary>Gets or sets the source of the message.</summary>
-        public EventSource MessageSource { get; set; }
+        public EventSource MessageSource
+        {
+            get; set;
+        }
 
         /// <summary>Gets or sets the type identifier of the message.</summary>
-        public string MessageType { get; set; }
+        public string MessageType
+        {
+            get; set;
+        }
 
         /// <summary>Gets or sets a value indicating whether an acknowledgement is requested.</summary>
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-        public bool RequestAck { get; set; }
+        public bool RequestAck
+        {
+            get; set;
+        }
 
         /// <summary>Gets or sets the actual content of the message.</summary>
-        public object MessageData { get; set; }
+        public object MessageData
+        {
+            get; set;
+        }
 
         /// <summary>Gets or sets the message timestamp.</summary>
-        public string TimeStamp { get; set; }
+        public string TimeStamp
+        {
+            get; set;
+        }
 
         /// <summary>
         /// Gets or sets the HMAC signature of the message for integrity verification.
         /// Computed over the MessageId, Timestamp, MessageType, and MessageData.
         /// </summary>
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public string? Signature { get; set; }
+        public string? Signature
+        {
+            get; set;
+        }
 
         /// <summary>
         /// Gets or sets a value indicating whether the MessageData is encrypted.
         /// </summary>
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-        public bool IsEncrypted { get; set; }
+        public bool IsEncrypted
+        {
+            get; set;
+        }
 
         /// <summary>
         /// Gets or sets the IV/Nonce used for encryption (Base64).
         /// </summary>
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public string? Nonce { get; set; }
+        public string? Nonce
+        {
+            get; set;
+        }
 
         /// <summary>
         /// Gets or sets the Authentication Tag for AES-GCM (Base64).
         /// </summary>
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public string? Tag { get; set; }
+        public string? Tag
+        {
+            get; set;
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TransportMessage"/>

@@ -49,69 +49,74 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         public static TransportMessage? Deserialize(ReadOnlySpan<byte> buffer, int sequenceId, JsonSerializerOptions jsonOptions, DecryptorDelegate? decryptor)
         {
-             if (buffer.Length < 61) return null;
+            if (buffer.Length < 61)
+                return null;
 
-             if (buffer[0] != MagicByte) return null;
+            if (buffer[0] != MagicByte)
+                return null;
 
-             PacketFlags flags = (PacketFlags)buffer[2];
+            PacketFlags flags = (PacketFlags)buffer[2];
 
-             int nonceLen = buffer[3];
-             int tagLen = buffer[4];
-             int nameLen = buffer[5];
+            int nonceLen = buffer[3];
+            int tagLen = buffer[4];
+            int nameLen = buffer[5];
 
-             Guid msgId;
-             Guid sourceId;
-             msgId = new Guid(buffer.Slice(20, 16));
-             sourceId = new Guid(buffer.Slice(36, 16));
-             long ticks = BinaryPrimitives.ReadInt64LittleEndian(buffer.Slice(52));
+            Guid msgId;
+            Guid sourceId;
+            msgId = new Guid(buffer.Slice(20, 16));
+            sourceId = new Guid(buffer.Slice(36, 16));
+            long ticks = BinaryPrimitives.ReadInt64LittleEndian(buffer.Slice(52));
 
-             int typeLen = buffer[60];
-             if (buffer.Length < 61 + typeLen + nameLen) return null;
+            int typeLen = buffer[60];
+            if (buffer.Length < 61 + typeLen + nameLen)
+                return null;
 
-             string messageType;
-             string sourceName;
-             messageType = Encoding.UTF8.GetString(buffer.Slice(61, typeLen));
-             sourceName = Encoding.UTF8.GetString(buffer.Slice(61 + typeLen, nameLen));
-             int offset = 61 + typeLen + nameLen;
+            string messageType;
+            string sourceName;
+            messageType = Encoding.UTF8.GetString(buffer.Slice(61, typeLen));
+            sourceName = Encoding.UTF8.GetString(buffer.Slice(61 + typeLen, nameLen));
+            int offset = 61 + typeLen + nameLen;
 
-             bool isEnc = flags.HasFlag(PacketFlags.Encrypted);
+            bool isEnc = flags.HasFlag(PacketFlags.Encrypted);
 
-             object? messageData = null;
+            object? messageData = null;
 
-             if (isEnc)
-             {
-                 if (decryptor == null) throw new System.Security.Authentication.AuthenticationException("Received encrypted packet but no decryptor configured.");
+            if (isEnc)
+            {
+                if (decryptor == null)
+                    throw new System.Security.Authentication.AuthenticationException("Received encrypted packet but no decryptor configured.");
 
-                 // Bounds check
-                 if (offset + nonceLen + tagLen > buffer.Length) return null;
+                // Bounds check
+                if (offset + nonceLen + tagLen > buffer.Length)
+                    return null;
 
-                 var nonceSpan = buffer.Slice(offset, nonceLen);
-                 var tagSpan = buffer.Slice(offset + nonceLen, tagLen);
-                 var cipherSpan = buffer.Slice(offset + nonceLen + tagLen);
+                var nonceSpan = buffer.Slice(offset, nonceLen);
+                var tagSpan = buffer.Slice(offset + nonceLen, tagLen);
+                var cipherSpan = buffer.Slice(offset + nonceLen + tagLen);
 
-                 byte[] plainBytes = decryptor(nonceSpan, tagSpan, cipherSpan);
+                byte[] plainBytes = decryptor(nonceSpan, tagSpan, cipherSpan);
 
-                 // Payload is JSON bytes
-                 messageData = JsonSerializer.Deserialize<System.Text.Json.JsonElement>(plainBytes, jsonOptions);
-             }
-             else
-             {
-                 var payloadSlice = buffer.Slice(offset);
-                 messageData = JsonSerializer.Deserialize<System.Text.Json.JsonElement>(payloadSlice, jsonOptions);
-             }
+                // Payload is JSON bytes
+                messageData = JsonSerializer.Deserialize<System.Text.Json.JsonElement>(plainBytes, jsonOptions);
+            }
+            else
+            {
+                var payloadSlice = buffer.Slice(offset);
+                messageData = JsonSerializer.Deserialize<System.Text.Json.JsonElement>(payloadSlice, jsonOptions);
+            }
 
-             return new TransportMessage
-             {
-                 MessageId = msgId,
-                 MessageSource = new EventSource(sourceId, sourceName),
-                 MessageType = messageType,
-                 RequestAck = flags.HasFlag(PacketFlags.RequestAck),
-                 IsEncrypted = isEnc,
-                 Nonce = null,
-                 Tag = null,
-                 TimeStamp = new DateTime(ticks).ToString(TransportMessage.DATE_FORMAT_NOW),
-                 MessageData = messageData!
-             };
+            return new TransportMessage
+            {
+                MessageId = msgId,
+                MessageSource = new EventSource(sourceId, sourceName),
+                MessageType = messageType,
+                RequestAck = flags.HasFlag(PacketFlags.RequestAck),
+                IsEncrypted = isEnc,
+                Nonce = null,
+                Tag = null,
+                TimeStamp = new DateTime(ticks).ToString(TransportMessage.DATE_FORMAT_NOW),
+                MessageData = messageData!
+            };
         }
 
         public static void SerializeToWriter(IBufferWriter<byte> writer, TransportMessage message, int sequenceId, byte[]? integrityKey, EncryptorDelegate? encryptor, JsonSerializerOptions? jsonOptions = null)
@@ -119,23 +124,28 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             // Calculate sizes
             string type = message.MessageType;
             int typeLen = Encoding.UTF8.GetByteCount(type);
-            if (typeLen > 255) typeLen = 255;
+            if (typeLen > 255)
+                typeLen = 255;
 
             string name = message.MessageSource.ResourceName ?? "Unknown";
             int nameLen = Encoding.UTF8.GetByteCount(name);
-            if (nameLen > 255) nameLen = 255;
+            if (nameLen > 255)
+                nameLen = 255;
 
             // Prepare Payload
             byte[] payloadBytes;
             if (message.MessageData is IBinarySerializable binarySerializable)
             {
-                 var tempWriter = new ArrayBufferWriter<byte>();
-                 binarySerializable.Write(tempWriter);
-                 payloadBytes = tempWriter.WrittenSpan.ToArray();
+                var tempWriter = new ArrayBufferWriter<byte>();
+                binarySerializable.Write(tempWriter);
+                payloadBytes = tempWriter.WrittenSpan.ToArray();
             }
-            else if (message.MessageData is byte[] b) payloadBytes = b;
-            else if (message.MessageData is string s) payloadBytes = Encoding.UTF8.GetBytes(s);
-            else payloadBytes = JsonSerializer.SerializeToUtf8Bytes(message.MessageData, jsonOptions);
+            else if (message.MessageData is byte[] b)
+                payloadBytes = b;
+            else if (message.MessageData is string s)
+                payloadBytes = Encoding.UTF8.GetBytes(s);
+            else
+                payloadBytes = JsonSerializer.SerializeToUtf8Bytes(message.MessageData, jsonOptions);
 
             bool isEncrypted = encryptor != null && message.IsEncrypted;
             int nonceLen = isEncrypted ? 12 : 0; // GCM Nonce
@@ -153,8 +163,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             headerSpan[1] = ProtocolVersion;
 
             PacketFlags flags = PacketFlags.None;
-            if (message.RequestAck) flags |= PacketFlags.RequestAck;
-            if (isEncrypted) flags |= PacketFlags.Encrypted;
+            if (message.RequestAck)
+                flags |= PacketFlags.RequestAck;
+            if (isEncrypted)
+                flags |= PacketFlags.Encrypted;
             headerSpan[2] = (byte)flags;
 
             // 2. Metadata Lengths
@@ -217,11 +229,13 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             // Calculate sizes
             string type = message.MessageType;
             int typeLen = Encoding.UTF8.GetByteCount(type);
-            if (typeLen > 255) typeLen = 255;
+            if (typeLen > 255)
+                typeLen = 255;
 
             string name = message.MessageSource.ResourceName ?? "Unknown";
             int nameLen = Encoding.UTF8.GetByteCount(name);
-            if (nameLen > 255) nameLen = 255;
+            if (nameLen > 255)
+                nameLen = 255;
 
             // Prepare Payload (Serialize to JSON first if not already bytes/string)
             // Ideally we want to write JSON directly to the writer too, but for now we might have intermediate bytes for the payload
@@ -231,20 +245,23 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             byte[] payloadBytes;
             if (message.MessageData is IBinarySerializable binarySerializable)
             {
-                 // P5: IBinarySerializable Optimization
-                 // TODO: Write directly to writer. For now we serialize to temp buffer because our layout assumes payload at end?
-                 // Actually layout assumes header then payload.
-                 // But we have logic below that calculates header size based on TypeLen/NameLen etc.
-                 // We can start writing header, then write payload.
+                // P5: IBinarySerializable Optimization
+                // TODO: Write directly to writer. For now we serialize to temp buffer because our layout assumes payload at end?
+                // Actually layout assumes header then payload.
+                // But we have logic below that calculates header size based on TypeLen/NameLen etc.
+                // We can start writing header, then write payload.
 
-                 // For now, to minimize refactor risk in this step, let's treat it as byte[]
-                 var tempWriter = new ArrayBufferWriter<byte>();
-                 binarySerializable.Write(tempWriter);
-                 payloadBytes = tempWriter.WrittenSpan.ToArray();
+                // For now, to minimize refactor risk in this step, let's treat it as byte[]
+                var tempWriter = new ArrayBufferWriter<byte>();
+                binarySerializable.Write(tempWriter);
+                payloadBytes = tempWriter.WrittenSpan.ToArray();
             }
-            else if (message.MessageData is byte[] b) payloadBytes = b;
-            else if (message.MessageData is string s) payloadBytes = Encoding.UTF8.GetBytes(s);
-            else payloadBytes = JsonSerializer.SerializeToUtf8Bytes(message.MessageData, jsonOptions);
+            else if (message.MessageData is byte[] b)
+                payloadBytes = b;
+            else if (message.MessageData is string s)
+                payloadBytes = Encoding.UTF8.GetBytes(s);
+            else
+                payloadBytes = JsonSerializer.SerializeToUtf8Bytes(message.MessageData, jsonOptions);
 
             bool isEncrypted = encryptionKey != null && message.IsEncrypted;
             int nonceLen = isEncrypted ? 12 : 0; // GCM Nonce
@@ -265,8 +282,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             headerSpan[1] = ProtocolVersion;
 
             PacketFlags flags = PacketFlags.None;
-            if (message.RequestAck) flags |= PacketFlags.RequestAck;
-            if (isEncrypted) flags |= PacketFlags.Encrypted;
+            if (message.RequestAck)
+                flags |= PacketFlags.RequestAck;
+            if (isEncrypted)
+                flags |= PacketFlags.Encrypted;
             headerSpan[2] = (byte)flags;
 
             // 2. Metadata Lengths
@@ -316,7 +335,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 System.Security.Cryptography.RandomNumberGenerator.Fill(nonceSpan);
 
                 // Encrypt directly into output span
-                 using (var aesGcm = new System.Security.Cryptography.AesGcm(encryptionKey, 16))
+                using (var aesGcm = new System.Security.Cryptography.AesGcm(encryptionKey, 16))
                 {
                     aesGcm.Encrypt(nonceSpan, payloadBytes, cipherSpan, tagSpan);
                 }
@@ -342,82 +361,89 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         // We need an updated Reader-based Deserialize too.
         public static TransportMessage? Deserialize(ReadOnlySpan<byte> buffer, int sequenceId, JsonSerializerOptions jsonOptions, byte[]? encryptionKey)
         {
-             if (buffer.Length < 61) return null;
+            if (buffer.Length < 61)
+                return null;
 
-             if (buffer[0] != MagicByte) return null;
+            if (buffer[0] != MagicByte)
+                return null;
 
-             PacketFlags flags = (PacketFlags)buffer[2];
+            PacketFlags flags = (PacketFlags)buffer[2];
 
-             int nonceLen = buffer[3];
-             int tagLen = buffer[4];
-             int nameLen = buffer[5];
+            int nonceLen = buffer[3];
+            int tagLen = buffer[4];
+            int nameLen = buffer[5];
 
-             // int packetSeqId = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(16));
+            // int packetSeqId = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(16));
 
-             Guid msgId = new Guid(buffer.Slice(20, 16));
-             Guid sourceId = new Guid(buffer.Slice(36, 16));
-             long ticks = BinaryPrimitives.ReadInt64LittleEndian(buffer.Slice(52));
+            Guid msgId = new Guid(buffer.Slice(20, 16));
+            Guid sourceId = new Guid(buffer.Slice(36, 16));
+            long ticks = BinaryPrimitives.ReadInt64LittleEndian(buffer.Slice(52));
 
-             int typeLen = buffer[60];
-             if (buffer.Length < 61 + typeLen + nameLen) return null;
+            int typeLen = buffer[60];
+            if (buffer.Length < 61 + typeLen + nameLen)
+                return null;
 
-             string messageType = Encoding.UTF8.GetString(buffer.Slice(61, typeLen));
-             string sourceName = Encoding.UTF8.GetString(buffer.Slice(61 + typeLen, nameLen));
-             int offset = 61 + typeLen + nameLen;
+            string messageType = Encoding.UTF8.GetString(buffer.Slice(61, typeLen));
+            string sourceName = Encoding.UTF8.GetString(buffer.Slice(61 + typeLen, nameLen));
+            int offset = 61 + typeLen + nameLen;
 
-             bool isEnc = flags.HasFlag(PacketFlags.Encrypted);
+            bool isEnc = flags.HasFlag(PacketFlags.Encrypted);
 
-             // Extract Payload (Auth/Decryption handled here for native Binary Packet)
-             object? messageData = null;
+            // Extract Payload (Auth/Decryption handled here for native Binary Packet)
+            object? messageData = null;
 
-             if (isEnc)
-             {
-                 if (encryptionKey == null) throw new System.Security.Authentication.AuthenticationException("Received encrypted packet but no key configured.");
+            if (isEnc)
+            {
+                if (encryptionKey == null)
+                    throw new System.Security.Authentication.AuthenticationException("Received encrypted packet but no key configured.");
 
 
-                 // Bounds check
-                 if (offset + nonceLen + tagLen > buffer.Length) return null;
+                // Bounds check
+                if (offset + nonceLen + tagLen > buffer.Length)
+                    return null;
 
-                 var nonceSpan = buffer.Slice(offset, nonceLen);
-                 var tagSpan = buffer.Slice(offset + nonceLen, tagLen);
-                 var cipherSpan = buffer.Slice(offset + nonceLen + tagLen);
+                var nonceSpan = buffer.Slice(offset, nonceLen);
+                var tagSpan = buffer.Slice(offset + nonceLen, tagLen);
+                var cipherSpan = buffer.Slice(offset + nonceLen + tagLen);
 
-                  // Decrypt into temporary buffer (or string)
-                  // We don't know the plaintext length exactly but it matches ciphertext length for GCM
-                  byte[] plainBytes = new byte[cipherSpan.Length];
+                // Decrypt into temporary buffer (or string)
+                // We don't know the plaintext length exactly but it matches ciphertext length for GCM
+                byte[] plainBytes = new byte[cipherSpan.Length];
 
-                  using (var aesGcm = new System.Security.Cryptography.AesGcm(encryptionKey, 16))
-                  {
-                      aesGcm.Decrypt(nonceSpan, cipherSpan, tagSpan, plainBytes);
-                  }
+                using (var aesGcm = new System.Security.Cryptography.AesGcm(encryptionKey, 16))
+                {
+                    aesGcm.Decrypt(nonceSpan, cipherSpan, tagSpan, plainBytes);
+                }
 
-                  // Payload is JSON bytes
-                  messageData = JsonSerializer.Deserialize<JsonElement>(plainBytes, jsonOptions);
-             }
-             else
-             {
-                 var payloadSlice = buffer.Slice(offset);
-                 messageData = JsonSerializer.Deserialize<JsonElement>(payloadSlice, jsonOptions);
-             }
+                // Payload is JSON bytes
+                messageData = JsonSerializer.Deserialize<JsonElement>(plainBytes, jsonOptions);
+            }
+            else
+            {
+                var payloadSlice = buffer.Slice(offset);
+                messageData = JsonSerializer.Deserialize<JsonElement>(payloadSlice, jsonOptions);
+            }
 
-             return new TransportMessage
-             {
-                 MessageId = msgId,
-                 MessageSource = new EventSource(sourceId, sourceName),
-                 MessageType = messageType,
-                 RequestAck = flags.HasFlag(PacketFlags.RequestAck),
-                 IsEncrypted = isEnc,
-                 Nonce = null, // Not needed for app layer anymore
-                 Tag = null,
-                 TimeStamp = new DateTime(ticks).ToString(TransportMessage.DATE_FORMAT_NOW),
-                 MessageData = messageData!
-             };
+            return new TransportMessage
+            {
+                MessageId = msgId,
+                MessageSource = new EventSource(sourceId, sourceName),
+                MessageType = messageType,
+                RequestAck = flags.HasFlag(PacketFlags.RequestAck),
+                IsEncrypted = isEnc,
+                Nonce = null, // Not needed for app layer anymore
+                Tag = null,
+                TimeStamp = new DateTime(ticks).ToString(TransportMessage.DATE_FORMAT_NOW),
+                MessageData = messageData!
+            };
         }
         public static bool TryReadHeader(ReadOnlySpan<byte> buffer, out PacketHeader header)
         {
             header = default;
-            if (buffer.Length < 61) return false;
-            if (buffer[0] != MagicByte) return false;
+            if (buffer.Length < 61)
+                return false;
+            if (buffer[0] != MagicByte)
+                return false;
 
             // SeqId (4) at offset 16
             int seqId = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(16));
@@ -429,7 +455,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             int typeLen = buffer[60];
             int nameLen = buffer[5]; // NameLen at 5
 
-            if (buffer.Length < 61 + typeLen + nameLen) return false;
+            if (buffer.Length < 61 + typeLen + nameLen)
+                return false;
 
             string messageType = Encoding.UTF8.GetString(buffer.Slice(61, typeLen));
             header = new PacketHeader(seqId, ticks, messageType);

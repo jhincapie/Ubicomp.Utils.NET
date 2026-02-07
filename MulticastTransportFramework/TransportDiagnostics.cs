@@ -13,7 +13,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     {
         public static string DumpPacket(byte[] packet)
         {
-            if (packet == null || packet.Length == 0) return "{ \"error\": \"Empty packet\" }";
+            if (packet == null || packet.Length == 0)
+                return "{ \"error\": \"Empty packet\" }";
 
             var sb = new StringBuilder();
             sb.AppendLine("{");
@@ -57,11 +58,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 try
                 {
                     string json = Encoding.UTF8.GetString(packet);
-                     // Validate JSON
+                    // Validate JSON
                     using (JsonDocument doc = JsonDocument.Parse(json))
                     {
-                         sb.AppendLine("  \"validJson\": true,");
-                         sb.Append("  \"preview\": \"").Append(json.Substring(0, Math.Min(json.Length, 100)).Replace("\"", "\\\"")).AppendLine("...\"");
+                        sb.AppendLine("  \"validJson\": true,");
+                        sb.Append("  \"preview\": \"").Append(json.Substring(0, Math.Min(json.Length, 100)).Replace("\"", "\\\"")).AppendLine("...\"");
                     }
                 }
                 catch

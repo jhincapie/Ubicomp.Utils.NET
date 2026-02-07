@@ -1,6 +1,6 @@
 using System;
-using Xunit;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
+using Xunit;
 
 namespace Ubicomp.Utils.NET.Tests
 {
