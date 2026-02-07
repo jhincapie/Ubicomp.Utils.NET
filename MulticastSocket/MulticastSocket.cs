@@ -162,38 +162,14 @@ namespace Ubicomp.Utils.NET.Sockets
                 Logger.LogWarning(ex, "Failed to set NoDelay socket option");
             }
 
-            if (_options.ReuseAddress)
-            {
-                _udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 1);
-                Logger.LogTrace("Socket option ReuseAddress set to true");
-            }
-            else
-            {
-                _udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 0);
-                Logger.LogTrace("Socket option ReuseAddress set to false");
-            }
+            _udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, _options.ReuseAddress);
+            Logger.LogTrace("Socket option ReuseAddress set to {Value}", _options.ReuseAddress);
 
-            if (_options.MulticastLoopback)
-            {
-                _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, 1);
-                Logger.LogTrace("Socket option MulticastLoopback set to true");
-            }
-            else
-            {
-                _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, 0);
-                Logger.LogTrace("Socket option MulticastLoopback set to false");
-            }
+            _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, _options.MulticastLoopback);
+            Logger.LogTrace("Socket option MulticastLoopback set to {Value}", _options.MulticastLoopback);
 
-            if (_options.DontFragment)
-            {
-                _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.DontFragment, 1);
-                Logger.LogTrace("Socket option DontFragment set to true");
-            }
-            else
-            {
-                _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.DontFragment, 0);
-                Logger.LogTrace("Socket option DontFragment set to false");
-            }
+            _udpSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.DontFragment, _options.DontFragment);
+            Logger.LogTrace("Socket option DontFragment set to {Value}", _options.DontFragment);
 
             if (_options.ReceiveBufferSize > 0)
             {
