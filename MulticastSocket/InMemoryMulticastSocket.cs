@@ -1,133 +1,188 @@
-#nullable enable
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
+using System.Buffers;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using System.Runtime.CompilerServices;
+using Ubicomp.Utils.NET.Sockets;
 
 namespace Ubicomp.Utils.NET.Sockets
 {
     /// <summary>
-    /// An in-memory implementation of <see cref="IMulticastSocket"/> for testing.
-    /// Simulates a multicast network using shared channels.
+    /// An in-memory implementation of <see cref="IMulticastSocket"/> for testing purposes.
+    /// Simulates a network by routing messages between instances via a shared static hub.
     /// </summary>
     public class InMemoryMulticastSocket : IMulticastSocket
     {
-        // Shared bus for all instances joining the same (Group, Port).
-        // Key: "$Group:$Port"
-        private static readonly ConcurrentDictionary<string, Channel<byte[]>> _networkBus = new();
+        // Simulated network hub
+        private static readonly ConcurrentDictionary<string, ConcurrentBag<InMemoryMulticastSocket>> _networkGroups
+            = new ConcurrentDictionary<string, ConcurrentBag<InMemoryMulticastSocket>>();
 
-        private readonly string _groupAddress;
-        private readonly int _port;
-        private readonly List<IPAddress> _joinedAddresses = new();
-        private readonly Channel<SocketMessage> _receiveChannel = Channel.CreateUnbounded<SocketMessage>();
-        private CancellationTokenSource? _listeningCts;
-        private readonly IPAddress _virtualInterfaceIp;
+        private readonly Channel<SocketMessage> _receiveChannel;
+        private string _groupAddress = string.Empty;
+        private int _port;
+        private bool _joined;
+        private bool _disposed;
+        private int _consecutiveSeq;
+        private EndPoint _localEP; // Simulated local EP
+
+        public IEnumerable<IPAddress> JoinedAddresses
+        {
+            get
+            {
+                if (_joined && IPAddress.TryParse(_groupAddress, out var ip))
+                {
+                    return new[] { ip };
+                }
+                return Array.Empty<IPAddress>();
+            }
+        }
 
         public event Action<SocketMessage>? OnMessageReceived;
 
-        public IEnumerable<IPAddress> JoinedAddresses => _joinedAddresses;
-
-        public InMemoryMulticastSocket(string groupAddress, int port)
+        public InMemoryMulticastSocket()
         {
-            _groupAddress = groupAddress;
+            _receiveChannel = Channel.CreateUnbounded<SocketMessage>();
+            // Assign a random fake "IP"
+            _localEP = new IPEndPoint(IPAddress.Loopback, new Random().Next(10000, 60000));
+        }
+
+        public InMemoryMulticastSocket(string multicastAddress, int port) : this()
+        {
+            _groupAddress = multicastAddress;
             _port = port;
-            // Assign a random 127.x.x.x helper IP to simulate an interface
-            var rnd = new Random();
-            _virtualInterfaceIp = IPAddress.Parse($"127.0.{rnd.Next(1, 255)}.{rnd.Next(1, 255)}");
+            // Auto-join for test convenience if addressing is provided upfront?
+            // The tests seem to expect it to be "ready" or at least configured.
+            // We will do the registration in JoinGroupAsync explicitly called by Transport or test,
+            // OR if the test assumes implicit join (like `Test_JoinedAddresses` seems to?), we might need to join now.
+            // But `Test_JoinedAddresses` calls `StartReceiving`.
+            // Let's defer "Join" logic to `JoinGroupAsync` but ensure proper state.
+            // If checking JoinedAddresses without calling JoinGroupAsync, it returns empty?
+            // Test_JoinedAddresses calls `StartReceiving()` then checks `JoinedAddresses`.
+            // It assumes specific behavior. Let's make `StartReceiving` simulate a Join if not joined?
+            // Or maybe the constructor joins?
+            // Let's try joining in StartReceiving if configured.
         }
 
         public void StartReceiving()
         {
-            if (_listeningCts != null) return; // Already started
-
-            _listeningCts = new CancellationTokenSource();
-            string busKey = $"{_groupAddress}:{_port}";
-
-            // Get or create the shared bus for this group
-            var bus = _networkBus.GetOrAdd(busKey, _ => Channel.CreateUnbounded<byte[]>());
-
-            // Start a task to listen to the bus and forward to our receive channel
-            _ = Task.Run(async () =>
+            if (!_joined && !string.IsNullOrEmpty(_groupAddress) && _port > 0)
             {
-                var reader = bus.Reader;
-                try
-                {
-                    while (await reader.WaitToReadAsync(_listeningCts.Token))
-                    {
-                        while (reader.TryRead(out byte[]? data))
-                        {
-                            if (data == null) continue;
-                            // Simulate reception
-                            // Copy data to simulate network isolation
-                            byte[] receivedData = data.ToArray();
-
-                            var msg = new SocketMessage(receivedData, 0); // SeqId 0 for now, or maintain local counter
-                            // In real socket, SeqID is per-socket. Here we can leave 0 or increment.
-
-                            OnMessageReceived?.Invoke(msg);
-                            _receiveChannel.Writer.TryWrite(msg);
-                        }
-                    }
-                }
-                catch (OperationCanceledException) { }
-            });
-
-            // "Join" the loopback interface by default
-            _joinedAddresses.Add(_virtualInterfaceIp);
+                JoinGroupAsync(_groupAddress).Wait();
+            }
         }
 
-        public async Task SendAsync(byte[] bytesToSend)
+        public void Bind(int port)
         {
-            if (bytesToSend.Length > MulticastSocket.MaxMessageSize)
-            {
-                throw new ArgumentException($"Message size exceeds maximum allowed size of {MulticastSocket.MaxMessageSize} bytes.");
-            }
+            _port = port;
+        }
 
-            string busKey = $"{_groupAddress}:{_port}";
-            if (_networkBus.TryGetValue(busKey, out var bus))
-            {
-                // Clone buffer (simulate wire)
-                byte[] wireData = bytesToSend.ToArray();
-                await bus.Writer.WriteAsync(wireData);
-            }
+        public Task JoinGroupAsync(string multicastAddress)
+        {
+            _groupAddress = multicastAddress;
+            var groupKey = $"{multicastAddress}:{_port}";
+            var bag = _networkGroups.GetOrAdd(groupKey, _ => new ConcurrentBag<InMemoryMulticastSocket>());
+            bag.Add(this);
+            _joined = true;
+            return Task.CompletedTask;
+        }
+
+        public Task SendAsync(byte[] bytesToSend)
+        {
+            return SendAsync(bytesToSend, 0, bytesToSend.Length);
         }
 
         public Task SendAsync(byte[] buffer, int offset, int count)
         {
-            byte[] slice = new byte[count];
-            Array.Copy(buffer, offset, slice, 0, count);
-            return SendAsync(slice);
+             if (_disposed) throw new ObjectDisposedException(nameof(InMemoryMulticastSocket));
+
+             if (string.IsNullOrEmpty(_groupAddress)) return Task.CompletedTask;
+
+             if (count > 65535) throw new ArgumentException("Message size exceeds maximum allowed size.", nameof(count));
+
+             var groupKey = $"{_groupAddress}:{_port}";
+             if (_networkGroups.TryGetValue(groupKey, out var peers))
+             {
+                 foreach (var peer in peers)
+                 {
+                     if (peer.IsJoined && !peer._disposed)
+                     {
+                         // Allow loopback for tests (peer == this is OK)
+                         peer.ReceiveInternal(buffer.AsSpan(offset, count), _localEP);
+                     }
+                 }
+             }
+
+             return Task.CompletedTask;
         }
 
         public Task SendAsync(string sendData)
         {
-            return SendAsync(System.Text.Encoding.UTF8.GetBytes(sendData));
+            var bytes = System.Text.Encoding.UTF8.GetBytes(sendData);
+            return SendAsync(bytes);
         }
 
-        public async IAsyncEnumerable<SocketMessage> GetMessageStream([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        // Helper for test setup
+        public bool IsJoined => _joined;
+
+        private void ReceiveInternal(ReadOnlySpan<byte> data, EndPoint sender)
         {
-            while (await _receiveChannel.Reader.WaitToReadAsync(cancellationToken))
+            if (_disposed) return;
+
+            // Copy data to simulate network buffer isolation
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(data.Length);
+            data.CopyTo(buffer);
+
+            int seq = Interlocked.Increment(ref _consecutiveSeq);
+
+            var msg = new SocketMessage();
+            msg.Reset(buffer, data.Length, seq, isRented: true, sender);
+            msg.ReturnCallback = (m) =>
             {
-                while (_receiveChannel.Reader.TryRead(out var message))
+                 if (m.Data != null) ArrayPool<byte>.Shared.Return(m.Data);
+            };
+
+            // 1. Event (Legacy/Synchronous)
+            try {
+                OnMessageReceived?.Invoke(msg);
+            } catch { }
+
+            // 2. Channel (Async Stream)
+            if (!_receiveChannel.Writer.TryWrite(msg))
+            {
+                msg.Dispose();
+            }
+        }
+
+        public async IAsyncEnumerable<SocketMessage> GetMessageStream([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            while (await _receiveChannel.Reader.WaitToReadAsync(ct))
+            {
+                while (_receiveChannel.Reader.TryRead(out var msg))
                 {
-                    yield return message;
+                    yield return msg;
                 }
             }
         }
 
         public void Close()
         {
-            _listeningCts?.Cancel();
-            _receiveChannel.Writer.TryComplete();
+            Dispose();
         }
 
         public void Dispose()
         {
-            Close();
+            if (_disposed) return;
+            _disposed = true;
+            _receiveChannel.Writer.TryComplete();
+
+            // Remove from static bag?
+            // Expensive/Hard with ConcurrentBag.
+            // In tests it's okay if "dead" sockets remain in bag,
+            // we check `!peer._disposed` in SendAsync loop so they are ignored.
         }
     }
 }

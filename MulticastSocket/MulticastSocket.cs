@@ -371,22 +371,48 @@ namespace Ubicomp.Utils.NET.Sockets
 
                         int seqId = Interlocked.Increment(ref _mConsecutive);
 
-                        // Rent message from pool
-                        var msg = _messagePool.Get();
-
-                        // Pass ownership of the rented buffer to the message
-                        msg.Reset(buffer, result.ReceivedBytes, seqId, isRented: true, result.RemoteEndPoint);
-                        msg.ReturnCallback = _returnCallback;
-
-                        bufferPassedToMessage = true;
-
-                        LogMessageReceived(Logger, seqId, result.ReceivedBytes);
-
-                        OnMessageReceivedAction?.Invoke(msg);
-                        if (!_messageChannel.Writer.TryWrite(msg))
+                        // P1: Smart Buffer Slicing
+                        // If packet is small, copy to exact-sized array and return large buffer immediately.
+                        // Threshold: 1024 bytes (Typical MTU is 1500, but control messages are small)
+                        if (result.ReceivedBytes < 1024)
                         {
-                            Logger.LogTrace("Channel full, dropping packet.");
-                            msg.Dispose();
+                            var exactBuffer = new byte[result.ReceivedBytes];
+                            Array.Copy(buffer, exactBuffer, result.ReceivedBytes);
+
+                            // Return large buffer immediately
+                            ArrayPool<byte>.Shared.Return(buffer);
+                            bufferPassedToMessage = true; // Technically returned, but handled safely
+
+                            var msg = _messagePool.Get();
+                            msg.Reset(exactBuffer, result.ReceivedBytes, seqId, isRented: false, result.RemoteEndPoint);
+                            msg.ReturnCallback = _returnCallback;
+
+                            LogMessageReceived(Logger, seqId, result.ReceivedBytes);
+                            OnMessageReceivedAction?.Invoke(msg);
+
+                            if (!_messageChannel.Writer.TryWrite(msg))
+                            {
+                                Logger.LogTrace("Channel full, dropping packet.");
+                                msg.Dispose();
+                            }
+                        }
+                        else
+                        {
+                            // Keep the large rented buffer for zero-copy efficiency on large payloads
+                            var msg = _messagePool.Get();
+                            msg.Reset(buffer, result.ReceivedBytes, seqId, isRented: true, result.RemoteEndPoint);
+                            msg.ReturnCallback = _returnCallback;
+
+                            bufferPassedToMessage = true; // Ownership transferred to msg
+
+                            LogMessageReceived(Logger, seqId, result.ReceivedBytes);
+                            OnMessageReceivedAction?.Invoke(msg);
+
+                            if (!_messageChannel.Writer.TryWrite(msg))
+                            {
+                                Logger.LogTrace("Channel full, dropping packet.");
+                                msg.Dispose();
+                            }
                         }
                     }
                     catch (SocketException se) when (se.SocketErrorCode == SocketError.OperationAborted || se.SocketErrorCode == SocketError.Interrupted)
@@ -412,7 +438,9 @@ namespace Ubicomp.Utils.NET.Sockets
                     finally
                     {
                         // If we didn't successfully pass the buffer to a message (e.g. exception),
-                        // we must return it to the pool to avoid leak.
+                        // or if we didn't handle it in the small-packet path (already returned there), we rely on bufferPassedToMessage flag.
+                        // Note: In small packet path, we set bufferPassedToMessage = true AFTER returning it,
+                        // effectively saying "don't return it again".
                         if (!bufferPassedToMessage)
                         {
                             ArrayPool<byte>.Shared.Return(buffer);
@@ -444,16 +472,26 @@ namespace Ubicomp.Utils.NET.Sockets
             try
             {
                 int bytesRead = state.WorkSocket.EndReceiveFrom(ar, ref _localEndPoint);
-                byte[] buffer = ArrayPool<byte>.Shared.Rent(bytesRead);
-                Array.Copy(state.Buffer, 0, buffer, 0, bytesRead);
 
                 int seqId = Interlocked.Increment(ref _mConsecutive);
-
-                // Rent message from pool
                 var msg = _messagePool.Get();
 
-                // _localEndPoint contains the remote endpoint after EndReceiveFrom
-                msg.Reset(buffer, bytesRead, seqId, isRented: true, _localEndPoint);
+                // P1: Smart Buffer Slicing (Legacy Path)
+                if (bytesRead < 1024)
+                {
+                     // Small packet: Allocate exact heap array (no pool overhead for small inputs)
+                     byte[] exactBuffer = new byte[bytesRead];
+                     Array.Copy(state.Buffer, 0, exactBuffer, 0, bytesRead);
+                     msg.Reset(exactBuffer, bytesRead, seqId, isRented: false, _localEndPoint);
+                }
+                else
+                {
+                    // Large packet: Rent from pool
+                    byte[] rentedBuffer = ArrayPool<byte>.Shared.Rent(bytesRead); // Rent at least bytesRead
+                    Array.Copy(state.Buffer, 0, rentedBuffer, 0, bytesRead);
+                    msg.Reset(rentedBuffer, bytesRead, seqId, isRented: true, _localEndPoint);
+                }
+
                 msg.ReturnCallback = _returnCallback;
 
                 LogMessageReceived(Logger, seqId, bytesRead);

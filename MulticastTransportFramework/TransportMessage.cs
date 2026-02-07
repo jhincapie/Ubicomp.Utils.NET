@@ -71,7 +71,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public TransportMessage(EventSource source, string type, object data)
         {
             MessageId = Guid.NewGuid();
-            TimeStamp = DateTime.Now.ToString(DATE_FORMAT_NOW);
+            TimeStamp = DateTime.UtcNow.ToString(DATE_FORMAT_NOW);
             MessageSource = source;
             MessageType = type;
             MessageData = data;

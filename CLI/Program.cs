@@ -27,6 +27,9 @@ namespace Ubicomp.Utils.NET.CLI
                 case "sniff":
                     await RunSniff();
                     break;
+                case "dashboard":
+                    await RunDashboard();
+                    break;
                 default:
                     Console.WriteLine($"Unknown command: {command}");
                     PrintHelp();
@@ -40,6 +43,7 @@ namespace Ubicomp.Utils.NET.CLI
             Console.WriteLine("Usage:");
             Console.WriteLine("  check   - Runs network diagnostics (firewall, loopback)");
             Console.WriteLine("  sniff   - Listens for multicast packets and dumps them");
+            Console.WriteLine("  dashboard- Show live dashboard");
         }
 
         static async Task RunCheck()
@@ -103,6 +107,14 @@ namespace Ubicomp.Utils.NET.CLI
             });
 
             await Task.Delay(-1); // Block forever
+        }
+
+        static async Task RunDashboard()
+        {
+             var options = new MulticastSocketOptions(); // Default or parse args
+             // For simplicity, dashboard uses defaults or could share arg parsing logic.
+             // But DashboardCommand.RunAsync takes options.
+             await DashboardCommand.RunAsync(options);
         }
     }
 }

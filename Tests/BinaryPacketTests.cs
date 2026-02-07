@@ -27,7 +27,7 @@ namespace Ubicomp.Utils.NET.Tests
             // Act
             // Use fully qualified name to avoid ambiguity with internal ArrayBufferWriter
             var writer = new System.Buffers.ArrayBufferWriter<byte>();
-            BinaryPacket.SerializeToWriter(writer, message, 123, null, null);
+            BinaryPacket.SerializeToWriter(writer, message, 123, null, (byte[]?)null);
             var packet = writer.WrittenSpan.ToArray();
 
             // Assert
@@ -46,12 +46,12 @@ namespace Ubicomp.Utils.NET.Tests
 
              // Serialize
             var writer = new System.Buffers.ArrayBufferWriter<byte>();
-            BinaryPacket.SerializeToWriter(writer, message, 55, null, null, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            BinaryPacket.SerializeToWriter(writer, message, 55, null, (byte[]?)null, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
             var packet = writer.WrittenSpan.ToArray();
 
             // Act
             // v2 Update: Pass null/empty keys for unencrypted
-            var deserialized = BinaryPacket.Deserialize(packet, 55, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }, null);
+            var deserialized = BinaryPacket.Deserialize(packet, 55, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }, (byte[]?)null);
 
             // Assert
             Assert.NotNull(deserialized);

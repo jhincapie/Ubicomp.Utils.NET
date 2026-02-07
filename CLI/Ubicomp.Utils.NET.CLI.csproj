@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
+    <PackageReference Include="Spectre.Console" Version="0.54.0" />
     <ProjectReference Include="..\MulticastTransportFramework\MulticastTransportFramework.csproj" />
   </ItemGroup>
 
