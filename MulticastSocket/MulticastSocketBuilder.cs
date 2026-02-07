@@ -23,7 +23,7 @@ namespace Ubicomp.Utils.NET.Sockets
         /// Configures the socket for a local network.
         /// Automatically attempts to bind to a local LAN interface (192.168.x.x, 10.x.x.x, 172.16-31.x.x).
         /// </summary>
-        public MulticastSocketBuilder WithLocalNetwork(string groupAddress = "239.0.0.1", int port = 5000)
+        public MulticastSocketBuilder WithLocalNetwork(string groupAddress, int port)
         {
             _options = MulticastSocketOptions.LocalNetwork(groupAddress, port);
 
@@ -52,7 +52,7 @@ namespace Ubicomp.Utils.NET.Sockets
         /// <summary>
         /// Configures the socket for a wide area network.
         /// </summary>
-        public MulticastSocketBuilder WithWideAreaNetwork(string groupAddress = "239.0.0.1", int port = 5000, int ttl = 16)
+        public MulticastSocketBuilder WithWideAreaNetwork(string groupAddress, int port, int ttl = 16)
         {
             _options = MulticastSocketOptions.WideAreaNetwork(groupAddress, port, ttl);
             return this;

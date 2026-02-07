@@ -37,7 +37,7 @@ namespace Ubicomp.Utils.NET.Tests
         {
             // Arrange
             Ubicomp.Utils.NET.Generators.AutoDiscovery.TransportExtensions.Reset();
-            var options = MulticastSocketOptions.LocalNetwork();
+            var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000);
             var builder = new TransportBuilder()
                 .WithMulticastOptions(options);
 

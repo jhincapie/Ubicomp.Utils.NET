@@ -16,10 +16,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// <param name="services">The service collection.</param>
         /// <param name="configure">A delegate to configure the socket options.</param>
         /// <returns>The service collection for chaining.</returns>
-        public static IServiceCollection AddMulticastTransport(this IServiceCollection services, Action<MulticastSocketOptions> configure)
+        /// <summary>
+        /// Adds the MulticastTransportFramework services to the service collection.
+        /// </summary>
+        /// <param name="services">The service collection.</param>
+        /// <param name="options">The configured socket options.</param>
+        /// <returns>The service collection for chaining.</returns>
+        public static IServiceCollection AddMulticastTransport(this IServiceCollection services, MulticastSocketOptions options)
         {
-            var options = new MulticastSocketOptions();
-            configure(options);
 
             services.AddSingleton(options);
             services.AddSingleton<TransportComponent>();

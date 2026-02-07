@@ -42,7 +42,7 @@ namespace Ubicomp.Utils.NET.Tests
         public void Validate_ShouldThrow_OnInvalidOptions(string ip, int port,
                                                           int ttl)
         {
-            // Factory methods now validate internally. 
+            // Factory methods now validate internally.
             Assert.Throws<ArgumentException>(() =>
             {
                 var options = MulticastSocketOptions.LocalNetwork(ip, port);
@@ -54,7 +54,7 @@ namespace Ubicomp.Utils.NET.Tests
         [Fact]
         public void FactoryMethods_ShouldApplySensibleDefaults()
         {
-            var local = MulticastSocketOptions.LocalNetwork(port: 5001);
+            var local = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5001);
             Assert.Equal("239.0.0.1", local.GroupAddress);
             Assert.Equal(5001, local.Port);
             Assert.Equal(1, local.TimeToLive);

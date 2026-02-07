@@ -17,7 +17,7 @@ namespace Ubicomp.Utils.NET.Tests
         public void Builder_ShouldApplyEnforceOrdering_WhenConfigured()
         {
             // Arrange
-            var options = MulticastSocketOptions.LocalNetwork();
+            var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000);
 
             // Act
             var transport = new TransportBuilder()
@@ -42,7 +42,7 @@ namespace Ubicomp.Utils.NET.Tests
         public async Task Transport_ShouldEnforceOrdering_WhenConfiguredTrue()
         {
             // Arrange
-            var options = MulticastSocketOptions.LocalNetwork();
+            var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000);
 
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)
@@ -112,7 +112,7 @@ namespace Ubicomp.Utils.NET.Tests
         public void Transport_ShouldProcessImmediately_WhenConfiguredFalse()
         {
             // Arrange
-            var options = MulticastSocketOptions.LocalNetwork();
+            var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000);
 
             var transport = new TransportBuilder()
                 .WithMulticastOptions(options)

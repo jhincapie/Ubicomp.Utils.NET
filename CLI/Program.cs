@@ -58,7 +58,7 @@ namespace Ubicomp.Utils.NET.CLI
             });
             ILogger logger = loggerFactory.CreateLogger("CLI");
 
-            var options = new MulticastSocketOptions(); // Default
+            var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000); // Default
 
             using var transport = new TransportComponent(options);
             transport.Logger = logger;
@@ -83,8 +83,8 @@ namespace Ubicomp.Utils.NET.CLI
         {
             Console.WriteLine("Starting Packet Sniffer (Press Ctrl+C to stop)...");
 
-            var options = new MulticastSocketOptions(); // Default
-                                                        // Setup simple logger
+            var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000);
+            // Setup simple logger
             using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
             {
                 builder.AddConsole();
@@ -111,9 +111,7 @@ namespace Ubicomp.Utils.NET.CLI
 
         static async Task RunDashboard()
         {
-            var options = new MulticastSocketOptions(); // Default or parse args
-                                                        // For simplicity, dashboard uses defaults or could share arg parsing logic.
-                                                        // But DashboardCommand.RunAsync takes options.
+            var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000);
             await DashboardCommand.RunAsync(options);
         }
     }

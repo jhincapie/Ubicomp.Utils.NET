@@ -24,7 +24,10 @@ namespace Ubicomp.Utils.NET.Sockets
         /// <summary>
         /// Initializes a new instance of the <see cref="MulticastSocketOptions"/> class with defaults.
         /// </summary>
-        public MulticastSocketOptions()
+        /// <summary>
+        /// Initializes a new instance of the <see cref="MulticastSocketOptions"/> class.
+        /// </summary>
+        private MulticastSocketOptions()
         {
         }
 
@@ -66,9 +69,6 @@ namespace Ubicomp.Utils.NET.Sockets
         /// <summary>
         /// The size of the send buffer in bytes. 0 uses the OS default.
         /// </summary>
-        /// <summary>
-        /// The size of the send buffer in bytes. 0 uses the OS default.
-        /// </summary>
         public int SendBufferSize { get; set; } = 0;
 
         /// <summary>
@@ -100,14 +100,10 @@ namespace Ubicomp.Utils.NET.Sockets
         /// <summary>
         /// Creates options for a local network with sensible defaults (TTL=1).
         /// </summary>
-        /// <param name="groupAddress">
-        /// The multicast group IP address (default: 239.0.0.1).
-        /// </param>
-        /// <param name="port">The port to use (default: 5000).</param>
+        /// <param name="groupAddress">The multicast group IP address.</param>
+        /// <param name="port">The port to use.</param>
         /// <returns>A new instance of <see cref="MulticastSocketOptions"/>.</returns>
-        public static MulticastSocketOptions LocalNetwork(
-            string groupAddress = "239.0.0.1",
-            int port = 5000)
+        public static MulticastSocketOptions LocalNetwork(string groupAddress, int port)
         {
             var options = new MulticastSocketOptions(groupAddress, port)
             {
@@ -121,16 +117,11 @@ namespace Ubicomp.Utils.NET.Sockets
         /// Creates options for a wide area network with sensible
         /// defaults (TTL=16).
         /// </summary>
-        /// <param name="groupAddress">
-        /// The multicast group IP address (default: 239.0.0.1).
-        /// </param>
-        /// <param name="port">The port to use (default: 5000).</param>
+        /// <param name="groupAddress">The multicast group IP address.</param>
+        /// <param name="port">The port to use.</param>
         /// <param name="ttl">The Time-to-Live value (default: 16).</param>
         /// <returns>A new instance of <see cref="MulticastSocketOptions"/>.</returns>
-        public static MulticastSocketOptions WideAreaNetwork(
-            string groupAddress = "239.0.0.1",
-            int port = 5000,
-            int ttl = 16)
+        public static MulticastSocketOptions WideAreaNetwork(string groupAddress, int port, int ttl = 16)
         {
             var options = new MulticastSocketOptions(groupAddress, port)
             {

@@ -14,7 +14,7 @@ namespace Ubicomp.Utils.NET.Tests
         public void GateKeeper_ShouldNotHangForever_WhenMessageIsSkipped()
         {
             // Arrange
-            var options = MulticastSocketOptions.LocalNetwork();
+            var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000);
             var transport = new TransportComponent(options);
             transport.EnforceOrdering = true;
             transport.GateKeeperTimeout = TimeSpan.FromMilliseconds(200);
@@ -70,7 +70,7 @@ namespace Ubicomp.Utils.NET.Tests
         public void GateKeeper_ShouldProcessImmediately_WhenOrderingDisabled()
         {
             // Arrange
-            var options = MulticastSocketOptions.LocalNetwork();
+            var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000);
             var transport = new TransportComponent(options);
             transport.EnforceOrdering = false;
 

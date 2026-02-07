@@ -11,7 +11,7 @@ namespace Ubicomp.Utils.NET.Tests
         [Fact]
         public void VerifySocketOptions_AreSet_Explicitly_False()
         {
-            var options = MulticastSocketOptions.LocalNetwork(port: 5077);
+            var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5077);
             // Set all bool options to false
             options.ReuseAddress = false;
             options.MulticastLoopback = false;
@@ -54,7 +54,7 @@ namespace Ubicomp.Utils.NET.Tests
         [Fact]
         public void VerifySocketOptions_AreSet_Explicitly_True()
         {
-            var options = MulticastSocketOptions.LocalNetwork();
+            var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000);
             // Set all bool options to true
             options.ReuseAddress = true;
             options.MulticastLoopback = true;
