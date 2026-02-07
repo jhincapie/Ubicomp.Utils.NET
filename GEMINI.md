@@ -6,18 +6,18 @@
 ## Project Overview
 **Ubicomp.Utils.NET** is a collection of .NET libraries designed to facilitate the development of context-aware and networked applications. It provides frameworks for multicast communication and context monitoring, abstracting complex networking and data management tasks.
 
-The solution consists of core libraries targeting `netstandard2.0` for broad compatibility, along with sample applications and tests targeting modern .NET versions (e.g., .NET 8.0).
+The solution consists of libraries, sample applications, and tests, all targeting **.NET 8.0**.
 
 ## Architecture & Components
 
 The solution is structured into several key projects:
 
-### 1. ContextAwarenessFramework (`netstandard2.0`)
+### 1. ContextAwarenessFramework (`net8.0`)
 *   **Pattern**: Monitor-Service-Entity (MSE).
 *   **Role**: Provides infrastructure for context monitoring and data transformation.
 *   **Key Concept**: Separates data acquisition (`ContextMonitor`) from logic (`ContextService`) and state (`IEntity`).
 
-### 2. MulticastTransportFramework (`netstandard2.0`)
+### 2. MulticastTransportFramework (`net8.0`)
 *   **Role**: Higher-level reliable messaging layer over UDP multicast.
 *   **Architecture**: Actor-like model with dedicated internal loops (`GateKeeperLoop`, `ProcessingLoop`).
 *   **Key Features**:
@@ -26,13 +26,13 @@ The solution is structured into several key projects:
     - **Serialization**: Dual support for `BinaryPacket` (optimized) and JSON (via `System.Text.Json`).
     - **Discovery**: Uses `Generators` for auto-wiring message types.
 
-### 3. MulticastSocket (`netstandard2.0`)
+### 3. MulticastSocket (`net8.0`)
 *   **Role**: Low-level wrapper for .NET UDP Sockets.
 *   **Architecture**: Uses `System.Threading.Channels` to decouple receive logic from consumption.
 *   **Key Features**: `IAsyncEnumerable` streaming, object/array pooling for performance.
-*   **Compatibility**: Wraps legacy APM (`BeginReceiveFrom`) for `netstandard2.0` and `ReceiveFromAsync` for modern runtimes.
+*   **Compatibility**: Uses `ReceiveFromAsync` for high-performance async I/O.
 
-### 4. Generators (`netstandard2.0`)
+### 4. Generators (`net8.0`)
 *   **Role**: Roslyn Source Generator.
 *   **Function**: Scans code for `[MessageType]` attributes and generates extension methods to automatically register them with the Transport component.
 
@@ -78,7 +78,7 @@ All commands should be run from the repository root.
 *   **Async/Await**: Prefer asynchronous patterns. The networking layer uses `IAsyncEnumerable` and `Channels`.
 *   **Messaging**: Use `[MessageType("id")]` attributes on POCOs for transport routing.
 *   **Project Format**: Modern SDK-style `.csproj` files are used.
-*   **Dependencies**: Prefer NuGet packages. Maintain `netstandard2.0` compatibility for core libraries.
+*   **Dependencies**: Prefer NuGet packages. Ensure all libraries target `net8.0`.
 
 ## Important Files
 *   `Ubicomp.Utils.NET.sln`: The main solution file.

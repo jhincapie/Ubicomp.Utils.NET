@@ -24,9 +24,7 @@
 *   **AckSession**: Provides "Reliable Multicast" semantics on a per-message basis. Senders can await explicit acknowledgements from peers.
 
 ### 3. Security
-*   **Encryption**:
-    *   **Modern (.NET Core 3.0+)**: **AES-GCM** (Authenticated Encryption).
-    *   **Legacy (.NET Standard 2.0)**: **AES-CBC** + HMAC (Manual composition).
+*   **Encryption**: **AES-GCM** (Authenticated Encryption).
 *   **Integrity**: **HMAC-SHA256** signatures ensure packets are not tampered with.
 *   **Key Derivation**: Keys are derived from a shared secret using HKDF-like logic.
 

@@ -10,7 +10,7 @@ dotnet test Tests/Ubicomp.Utils.NET.Tests.csproj
 ```
 
 ## Scope
-The tests target **.NET 8.0** and validate the core libraries (which target `netstandard2.0`).
+The tests and core libraries target **.NET 8.0**.
 *   **Serialization**: Verifies that `TransportMessage` objects (including polymorphic content) are correctly serialized/deserialized using both `Newtonsoft.Json` (Legacy) and `System.Text.Json` (Modern).
 *   **MulticastSocket**: Verification of socket options, buffer management, and async streaming.
     *   *Note*: `NetworkChange` tests use Reflection to simulate system events.

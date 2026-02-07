@@ -46,8 +46,8 @@ A Roslyn Source Generator project to automate boilerplate.
 
 ## Modernization Status
 This project employs a multi-targeting strategy to balance compatibility and performance.
-- **Core Libraries** (`MulticastSocket`, `MulticastTransportFramework`, `ContextAwarenessFramework`): Target **.NET Standard 2.0** to ensure broad compatibility with legacy .NET Framework and modern .NET Core applications.
-- **Applications & Tests**: Target **.NET 8.0** to leverage the latest language features, performance improvements, and runtime capabilities.
+- **Core Libraries** (`MulticastSocket`, `MulticastTransportFramework`, `ContextAwarenessFramework`): Target **.NET 8.0** to leverage the latest language features, performance improvements, and runtime capabilities.
+- **Applications & Tests**: Target **.NET 8.0** as well.
 - **Asynchronous**: Fully utilizes `IAsyncEnumerable`, `Channels`, and `Task`-based patterns.
 
 ## How to Run

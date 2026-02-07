@@ -2,7 +2,7 @@
 
 ## Core Technologies
 - **Language**: C# (utilizing latest language features where applicable).
-- **Core Libraries Target**: .NET Standard 2.0 (for maximum compatibility across .NET platforms).
+- **Core Libraries Target**: .NET 8.0.
 - **Apps and Tests Target**: .NET 8.0 (utilizing the latest performance and runtime features).
 
 ## Primary Dependencies

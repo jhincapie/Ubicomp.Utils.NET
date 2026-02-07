@@ -1,7 +1,7 @@
 # Generators Context
 
 ## Overview
-**Ubicomp.Utils.NET.Generators** is a Roslyn Source Generator project (targeting `netstandard2.0`) that implements `IIncrementalGenerator`.
+**Ubicomp.Utils.NET.Generators** is a Roslyn Source Generator project (targeting `.net8.0`) that implements `IIncrementalGenerator`.
 
 ## Functionality
 *   **Target**: Classes decorated with `[MessageType("id")]`.

@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>Ubicomp.Utils.NET.ContextAwarenessFramework</RootNamespace>
     <AssemblyName>Ubicomp.Utils.NET.ContextAwarenessFramework</AssemblyName>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>

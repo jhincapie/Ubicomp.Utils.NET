@@ -18,16 +18,14 @@
 
 ## Implementation Details
 *   **Threading**: A dedicated `ReceiveAsyncLoop` offloads incoming data to a bounded Channel. Consumers process messages from this channel.
-*   **Multi-Targeting**:
-    *   **Modern (.NET 8.0+)**: `ReceiveFromAsync` with `Memory<byte>`.
-    *   **Legacy (.NET Standard 2.0)**: APM Wrappers (`BeginReceiveFrom`).
+*   **Implementation**: Uses `ReceiveFromAsync` with `Memory<byte>` for modern, high-performance async I/O.
 *   **Socket Options**: Configurable via `MulticastSocketOptions` (Buffer size, TTL, Loopback). `NoDelay` is set safely (try-catch).
 *   **Sequence ID**: Assigns a monotonic sequence ID to every received packet, enabling ordering logic in higher layers.
 
 ## Do's and Don'ts
 *   **Do** use `GetMessageStream()` for consuming messages in a modern, async-friendly way.
 *   **Do** use `MulticastSocketBuilder` to configure the socket.
-*   **Don't** use the legacy `ReceiveCallback` or `StateObject` unless strictly necessary for `netstandard2.0` maintenance.
+*   **Don't** use the legacy `ReceiveCallback` or `StateObject`.
 *   **Don't** forget to `Dispose()` the socket or the messages if manual handling is required.
 
 ## Usage

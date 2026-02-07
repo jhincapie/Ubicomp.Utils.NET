@@ -91,12 +91,13 @@ namespace Ubicomp.Utils.NET.Generators
             public string? FullTypeName { get; set; }
             public string? MessageId { get; set; }
 
-            public bool Equals(MessageTypeInfo other)
+            public bool Equals(MessageTypeInfo? other)
             {
+                 if (other is null) return false;
                  return FullTypeName == other.FullTypeName && MessageId == other.MessageId;
             }
 
-            public override bool Equals(object obj)
+            public override bool Equals(object? obj)
             {
                 return obj is MessageTypeInfo info && Equals(info);
             }
