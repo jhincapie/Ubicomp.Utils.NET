@@ -99,6 +99,7 @@ namespace Ubicomp.Utils.NET.Sockets
 
         /// <summary>
         /// Creates options for a local network with sensible defaults (TTL=1).
+        /// Automatically configures an interface filter for private networks (10.x.x.x, 172.16-31.x.x, 192.168.x.x).
         /// </summary>
         /// <param name="groupAddress">The multicast group IP address.</param>
         /// <param name="port">The port to use.</param>
@@ -109,6 +110,26 @@ namespace Ubicomp.Utils.NET.Sockets
             {
                 TimeToLive = 1
             };
+
+            // Default to private network filter
+            options.InterfaceFilter = ip =>
+            {
+                byte[] bytes = ip.GetAddressBytes();
+                if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                {
+                    // 10.x.x.x
+                    if (bytes[0] == 10)
+                        return true;
+                    // 172.16.x.x - 172.31.x.x
+                    if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
+                        return true;
+                    // 192.168.x.x
+                    if (bytes[0] == 192 && bytes[1] == 168)
+                        return true;
+                }
+                return false;
+            };
+
             options.Validate();
             return options;
         }

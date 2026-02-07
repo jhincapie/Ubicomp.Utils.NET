@@ -28,7 +28,7 @@ namespace Ubicomp.Utils.NET.Tests
             Assert.Equal(0, options.SendBufferSize);
 
             // Filtering
-            Assert.Null(options.InterfaceFilter);
+            Assert.NotNull(options.InterfaceFilter);
 
             // Lifecycle
         }

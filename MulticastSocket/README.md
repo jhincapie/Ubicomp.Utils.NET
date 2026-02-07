@@ -35,7 +35,7 @@ The recommended way to receive messages is via the `GetMessageStream` method.
 using Ubicomp.Utils.NET.Sockets;
 
 var socket = new MulticastSocketBuilder()
-    .WithLocalNetwork(port: 5000)
+    .WithOptions(MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000))
     .WithLogging(loggerFactory)
     .Build();
 

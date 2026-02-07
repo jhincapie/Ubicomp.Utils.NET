@@ -37,7 +37,7 @@ namespace Ubicomp.Utils.NET.Tests
         public void Builder_ShouldInitializeCorrectly()
         {
             var socket = new MulticastSocketBuilder()
-                .WithWideAreaNetwork("239.0.0.10", TestPort, 2)
+                .WithOptions(MulticastSocketOptions.WideAreaNetwork("239.0.0.10", TestPort, 2))
                 .OnMessageReceived(_ => { })
                 .Build();
 

@@ -27,6 +27,8 @@ namespace Ubicomp.Utils.NET.Tests
             {
                 options.LocalIP = "127.0.0.1";
             }
+            // Clear filter for tests to ensure connectivity (loopback etc.)
+            options.InterfaceFilter = null;
         }
 
         public static IMulticastSocket CreateSocket(MulticastSocketOptions options)
