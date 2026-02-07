@@ -86,77 +86,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
                     {
                         if (cmd is InputMsgCmd input)
                         {
-                            var msg = input.Msg;
-                            if (msg.ArrivalSequenceId < currentSeq)
-                            {
-                                _logger.LogWarning("Received late message {0} (current is {1}). Ignoring.", msg.ArrivalSequenceId, currentSeq);
-                                msg.Dispose();
-                                continue;
-                            }
-
-                            if (msg.ArrivalSequenceId == currentSeq)
-                            {
-                                // Correct message
-                                if (gapCts != null)
-                                {
-                                    gapCts.Cancel();
-                                    gapCts = null;
-                                }
-                                if (!_outputWriter.TryWrite(msg))
-                                {
-                                    _logger.LogWarning("Processing channel full. Dropping message {0}.", msg.ArrivalSequenceId);
-                                    msg.Dispose();
-                                }
-                                else
-                                {
-                                    currentSeq++;
-                                    // Check queue for next messages
-                                    CheckQueue(pq, ref currentSeq, _outputWriter);
-                                }
-                            }
-                            else
-                            {
-                                // Future message - Check Queue Size Limit
-                                if (pq.Count >= MaxQueueSize)
-                                {
-                                    _logger.LogWarning("PriorityQueue full ({0}). Dropping future message {1} to prevent DoS.", pq.Count, msg.ArrivalSequenceId);
-                                    msg.Dispose();
-                                    continue;
-                                }
-
-                                pq.Enqueue(msg, msg.ArrivalSequenceId);
-                                if (gapCts == null)
-                                {
-                                    gapCts = new CancellationTokenSource();
-                                    var token = gapCts.Token;
-                                    var captureSeq = currentSeq;
-
-                                    // Capture writer locally to avoid closure issues if _gateInput changes (though it shouldn't while running)
-                                    var writer = _gateInput.Writer;
-
-                                    _ = Task.Delay(GateKeeperTimeout, token).ContinueWith(t =>
-                                    {
-                                        if (!t.IsCanceled)
-                                        {
-                                            writer.TryWrite(new TimeoutCmd { SeqId = captureSeq });
-                                        }
-                                    });
-                                }
-                            }
+                            HandleInputMessage(input.Msg, pq, ref currentSeq, ref gapCts);
                         }
                         else if (cmd is TimeoutCmd timeout)
                         {
-                            if (timeout.SeqId == currentSeq)
-                            {
-                                // Timeout occurred on this sequence
-                                if (pq.Count > 0 && pq.TryPeek(out var nextMsg, out var priority))
-                                {
-                                    _logger.LogWarning("Sequence gap detected. Timed out waiting for message {0}. Jumping to {1}.", currentSeq, priority);
-                                    currentSeq = priority;
-                                    gapCts = null;
-                                    CheckQueue(pq, ref currentSeq, _outputWriter);
-                                }
-                            }
+                            HandleTimeout(timeout.SeqId, pq, ref currentSeq, ref gapCts);
                         }
                     }
                 }
@@ -164,6 +98,89 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Critical error in GateKeeperLoop");
+            }
+        }
+
+        private void HandleInputMessage(SocketMessage msg, PriorityQueue<SocketMessage> pq, ref int currentSeq, ref CancellationTokenSource? gapCts)
+        {
+            if (msg.ArrivalSequenceId < currentSeq)
+            {
+                _logger.LogWarning("Received late message {0} (current is {1}). Ignoring.", msg.ArrivalSequenceId, currentSeq);
+                msg.Dispose();
+                return;
+            }
+
+            if (msg.ArrivalSequenceId == currentSeq)
+            {
+                ProcessCorrectSequence(msg, pq, ref currentSeq, ref gapCts);
+                return;
+            }
+
+            // Future message
+            HandleFutureMessage(msg, pq, currentSeq, ref gapCts);
+        }
+
+        private void ProcessCorrectSequence(SocketMessage msg, PriorityQueue<SocketMessage> pq, ref int currentSeq, ref CancellationTokenSource? gapCts)
+        {
+            if (gapCts != null)
+            {
+                gapCts.Cancel();
+                gapCts = null;
+            }
+
+            if (_outputWriter == null || !_outputWriter.TryWrite(msg))
+            {
+                _logger.LogWarning("Processing channel full. Dropping message {0}.", msg.ArrivalSequenceId);
+                msg.Dispose();
+            }
+            else
+            {
+                currentSeq++;
+                // Check queue for next messages
+                CheckQueue(pq, ref currentSeq, _outputWriter!);
+            }
+        }
+
+        private void HandleFutureMessage(SocketMessage msg, PriorityQueue<SocketMessage> pq, int currentSeq, ref CancellationTokenSource? gapCts)
+        {
+            if (pq.Count >= MaxQueueSize)
+            {
+                _logger.LogWarning("PriorityQueue full ({0}). Dropping future message {1} to prevent DoS.", pq.Count, msg.ArrivalSequenceId);
+                msg.Dispose();
+                return;
+            }
+
+            pq.Enqueue(msg, msg.ArrivalSequenceId);
+            if (gapCts == null && _gateInput != null)
+            {
+                gapCts = new CancellationTokenSource();
+                var token = gapCts.Token;
+                var captureSeq = currentSeq;
+                var writer = _gateInput.Writer;
+
+                _ = Task.Delay(GateKeeperTimeout, token).ContinueWith(t =>
+                {
+                    if (!t.IsCanceled)
+                    {
+                        writer.TryWrite(new TimeoutCmd { SeqId = captureSeq });
+                    }
+                });
+            }
+        }
+
+        private void HandleTimeout(int seqId, PriorityQueue<SocketMessage> pq, ref int currentSeq, ref CancellationTokenSource? gapCts)
+        {
+            if (seqId != currentSeq) return;
+
+            if (pq.Count > 0 && pq.TryPeek(out var nextMsg, out var priority))
+            {
+                _logger.LogWarning("Sequence gap detected. Timed out waiting for message {0}. Jumping to {1}.", currentSeq, priority);
+                currentSeq = priority;
+                gapCts = null;
+                if (_outputWriter != null)
+                {
+                     CheckQueue(pq, ref currentSeq, _outputWriter);
+                }
             }
         }
 

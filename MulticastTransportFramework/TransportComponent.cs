@@ -323,60 +323,74 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 // Deserialize
                 TransportMessage? tMessage = _messageSerializer.Deserialize(msg, _securityHandler, out int senderSequenceId);
 
-                if (tMessage != null)
+                if (tMessage == null)
+                    return;
+
+                TransportMessage message = tMessage.Value;
+
+                // Replay Protection
+                if (!_replayProtector.IsValid(message, senderSequenceId, out var reason))
                 {
-                    TransportMessage message = tMessage.Value;
-
-                    // Replay Protection
-                    if (!_replayProtector.IsValid(message, senderSequenceId, out var reason))
-                    {
-                        return;
-                    }
-
-                    // Legacy Signature Check (if not binary magic byte)
-                    if (msg.Length > 0 && msg.Data[0] != BinaryPacket.MagicByte)
-                    {
-                         if (string.IsNullOrEmpty(message.Signature))
-                         {
-                             Logger.LogWarning("Dropped unsigned message {0}.", message.MessageId);
-                             OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Missing Signature"));
-                             return;
-                         }
-
-                         byte[]? tempInt = _securityHandler.CurrentSession?.IntegrityKey.Memory.ToArray();
-                         string expected = _messageSerializer.ComputeSignature(message, tempInt);
-                         if (tempInt != null) Array.Clear(tempInt, 0, tempInt.Length);
-
-                         if (message.Signature != expected)
-                         {
-                             Logger.LogWarning("Dropped message {0} with invalid signature.", message.MessageId);
-                             OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Invalid Signature"));
-                             return;
-                         }
-                    }
-
-                    // Legacy Decryption (if string cipher)
-                    if (message.IsEncrypted && message.MessageData is string cipherText && message.Nonce != null)
-                    {
-                        try
-                        {
-                            string plainText = _securityHandler.Decrypt(cipherText, message.Nonce, message.Tag);
-                            message.MessageData = plainText;
-                        }
-                        catch (Exception ex)
-                        {
-                             Logger.LogError(ex, "Decryption failed for message {0}.", message.MessageId);
-                             OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Decryption Failed", ex));
-                             return;
-                        }
-                    }
-
-                    ProcessTransportMessage(message, msg.ArrivalSequenceId);
+                    return;
                 }
+
+                // Legacy Signature Check (if not binary magic byte)
+                if (msg.Length > 0 && msg.Data[0] != BinaryPacket.MagicByte)
+                {
+                    if (!ValidateLegacySignature(message, msg))
+                        return;
+                }
+
+                // Legacy Decryption (if string cipher)
+                if (message.IsEncrypted && message.MessageData is string cipherText && message.Nonce != null)
+                {
+                    if (!TryDecryptLegacy(ref message, cipherText, msg))
+                        return;
+                }
+
+                ProcessTransportMessage(message, msg.ArrivalSequenceId);
             }
             catch (Exception ex)
             {
                 Logger.LogError("Error Processing Received Message {0}: {1}", msg.ArrivalSequenceId, ex.Message);
+            }
+        }
+
+        private bool ValidateLegacySignature(TransportMessage message, SocketMessage msg)
+        {
+             if (string.IsNullOrEmpty(message.Signature))
+             {
+                 Logger.LogWarning("Dropped unsigned message {0}.", message.MessageId);
+                 OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Missing Signature"));
+                 return false;
+             }
+
+             byte[]? tempInt = _securityHandler.CurrentSession?.IntegrityKey.Memory.ToArray();
+             string expected = _messageSerializer.ComputeSignature(message, tempInt);
+             if (tempInt != null) Array.Clear(tempInt, 0, tempInt.Length);
+
+             if (message.Signature != expected)
+             {
+                 Logger.LogWarning("Dropped message {0} with invalid signature.", message.MessageId);
+                 OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Invalid Signature"));
+                 return false;
+             }
+             return true;
+        }
+
+        private bool TryDecryptLegacy(ref TransportMessage message, string cipherText, SocketMessage msg)
+        {
+            try
+            {
+                string plainText = _securityHandler.Decrypt(cipherText, message.Nonce!, message.Tag);
+                message.MessageData = plainText;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                 Logger.LogError(ex, "Decryption failed for message {0}.", message.MessageId);
+                 OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Decryption Failed", ex));
+                 return false;
             }
         }
 

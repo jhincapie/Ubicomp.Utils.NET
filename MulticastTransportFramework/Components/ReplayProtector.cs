@@ -32,8 +32,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
             if (DateTime.TryParse(message.TimeStamp, out var ts))
             {
                 var now = DateTime.UtcNow;
-                // Allow some future clock skew? The original code only checked past window.
-                // "if (ts < now.Subtract(ReplayWindow))"
                 if (ts < now.Subtract(ReplayWindowDuration))
                 {
                     reason = $"Message too old (Timestamp: {message.TimeStamp}). Window is {ReplayWindowDuration.TotalSeconds}s.";
@@ -41,31 +39,23 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
                     return false;
                 }
             }
-            else
+
+            // 2. Window Initialization / Retrieval
+            var window = _replayProtection.GetOrAdd(message.MessageSource.ResourceId, _ => new ReplayWindow());
+
+            // 3. Sequence ID Check
+            if (senderSequenceId == -1)
             {
-                // If timestamp parsing fails, what do we do?
-                // Original code: "if (DateTime.TryParse...)" so it proceeded if parsing failed?
-                // Probably better to warn but allow if legacy?
-                // Original code proceeded to CheckAndMark.
+                // No sequence ID to check (legacy), but we ensured window exists for rate limiting.
+                return true;
             }
 
-            // 2. Sequence ID Check (if available)
-            // senderSequenceId is -1 if not available (e.g. legacy JSON)
-            if (senderSequenceId != -1)
+            if (!window.CheckAndMark(senderSequenceId))
             {
-                var window = _replayProtection.GetOrAdd(message.MessageSource.ResourceId, _ => new ReplayWindow());
-                if (!window.CheckAndMark(senderSequenceId))
-                {
-                    reason = $"Duplicate or out-of-window sequence ID {senderSequenceId}.";
-                    if (_logger.IsEnabled(LogLevel.Trace))
-                        _logger.LogTrace("Replay/Duplicate detected for Seq {0} from {1}", senderSequenceId, message.MessageSource.ResourceId);
-                    return false;
-                }
-            }
-            else
-            {
-                // Ensure window exists for Rate Limiting later even if we don't check sequence
-                _replayProtection.GetOrAdd(message.MessageSource.ResourceId, _ => new ReplayWindow());
+                reason = $"Duplicate or out-of-window sequence ID {senderSequenceId}.";
+                if (_logger.IsEnabled(LogLevel.Trace))
+                    _logger.LogTrace("Replay/Duplicate detected for Seq {0} from {1}", senderSequenceId, message.MessageSource.ResourceId);
+                return false;
             }
 
             return true;
@@ -77,12 +67,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
             {
                 return window.CheckAckRateLimit();
             }
-            // If we don't have a window, we haven't seen messages from them?
-            // Or maybe it was cleaned up?
-            // Default to allowing implies we create one?
-            // Original code: "if (_replayProtection.TryGetValue(..., out var window)) allowed = window.CheckAckRateLimit();"
-            // So if not found, allowed remains true (default bool?).
-            // Wait, "bool allowed = true;" was init.
             return true;
         }
 
