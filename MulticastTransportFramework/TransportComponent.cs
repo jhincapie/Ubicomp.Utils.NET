@@ -901,13 +901,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 throw;
             }
 
-            // TODO: In Phase 3 (Socket Opt), we will pass the ReadOnlyMemory directly to the socket
-            // to avoid this ToArray() allocation.
-            byte[] packet = writer.WrittenSpan.ToArray();
-
             if (_socket != null)
             {
-                await _socket.SendAsync(packet);
+                // Bolt: Phase 3 (Socket Opt) Implemented.
+                // Pass ReadOnlyMemory directly to avoid ToArray() allocation.
+                await _socket.SendAsync(writer.WrittenMemory);
             }
 
             if (!message.RequestAck)

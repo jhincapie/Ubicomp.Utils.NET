@@ -90,6 +90,33 @@ namespace Ubicomp.Utils.NET.Sockets
             return Task.CompletedTask;
         }
 
+        public ValueTask SendAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(InMemoryMulticastSocket));
+
+            if (string.IsNullOrEmpty(_groupAddress))
+                return ValueTask.CompletedTask;
+
+            if (buffer.Length > 65535)
+                throw new ArgumentException("Message size exceeds maximum allowed size.", nameof(buffer));
+
+            var groupKey = $"{_groupAddress}:{_port}";
+            if (_networkGroups.TryGetValue(groupKey, out var peers))
+            {
+                foreach (var peer in peers)
+                {
+                    if (peer.IsJoined && !peer._disposed)
+                    {
+                        // Allow loopback for tests (peer == this is OK)
+                        peer.ReceiveInternal(buffer.Span, _localEP);
+                    }
+                }
+            }
+
+            return ValueTask.CompletedTask;
+        }
+
         public Task SendAsync(byte[] bytesToSend)
         {
             return SendAsync(bytesToSend, 0, bytesToSend.Length);
