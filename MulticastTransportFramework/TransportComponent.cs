@@ -600,12 +600,21 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             if (_genericHandlers.TryGetValue(tMessage.MessageType, out var handler))
             {
                 // Validate TimeStamp to prevent log injection and ensure integrity
-                if (!DateTime.TryParse(tMessage.TimeStamp, CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+                if (!DateTime.TryParseExact(tMessage.TimeStamp, TransportMessage.DATE_FORMAT_NOW, CultureInfo.InvariantCulture, DateTimeStyles.None, out var msgTime))
                 {
-                    Logger.LogWarning("Received message {0} with invalid timestamp: {1}. Replacing with current time.",
+                    Logger.LogWarning("Dropped message {0} due to invalid timestamp format: {1}",
                         tMessage.MessageId,
                         SanitizeLog(tMessage.TimeStamp));
-                    tMessage.TimeStamp = DateTime.Now.ToString(TransportMessage.DATE_FORMAT_NOW);
+                    return;
+                }
+
+                // Enforce time window (+/- 5 minutes)
+                if (Math.Abs((DateTime.Now - msgTime).TotalMinutes) > 5)
+                {
+                    Logger.LogWarning("Dropped message {0} due to timestamp out of bounds: {1}",
+                        tMessage.MessageId,
+                        tMessage.TimeStamp);
+                    return;
                 }
 
                 var context = new MessageContext(

@@ -17,7 +17,7 @@ namespace Ubicomp.Utils.NET.Tests
         }
 
         [Fact]
-        public void Receive_InvalidTimestamp_ReplacesWithCurrentTime()
+        public void Receive_InvalidTimestamp_DropsMessage()
         {
             // Arrange
             // Use a different port to avoid conflicts with other tests
@@ -66,12 +66,55 @@ namespace Ubicomp.Utils.NET.Tests
 
                 // Assert
                 bool received = receivedEvent.Wait(2000);
-                Assert.True(received, "Message was not processed");
+                Assert.False(received, "Message should be dropped due to invalid timestamp");
+            }
+            finally
+            {
+                transport.Stop();
+            }
+        }
 
-                Assert.NotNull(receivedTimestamp);
-                // The received timestamp should NOT contain the invalid content
-                Assert.DoesNotContain("<script>", receivedTimestamp);
-                Assert.True(DateTime.TryParse(receivedTimestamp, out _), $"Timestamp should be valid, but was {receivedTimestamp}");
+        [Fact]
+        public void Receive_OldMessage_DropsMessage()
+        {
+            // Arrange
+            var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5002);
+            if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
+            {
+                options.LocalIP = "127.0.0.1";
+            }
+
+            var receivedEvent = new ManualResetEventSlim(false);
+
+            var transport = new TransportBuilder()
+                .WithMulticastOptions(options)
+                .RegisterHandler<SecurityContent>((content, context) =>
+                {
+                    receivedEvent.Set();
+                })
+                .Build();
+
+            transport.Start();
+
+            try
+            {
+                var oldTimestamp = DateTime.Now.AddMinutes(-10).ToString(TransportMessage.DATE_FORMAT_NOW);
+                var messageId = Guid.NewGuid();
+                var json = $@"{{
+                    ""messageId"": ""{messageId}"",
+                    ""messageType"": ""test.security"",
+                    ""messageSource"": {{ ""resourceId"": ""{Guid.NewGuid()}"", ""resourceName"": ""attacker"" }},
+                    ""timeStamp"": ""{oldTimestamp}"",
+                    ""messageData"": {{ ""data"": ""payload"" }}
+                }}";
+
+                var bytes = Encoding.UTF8.GetBytes(json);
+                var socketMsg = new SocketMessage(bytes, 1);
+
+                transport.HandleSocketMessage(socketMsg);
+
+                bool received = receivedEvent.Wait(2000);
+                Assert.False(received, "Old message should be dropped");
             }
             finally
             {
