@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -114,7 +115,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
             var writer = new ArrayBufferWriter<byte>();
 
             // 1. MessageId
-            WriteAscii(writer, message.MessageId.ToString());
+            WriteGuid(writer, message.MessageId);
 
             // 2. TimeStamp
             WriteAscii(writer, message.TimeStamp);
@@ -123,10 +124,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
             WriteAscii(writer, message.MessageType);
 
             // 4. RequestAck
-            WriteAscii(writer, message.RequestAck ? "true" : "false");
+            WriteBool(writer, message.RequestAck);
 
             // 5. IsEncrypted
-            WriteAscii(writer, message.IsEncrypted ? "true" : "false");
+            WriteBool(writer, message.IsEncrypted);
 
             // 6. Nonce
             if (message.Nonce != null)
@@ -158,12 +159,40 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
             return Convert.ToBase64String(hash);
         }
 
+        private static readonly byte[] TrueBytes = Encoding.UTF8.GetBytes("true");
+        private static readonly byte[] FalseBytes = Encoding.UTF8.GetBytes("false");
+
+        private void WriteBool(IBufferWriter<byte> writer, bool value)
+        {
+            var bytes = value ? TrueBytes : FalseBytes;
+            writer.Write(bytes);
+        }
+
+        private void WriteGuid(IBufferWriter<byte> writer, Guid value)
+        {
+            // Guid "D" format is 36 chars
+            var span = writer.GetSpan(36);
+            if (Utf8Formatter.TryFormat(value, span, out int bytesWritten, new StandardFormat('D')))
+            {
+                writer.Advance(bytesWritten);
+            }
+            else
+            {
+                // Fallback
+                WriteAscii(writer, value.ToString());
+            }
+        }
+
         private void WriteAscii(IBufferWriter<byte> writer, string value)
         {
             if (string.IsNullOrEmpty(value))
                 return;
-            var bytes = Encoding.UTF8.GetBytes(value);
-            writer.Write(bytes);
+
+            // Bolt: Zero-allocation optimization
+            int byteCount = Encoding.UTF8.GetByteCount(value);
+            var span = writer.GetSpan(byteCount);
+            int written = Encoding.UTF8.GetBytes(value, span);
+            writer.Advance(written);
         }
     }
 }
