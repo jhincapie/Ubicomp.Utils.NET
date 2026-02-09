@@ -1,11 +1,21 @@
 # Analyzers Context
 
-## Purpose
-Provides compile-time checks to ensure correct usage of the library, specifically regarding message type registration.
+## Overview
+**Ubicomp.Utils.NET.Analyzers** is a Roslyn project (targeting `netstandard2.0`) containing diagnostic analyzers.
 
-## Analyzers
-*   **UBI001**: Checks that types passed to `TransportComponent.SendAsync<T>` have the `[MessageType]` attribute. This prevents runtime errors where the transport system doesn't know how to route a message.
+## Components
+
+### Analyzer (`MessageTypeAnalyzer`)
+*   **ID**: `UBI001`
+*   **Severity**: **Error**
+*   **Target**: Invocations of `TransportComponent.SendAsync<T>`.
+*   **Logic**: Verifies that `T` has the `[MessageType]` attribute.
+*   **Distinction**: This is a stricter version (Error) of the analyzer found in the `Generators` project (Warning: `UbicompNET001`).
+
+## Dependencies
+*   `Microsoft.CodeAnalysis.CSharp`
+*   `Microsoft.CodeAnalysis.Analyzers`
 
 ## Do's and Don'ts
-*   **Do** fix all errors reported by this analyzer.
-*   **Do** ensure all message POCOs have `[MessageType("unique.id")]`.
+*   **Do** fix `UBI001` errors by adding `[MessageType("id")]` to your message classes.
+*   **Don't** ignore this error; it indicates a high probability of runtime message loss.

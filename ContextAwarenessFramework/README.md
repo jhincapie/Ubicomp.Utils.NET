@@ -26,7 +26,7 @@ Abstract base class for data producers.
 Abstract base class for data coordinators.
 - **Persistence**: Built-in support for `Periodic`, `OnRequest`, or `Combined` persistence strategies.
 - **Integration**: Designed to work seamlessly with the `MulticastTransportFramework` for distributed context sharing.
-- **Threading**: Updates are received on the Monitor's background thread. UI marshalling must be handled manually if needed.
+- **Threading**: Updates are received on the Monitor's background thread. **UI marshalling must be handled manually** (the base class does not capture `Dispatcher`).
 
 ### IEntity
 Interface for context data objects.

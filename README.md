@@ -1,6 +1,6 @@
 # Ubicomp.Utils.NET
 
-A collection of .NET libraries designed to facilitate the development of context-aware and networked applications. It abstracts complex networking, messaging, and data management tasks into a layered, reusable architecture.
+A collection of **.NET 8.0** libraries designed to facilitate the development of context-aware and networked applications. It abstracts complex networking, messaging, and data management tasks into a layered, reusable architecture.
 
 Created By: Juan David Hincapie-Ramos - http://blog.jhincapie.com
 
@@ -23,7 +23,7 @@ The middle layer provides a structured, reliable messaging protocol over UDP mul
     - **GateKeeper**: Ensures strictly ordered message processing using sequence IDs and PriorityQueues.
     - **ReplayWindow**: Protects against replay attacks and duplicate messages.
     - **ACKs**: Optional acknowledgement sessions (`AckSession`) for critical message delivery.
-- **Security**: Built-in **AES-GCM** encryption (Modern Runtimes) or **AES-CBC** (Legacy Runtimes) and **HMAC-SHA256** integrity verification.
+- **Security**: Built-in **AES-GCM** encryption and **HMAC-SHA256** integrity verification.
 - **Serialization**: Supports optimized `BinaryPacket` protocol and legacy JSON (via `System.Text.Json`).
 - **Reactive**: Fully async processing pipeline.
 
@@ -31,29 +31,27 @@ The middle layer provides a structured, reliable messaging protocol over UDP mul
 The foundational layer that wraps standard .NET UDP sockets.
 - **Streaming**: Exposes `IAsyncEnumerable<SocketMessage>` via `GetMessageStream()`.
 - **Performance**: Utilizes `System.Threading.Channels`, `ObjectPool`, and `ArrayPool<byte>` to minimize allocations.
-- **Socket Options**: Simplified configuration via `MulticastSocketOptions`.
+- **Socket Options**: Simplified configuration via `MulticastSocketOptions` factory methods.
 
-### 4. Generators
-A Roslyn Source Generator project to automate boilerplate.
-- **Auto-Discovery**: Scans for classes with `[MessageType]` attributes and generates registration code, simplifying transport configuration.
+### 4. Tooling (Generators & Analyzers)
+- **Generators**: Roslyn Source Generator for auto-discovery of `[MessageType]` classes.
+- **Analyzers**: Roslyn Analyzers (`UBI001`) to enforce correct usage of the transport layer.
 
 ## Project Documentation
 *   [**MulticastSocket**](MulticastSocket/README.md): Low-level multicast networking wrapper.
 *   [**MulticastTransportFramework**](MulticastTransportFramework/README.md): High-level messaging and transport layer.
 *   [**ContextAwarenessFramework**](ContextAwarenessFramework/README.md): Framework for context sensing and data management.
 *   [**Generators**](Generators/README.md): Source generation tools.
+*   [**Analyzers**](Analyzers/README.md): Code analysis tools.
 *   [**CLI**](CLI/README.md): Command-line diagnostic and sniffing tools.
 
 ## Modernization Status
-This project employs a multi-targeting strategy to balance compatibility and performance.
-- **Core Libraries** (`MulticastSocket`, `MulticastTransportFramework`, `ContextAwarenessFramework`): Target **.NET 8.0** to leverage the latest language features, performance improvements, and runtime capabilities.
-- **Applications & Tests**: Target **.NET 8.0** as well.
-- **Asynchronous**: Fully utilizes `IAsyncEnumerable`, `Channels`, and `Task`-based patterns.
+This project targets **.NET 8.0** exclusively to leverage the latest language features (C# 12), performance improvements, and runtime capabilities (e.g., `ReceiveFromAsync` with `Memory<byte>`).
 
 ## How to Run
 
 ### Prerequisites
-*   .NET SDK (Version 8.0 recommended).
+*   .NET SDK 8.0.
 
 ### Commands
 All commands should be run from the repository root.

@@ -22,7 +22,7 @@ dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- check
 ```
 
 ### `sniff`
-Listens for multicast packets on the default group (239.0.0.1:5000) and prints their raw contents to the console. Useful for verifying that packets are arriving on the wire.
+Listens for multicast packets on the default group (239.0.0.1:5000) and prints their raw contents (hex dump and parsed structure) to the console. Useful for verifying that packets are arriving on the wire.
 
 ```bash
 dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- sniff
@@ -32,9 +32,14 @@ dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- sniff
 Launches an interactive, live terminal dashboard (using Spectre.Console) that displays:
 *   Transport Status
 *   Active Peers
-*   Live Logs (Placeholder)
-*   Metrics (Placeholder)
+*   Live Logs
+*   Metrics
 
 ```bash
 dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- dashboard
 ```
+
+## Troubleshooting
+If `check` fails or `sniff` sees no packets:
+1.  **Firewall**: Ensure UDP port 5000 is open for inbound/outbound traffic.
+2.  **Interface**: The tool binds to `IPAddress.Any` by default. If you have multiple NICs (e.g., VPN, VirtualBox), multicast routing might be confused. You may need to disable virtual adapters temporarily.

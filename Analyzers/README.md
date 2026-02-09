@@ -1,13 +1,14 @@
 # Ubicomp.Utils.NET.Analyzers
 
-This project contains Roslyn Analyzers to enforce coding standards and best practices within the Ubicomp.Utils.NET solution.
+This project contains standalone Roslyn Analyzers to enforce coding standards and correct usage of the Ubicomp frameworks.
 
 ## Analyzers
 
-### UBI001: Type argument must have [MessageType] attribute
-*   **Severity**: Error
-*   **Description**: Ensures that any type used as a generic argument in `TransportComponent.SendAsync<T>` is decorated with the `[MessageType]` attribute. This is crucial for the auto-discovery mechanism to work correctly.
-*   **Category**: Usage
+### 1. Message Type Analyzer (UBI001)
+*   **ID**: `UBI001`
+*   **Severity**: **Error**
+*   **Description**: Enforces that any type passed to `TransportComponent.SendAsync<T>` is decorated with the `[MessageType]` attribute.
+*   **Behavior**: Unlike the warning in the `Generators` project (`UbicompNET001`), this analyzer treats the missing attribute as a build error to prevent runtime routing failures.
 
 ## Usage
-This analyzer is automatically enabled when the project is referenced. No additional configuration is required.
+Add a reference to this project (or NuGet package) in your consumer project to enable real-time analysis in the IDE and during build.
