@@ -29,7 +29,7 @@ namespace Ubicomp.Utils.NET.Sockets
         private readonly MulticastSocketOptions _options;
         private readonly List<IPAddress> _joinedAddresses = new List<IPAddress>();
         private readonly object _joinedLock = new object();
-        private readonly Channel<SocketMessage> _messageChannel = Channel.CreateUnbounded<SocketMessage>();
+        private readonly Channel<SocketMessage> _messageChannel;
         private volatile bool _isChannelStarted = false;
 #if NET8_0_OR_GREATER
         private CancellationTokenSource? _receiveCts;
@@ -78,6 +78,13 @@ namespace Ubicomp.Utils.NET.Sockets
             _udpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             _mConsecutive = 0;
             _options = options;
+
+            // Initialize channel based on options
+            var channelOptions = new BoundedChannelOptions(_options.MaxQueueSize)
+            {
+                FullMode = BoundedChannelFullMode.DropWrite
+            };
+            _messageChannel = Channel.CreateBounded<SocketMessage>(channelOptions);
 
             SetupSocket();
         }

@@ -62,6 +62,12 @@ namespace Ubicomp.Utils.NET.Sockets
         public int SendBufferSize { get; set; } = 0;
 
         /// <summary>
+        /// The maximum number of messages to buffer in the internal channel.
+        /// Defaults to 4096.
+        /// </summary>
+        public int MaxQueueSize { get; set; } = 4096;
+
+        /// <summary>
         /// An optional filter to select which network interfaces to join.
         /// </summary>
         public Func<IPAddress, bool>? InterfaceFilter
@@ -141,6 +147,9 @@ namespace Ubicomp.Utils.NET.Sockets
 
             if (TimeToLive < 0 || TimeToLive > 255)
                 throw new ArgumentException("TTL must be between 0 and 255.", nameof(TimeToLive));
+
+            if (MaxQueueSize <= 0)
+                throw new ArgumentException("MaxQueueSize must be greater than 0.", nameof(MaxQueueSize));
         }
 
         private static bool IsMulticast(IPAddress ip)

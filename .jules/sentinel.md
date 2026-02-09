@@ -7,3 +7,8 @@
 **Vulnerability:** `TransportComponent` logged the `EventSource.ResourceName` from incoming ACK messages without sanitization, allowing attackers to forge log entries via newline injection (CWE-117).
 **Learning:** Data received from the network (even metadata like source names) is untrusted and must be sanitized before being written to logs, especially when using structured logging that might be aggregated.
 **Prevention:** Sanitize all user-controlled inputs before logging, specifically removing control characters like `\n` and `\r`.
+
+## 2026-02-09 - [Unbounded Channel Memory Exhaustion]
+**Vulnerability:** `MulticastSocket` used an internal unbounded `Channel<SocketMessage>` to buffer incoming UDP packets. A slow consumer or high-traffic flood could cause memory exhaustion (DoS).
+**Learning:** Even low-level transport components must enforce backpressure or limits. `Channel.CreateUnbounded` is a dangerous default for network-facing buffers.
+**Prevention:** Use `Channel.CreateBounded` with a sensible default limit and `DropWrite` (or other policy) to shed load gracefully under pressure.
