@@ -1,7 +1,7 @@
 # Generators Context
 
 ## Overview
-**Ubicomp.Utils.NET.Generators** is a Roslyn project (targeting `.net8.0`) that implements:
+**Ubicomp.Utils.NET.Generators** is a Roslyn project (targeting `net8.0`) that implements:
 1.  `IIncrementalGenerator`: For source generation.
 2.  `DiagnosticAnalyzer`: For code analysis.
 
@@ -15,6 +15,7 @@
 
 ### Analyzer (`MessageTypeAnalyzer`)
 *   **ID**: `UbicompNET001`
+*   **Severity**: Warning
 *   **Target**: Invocations of `TransportComponent.SendAsync<T>`.
 *   **Logic**: Verifies that `T` has the `[MessageType]` attribute.
 

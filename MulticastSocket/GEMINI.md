@@ -14,17 +14,18 @@
     *   **Decoupling**: Uses `System.Threading.Channels` to decouple the high-speed receive loop from the processing logic.
 *   **`SocketMessage`**: Represents a received packet.
     *   **Pooling**: Utilizes `ObjectPool<SocketMessage>` and `ArrayPool<byte>` to minimize Garbage Collection (GC) pressure in high-throughput scenarios.
-*   **`InMemoryMulticastSocket`**: A testing utility that simulates multicast traffic in-memory, avoiding OS networking stack calls.
+*   **`InMemoryMulticastSocket`**: A testing utility that simulates multicast traffic in-memory using a shared dictionary, avoiding OS networking stack calls.
 
 ## Implementation Details
+*   **Target Framework**: **.NET 8.0**
+*   **Async I/O**: Uses `ReceiveFromAsync` with `Memory<byte>` for modern, high-performance async I/O.
 *   **Threading**: A dedicated `ReceiveAsyncLoop` offloads incoming data to a bounded Channel. Consumers process messages from this channel.
-*   **Implementation**: Uses `ReceiveFromAsync` with `Memory<byte>` for modern, high-performance async I/O.
-*   **Socket Options**: Configurable via `MulticastSocketOptions` (Buffer size, TTL, Loopback). `NoDelay` is set safely (try-catch).
+*   **Socket Options**: Configurable via `MulticastSocketOptions` factory methods (e.g., `LocalNetwork`).
 *   **Sequence ID**: Assigns a monotonic sequence ID to every received packet, enabling ordering logic in higher layers.
 
 ## Do's and Don'ts
 *   **Do** use `GetMessageStream()` for consuming messages in a modern, async-friendly way.
-*   **Do** use `MulticastSocketBuilder` to configure the socket.
+*   **Do** use `MulticastSocketOptions.LocalNetwork(...)` or `WideAreaNetwork(...)` factory methods.
 *   **Don't** use the legacy `ReceiveCallback` or `StateObject`.
 *   **Don't** forget to `Dispose()` the socket or the messages if manual handling is required.
 
@@ -33,8 +34,7 @@ Used by **MulticastTransportFramework**, but valid for any low-level multicast n
 
 ```csharp
 var socket = new MulticastSocketBuilder()
-    .WithMulticastAddress("239.0.0.1")
-    .WithPort(5000)
+    .WithOptions(MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000))
     .Build();
 
 await socket.JoinGroupAsync();

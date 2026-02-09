@@ -1,12 +1,12 @@
 # MulticastTransportFramework
 
-**MulticastTransportFramework** implements a higher-level, reliable messaging protocol over UDP multicast, focusing on security, ordering, and developer productivity. It provides a robust Actor-Model-like communication layer for distributed local network applications.
+**MulticastTransportFramework** implements a higher-level, reliable messaging protocol over UDP multicast, focusing on security, ordering, and developer productivity. It provides a robust Actor-Model-like communication layer for distributed local network applications, targeting **.NET 8.0**.
 
 ## Key Features
 
 *   **Reliable Delivery**: Built-in acknowledgement (ACK) system with optional automatic responses.
 *   **Ordered Processing**: "GateKeeper" mechanism ensures strict message sequencing using PriorityQueues, correcting UDP out-of-order delivery.
-*   **Security**: Zero-conf encryption (AES-GCM/AES-CBC) and integrity signing (HMAC-SHA256) derived from a shared secret.
+*   **Security**: Zero-conf encryption (AES-GCM) and integrity signing (HMAC-SHA256) derived from a shared secret.
 *   **Optimized Protocol**: Uses a custom `BinaryPacket` format for reduced overhead, with fallback to JSON for legacy clients.
 *   **Auto-Discovery**: Leverages Roslyn Source Generators to automatically register message types.
 *   **Peer Discovery**: Automatic peer detection and tracking via heartbeats.
@@ -83,7 +83,6 @@ The `TransportBuilder` provides a fluent API for all configuration needs.
 UDP packets often arrive out of order. The framework can enforce strict sequencing.
 
 *   **How it works**: Incoming messages are assigned a sequence ID. If a gap is detected (e.g., received 1, then 3), message 3 is held in a `PriorityQueue`.
-    *   *Implementation Note*: On `.NET Standard 2.0`, a custom Min-Heap implementation of `PriorityQueue` is used.
 *   **Configuration**:
     ```csharp
     .WithEnforceOrdering(true)
@@ -94,9 +93,7 @@ UDP packets often arrive out of order. The framework can enforce strict sequenci
 Security is handled transparently. Keys are derived from the `SecurityKey` using HKDF (HMAC-SHA256).
 
 *   **Integrity**: All messages are signed with HMAC-SHA256 (if key is present) or SHA256 (if no key). Unsigned or invalid messages are dropped.
-*   **Encryption**:
-    *   **Modern Runtimes (.NET Core 3.0+)**: Uses **AES-GCM** (Hardware Accelerated) for authenticated encryption.
-    *   **Legacy Runtimes (.NET Standard 2.0)**: Falls back to **AES-CBC** with PKCS7 padding.
+*   **Encryption**: Uses **AES-GCM** (Hardware Accelerated) for authenticated encryption.
 *   **Usage**:
     ```csharp
     .WithSecurityKey("My_Shared_Secret_Passphrase")
@@ -126,7 +123,7 @@ Enable `WithAutoSendAcks(true)` on the receiver to automatically reply with a sy
 
 ### 4. Protocol & Serialization
 *   **BinaryPacket**: The default wire format. Compact binary structure containing Security Headers, Sequence IDs, and Payload.
-*   **JSON Fallback**: If a message lacks the Binary Magic Byte, it is treated as a legacy JSON envelope (using `System.Text.Json`), ensuring backward compatibility with older versions of the library.
+*   **JSON Fallback**: If a message lacks the Binary Magic Byte, it is treated as a legacy JSON envelope (using `System.Text.Json`), ensuring backward compatibility with older clients.
 
 ### 5. Peer Discovery
 The framework can track other active nodes on the multicast group.
@@ -153,10 +150,11 @@ The framework can track other active nodes on the multicast group.
 Multicast can be tricky due to firewalls. The framework includes diagnostic tools.
 
 ```csharp
-// Check firewall rules (logs to configured logger)
-NetworkDiagnostics.LogFirewallStatus(5000, logger);
+// Helper method on TransportComponent
+bool isOk = await transport.VerifyNetworkingAsync();
 
-// Perform a loopback test (sends a message to self)
+// Or direct use of NetworkDiagnostics
+NetworkDiagnostics.LogFirewallStatus(5000, logger);
 bool loopbackOk = await NetworkDiagnostics.PerformLoopbackTestAsync(transport);
 
 if (!loopbackOk)

@@ -2,54 +2,50 @@
 
 ## Core Mandates
 *   **NEVER push directly to the `master` branch.** All changes must be submitted via Pull Requests for review.
+*   **Target Framework**: All projects target **.NET 8.0**.
 
 ## Project Overview
-**Ubicomp.Utils.NET** is a collection of .NET libraries designed to facilitate the development of context-aware and networked applications. It provides frameworks for multicast communication and context monitoring, abstracting complex networking and data management tasks.
-
-The solution consists of libraries, sample applications, and tests, all targeting **.NET 8.0**.
+**Ubicomp.Utils.NET** is a collection of libraries designed to facilitate the development of context-aware and networked applications. It provides frameworks for multicast communication and context monitoring.
 
 ## Architecture & Components
 
 The solution is structured into several key projects:
 
-### 1. ContextAwarenessFramework (`net8.0`)
+### 1. ContextAwarenessFramework
 *   **Pattern**: Monitor-Service-Entity (MSE).
 *   **Role**: Provides infrastructure for context monitoring and data transformation.
 *   **Key Concept**: Separates data acquisition (`ContextMonitor`) from logic (`ContextService`) and state (`IEntity`).
 
-### 2. MulticastTransportFramework (`net8.0`)
+### 2. MulticastTransportFramework
 *   **Role**: Higher-level reliable messaging layer over TCP/UDP multicast.
 *   **Architecture**: Actor-like model with dedicated internal loops (`ProcessingLoop`).
 *   **Key Features**:
     - **Reliability**: `ReplayWindow` (deduplication), `AckSession` (delivery confirmation).
-    - **Security**: AES-GCM encryption (Modern) / AES-CBC (Legacy) and HMAC-SHA256 integrity.
-    - **Serialization**: Dual support for `BinaryPacket` (optimized) and JSON (via `System.Text.Json`).
+    - **Security**: AES-GCM encryption and HMAC-SHA256 integrity.
+    - **Serialization**: Dual support for `BinaryPacket` (optimized) and JSON.
     - **Discovery**: Uses `Generators` for auto-wiring message types.
 
-### 3. MulticastSocket (`net8.0`)
+### 3. MulticastSocket
 *   **Role**: Low-level wrapper for .NET UDP Sockets.
 *   **Architecture**: Uses `System.Threading.Channels` to decouple receive logic from consumption.
 *   **Key Features**: `IAsyncEnumerable` streaming, object/array pooling for performance.
-*   **Compatibility**: Uses `ReceiveFromAsync` for high-performance async I/O.
 
-### 4. Generators (`net8.0`)
-*   **Role**: Roslyn Source Generator.
-*   **Function**: Scans code for `[MessageType]` attributes and generates extension methods to automatically register them with the Transport component.
+### 4. Generators & Analyzers
+*   **Role**: Roslyn tooling.
+*   **Generators**: Scans code for `[MessageType]` attributes and generates registration code.
+*   **Analyzers**: Enforces usage of `[MessageType]` via `UBI001` (Error) and `UbicompNET001` (Warning).
 
 ### 5. CLI
 *   **Role**: Command-line interface tools.
 *   **Function**: Provides network diagnostics (`check`) and packet sniffing (`sniff`) capabilities.
 
-### Applications & Tests (`net8.0`)
+### Applications & Tests
 *   **`SampleApp`**: Demonstrates library usage.
 *   **`ContextAwarenessFramework.TestApp`**: Context framework testbed.
 *   **`Multicast.TestApp`**: Multicast functionality testbed.
 *   **`Tests`**: Comprehensive unit tests covering all layers.
 
 ## Development Workflow
-
-### Prerequisites
-*   .NET SDK (Version 8.0 recommended).
 
 ### Build & Run Commands
 All commands should be run from the repository root.
@@ -69,15 +65,9 @@ All commands should be run from the repository root.
     dotnet test Tests/Ubicomp.Utils.NET.Tests.csproj
     ```
 
-*   **Format Code:**
-    ```bash
-    dotnet format
-    ```
-
 ## Development Conventions
 *   **Async/Await**: Prefer asynchronous patterns. The networking layer uses `IAsyncEnumerable` and `Channels`.
 *   **Messaging**: Use `[MessageType("id")]` attributes on POCOs for transport routing.
-*   **Project Format**: Modern SDK-style `.csproj` files are used.
 *   **Dependencies**: Prefer NuGet packages. Ensure all libraries target `net8.0`.
 
 ## Important Files

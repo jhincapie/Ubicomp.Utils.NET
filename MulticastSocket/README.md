@@ -1,6 +1,6 @@
 # MulticastSocket
 
-**MulticastSocket** is the foundational networking library for the Ubicomp.Utils.NET solution. It wraps standard .NET UDP sockets to provide specific multicast capabilities with a modern, fluent, and reactive API.
+**MulticastSocket** is the foundational networking library for the Ubicomp.Utils.NET solution. It wraps standard .NET UDP sockets to provide specific multicast capabilities with a modern, fluent, and reactive API, targeting **.NET 8.0**.
 
 ## Key Components
 *   **`MulticastSocketBuilder`**: The primary entry point for configuration. Use this to set options, filters, and callbacks.
@@ -11,19 +11,17 @@
     *   **Pooling**: Utilizes `ObjectPool<SocketMessage>` and `ArrayPool<byte>` to minimize Garbage Collection (GC) pressure.
 *   **`SocketErrorContext`**: Provides details about runtime exceptions.
 *   **`InMemoryMulticastSocket`**: An in-memory implementation of `IMulticastSocket` for unit testing.
-    *   **Simulation**: Uses a shared `ConcurrentDictionary` and `Channel` to simulate a multicast network bus within the same process.
+    *   **Simulation**: Uses a shared `ConcurrentDictionary` hub to simulate a multicast network bus within the same process.
 
 ## Diagrams
 ![MulticastSocket Class Diagram](assets/class_diagram.png)
 
 ## Implementation Details
-*   **Multi-Targeting**:
-    *   **.NET 8.0+**: Uses high-performance `ReceiveFromAsync` (Memory-based) and `CancellationToken`.
-    *   **.NET Standard 2.0**: Uses a compatibility wrapper around legacy APM `BeginReceiveFrom` / `EndReceiveFrom` to simulate async behavior (`ReceiveAsyncLoop`).
+*   **High Performance**: Uses `ReceiveFromAsync` with `Memory<byte>` for efficient, zero-allocation data reception on .NET 8.0.
 *   **Threading**: A dedicated loop offloads incoming data to a bounded `Channel`. Consumers process messages from this channel, ensuring the socket remains responsive.
 *   **Buffer Management**: Uses `ArrayPool<byte>` for zero-allocation buffer management in the receive loop.
 *   **Socket Options**:
-    *   **Strict Adherence**: Boolean options (`NoDelay`, `ReuseAddress`) are strictly enforced (set to 1 or 0) regardless of OS defaults.
+    *   **Strict Adherence**: Boolean options (`NoDelay`, `ReuseAddress`) are strictly enforced.
     *   **Error Handling**: `SocketOptionName.NoDelay` is wrapped in a `try-catch` block as some platforms/drivers throw on this option for UDP.
 
 ## Usage
@@ -35,6 +33,7 @@ The recommended way to receive messages is via the `GetMessageStream` method.
 using Ubicomp.Utils.NET.Sockets;
 
 var socket = new MulticastSocketBuilder()
+    // Use factory methods for safe configuration
     .WithOptions(MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000))
     .WithLogging(loggerFactory)
     .Build();
@@ -67,3 +66,4 @@ await socket.SendAsync(data);
 ## Dependencies
 - `Microsoft.Extensions.Logging.Abstractions`
 - `System.Threading.Channels`
+- `Microsoft.Extensions.ObjectPool`

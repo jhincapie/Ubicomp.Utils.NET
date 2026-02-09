@@ -12,13 +12,12 @@
 *   **Deserialization**: Supports two modes:
     *   **BinaryPacket**: Optimized, custom binary protocol with security headers.
         *   **Reduced Overhead**: Payload size reduced by ~66% compared to legacy JSON envelope.
-        *   **Compatibility**: Falls back to legacy JSON format if `Magic Byte` is not present, ensuring backward compatibility.
     *   **JSON**: Legacy support via `System.Text.Json` (replacing Newtonsoft for ~2x perf).
 *   **Dispatch**: Routes messages to registered handlers based on string IDs defined in `[MessageType("id")]`.
 *   **Auto-Discovery**: Source Generator (`Generators` project) automatically registers types with `[MessageType]` attribute during `Build()`.
 
 ### 2. Reliability & Integrity
-*   **ReplayWindow**: A sliding window mechanism that rejects duplicate or replayed messages based on Sequence IDs and Timestamps.
+*   **ReplayWindow**: A sliding window mechanism that rejects duplicate or replayed messages based on Sequence IDs and Timestamps. Uses a 64-bit mask.
 *   **AckSession**: Provides "Reliable Multicast" semantics on a per-message basis. Senders can await explicit acknowledgements from peers.
 
 ### 3. Security
@@ -31,6 +30,7 @@
 *   **`TransportComponent`**: The central actor managing the lifecycle and internal loops.
 *   **`BinaryPacket`**: The wire-format structure.
 *   **`AckSession`**: Manages state for pending acknowledgements.
+*   **`NetworkDiagnostics`**: Static helper for firewall checks and loopback tests.
 
 ## Do's and Don'ts
 *   **Do** use `TransportBuilder` to construct the component.

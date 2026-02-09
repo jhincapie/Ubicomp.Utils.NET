@@ -1,6 +1,6 @@
 # Ubicomp.Utils.NET.Generators
 
-This project contains Roslyn Source Generators and Analyzers used to automate boilerplate code and enforce best practices within the Ubicomp.Utils.NET solution.
+This project contains Roslyn Source Generators and Analyzers used to automate boilerplate code and enforce best practices within the Ubicomp.Utils.NET solution. Targets **.NET 8.0**.
 
 ## Features
 

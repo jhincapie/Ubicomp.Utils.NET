@@ -8,7 +8,7 @@ Diagnostic and inspection tools for the multicast environment.
 
 ## Key Commands
 *   **`check`**: Validates networking (loopback, firewall). Uses `TransportComponent.VerifyNetworkingAsync()`.
-*   **`sniff`**: Raw packet capture and hex dump. Helpful for debugging low-level wire issues.
+*   **`sniff`**: Raw packet capture and hex dump. Helpful for debugging low-level wire issues. Uses `TransportDiagnostics.DumpPacket`.
 *   **`dashboard`**: TUI (Text User Interface) for monitoring peer status and transport metrics in real-time. Uses `Spectre.Console`.
 
 ## Do's and Don'ts
