@@ -83,7 +83,7 @@ namespace Ubicomp.Utils.NET.CLI
                 .AddColumn("Friendly Name")
                 .AddColumn("Last Seen");
 
-            foreach (var peer in transport.ActivePeers)
+            foreach (var peer in transport.PeerManager.ActivePeers)
             {
                 peersTable.AddRow(
                     peer.SourceId.ToString(),
@@ -93,7 +93,7 @@ namespace Ubicomp.Utils.NET.CLI
 
             layout["Peers"].Update(
                  new Panel(peersTable)
-                    .Header($"Active Peers ({transport.ActivePeers.Count()})")
+                    .Header($"Active Peers ({transport.PeerManager.ActivePeers.Count()})")
                     .Border(BoxBorder.Rounded)
                     .Expand());
 

@@ -16,7 +16,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private ILoggerFactory? _loggerFactory;
         private EventSource? _localSource;
         private bool _autoSendAcks = false;
-        private bool? _enforceOrdering;
         private string? _securityKey;
         private bool _encryptionEnabled = false;
         private IMulticastSocket? _socket;
@@ -50,14 +49,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             return this;
         }
 
-        /// <summary>
-        /// Configures whether to enforce strict message ordering.
-        /// </summary>
-        public TransportBuilder WithEnforceOrdering(bool enforce)
-        {
-            _enforceOrdering = enforce;
-            return this;
-        }
+
 
         /// <summary>
         /// Configures the logger factory for the component.
@@ -146,13 +138,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             var component = new TransportComponent(_options, _socket);
 
-            component.SecurityKey = _securityKey;
-            component.EncryptionEnabled = _encryptionEnabled;
-
-            if (_enforceOrdering.HasValue)
-            {
-                component.EnforceOrdering = _enforceOrdering.Value;
-            }
+            component.SecurityHandler.SecurityKey = _securityKey;
+            component.SecurityHandler.EncryptionEnabled = _encryptionEnabled;
 
             if (_loggerFactory != null)
             {
@@ -164,9 +151,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 component.LocalSource = _localSource.Value;
             }
 
-            component.AutoSendAcks = _autoSendAcks;
-            component.HeartbeatInterval = _heartbeatInterval;
-            component.InstanceMetadata = _instanceMetadata;
+            component.AckManager.AutoSendAcks = _autoSendAcks;
+            component.PeerManager.HeartbeatInterval = _heartbeatInterval;
+            component.PeerManager.InstanceMetadata = _instanceMetadata;
 
             foreach (var registration in _registrations)
             {

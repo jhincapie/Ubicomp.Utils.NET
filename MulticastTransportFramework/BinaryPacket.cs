@@ -28,13 +28,13 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         public readonly ref struct PacketHeader
         {
-            public readonly int SequenceId;
+            public readonly int SenderSequenceNumber;
             public readonly long Ticks;
             public readonly string MessageType; // We might want Span<char> but string is required by GateKeeper for now
 
-            public PacketHeader(int seqId, long ticks, string type)
+            public PacketHeader(int senderSequenceNumber, long ticks, string type)
             {
-                SequenceId = seqId;
+                SenderSequenceNumber = senderSequenceNumber;
                 Ticks = ticks;
                 MessageType = type;
             }
@@ -47,7 +47,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             Encrypted = 1 << 1,
         }
 
-        public static TransportMessage? Deserialize(ReadOnlySpan<byte> buffer, int sequenceId, JsonSerializerOptions jsonOptions, DecryptorDelegate? decryptor)
+        public static TransportMessage? Deserialize(ReadOnlySpan<byte> buffer, JsonSerializerOptions jsonOptions, DecryptorDelegate? decryptor, byte[]? integrityKey)
         {
             if (buffer.Length < 61)
                 return null;
@@ -63,6 +63,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             Guid msgId;
             Guid sourceId;
+            // SeqId (4) at offset 16
+            int senderSequenceNumber = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(16));
             msgId = new Guid(buffer.Slice(20, 16));
             sourceId = new Guid(buffer.Slice(36, 16));
             long ticks = BinaryPrimitives.ReadInt64LittleEndian(buffer.Slice(52));
@@ -101,8 +103,31 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
             else
             {
-                var payloadSlice = buffer.Slice(offset);
-                messageData = JsonSerializer.Deserialize<System.Text.Json.JsonElement>(payloadSlice, jsonOptions);
+                // Integrity check for unencrypted messages
+                if (integrityKey != null && integrityKey.Length > 0 && tagLen > 0)
+                {
+                    if (offset + tagLen > buffer.Length)
+                        return null;
+
+                    var tagSpan = buffer.Slice(offset, tagLen);
+                    var payloadSpan = buffer.Slice(offset + tagLen);
+
+                    // Compute HMAC
+                    byte[] computedHash = System.Security.Cryptography.HMACSHA256.HashData(integrityKey, payloadSpan);
+                    if (!computedHash.AsSpan().SequenceEqual(tagSpan))
+                    {
+                        throw new System.Security.Authentication.AuthenticationException("Integrity check failed.");
+                    }
+
+                    messageData = JsonSerializer.Deserialize<System.Text.Json.JsonElement>(payloadSpan, jsonOptions);
+                }
+                else
+                {
+                    // No integrity check or no tag
+                    if (offset > buffer.Length) return null;
+                    var payloadSlice = buffer.Slice(offset);
+                    messageData = JsonSerializer.Deserialize<System.Text.Json.JsonElement>(payloadSlice, jsonOptions);
+                }
             }
 
             return new TransportMessage
@@ -115,11 +140,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 Nonce = null,
                 Tag = null,
                 TimeStamp = new DateTime(ticks).ToString(TransportMessage.DATE_FORMAT_NOW),
-                MessageData = messageData!
+                MessageData = messageData!,
+                SenderSequenceNumber = senderSequenceNumber
             };
         }
 
-        public static void SerializeToWriter(IBufferWriter<byte> writer, TransportMessage message, int sequenceId, byte[]? integrityKey, EncryptorDelegate? encryptor, JsonSerializerOptions? jsonOptions = null)
+        public static void SerializeToWriter(IBufferWriter<byte> writer, TransportMessage message, byte[]? integrityKey, EncryptorDelegate? encryptor, JsonSerializerOptions? jsonOptions = null)
         {
             // Calculate sizes
             string type = message.MessageType;
@@ -133,26 +159,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 nameLen = 255;
 
             bool isEncrypted = encryptor != null && message.IsEncrypted;
-            int nonceLen = isEncrypted ? 12 : 0; // GCM Nonce
-            int tagLen = isEncrypted ? 16 : 0;   // GCM Tag
-
-            // Prepare Payload (Only for Encrypted path)
-            byte[]? payloadBytes = null;
-            if (isEncrypted)
-            {
-                if (message.MessageData is IBinarySerializable binarySerializable)
-                {
-                    var tempWriter = new ArrayBufferWriter<byte>();
-                    binarySerializable.Write(tempWriter);
-                    payloadBytes = tempWriter.WrittenSpan.ToArray();
-                }
-                else if (message.MessageData is byte[] b)
-                    payloadBytes = b;
-                else if (message.MessageData is string s)
-                    payloadBytes = Encoding.UTF8.GetBytes(s);
-                else
-                    payloadBytes = JsonSerializer.SerializeToUtf8Bytes(message.MessageData, jsonOptions);
-            }
+            // Native GCM: Nonce=12, Tag=16
+            // HMAC-SHA256: Nonce=0, Tag=32
+            int nonceLen = isEncrypted ? 12 : 0;
+            int tagLen = isEncrypted ? 16 : (integrityKey != null && integrityKey.Length > 0 ? 32 : 0);
 
             // Header: 61 bytes fixed + variable strings
             int headerFixedSize = 61;
@@ -181,7 +191,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             headerSpan.Slice(6, 10).Clear();
 
             // SeqId (4)
-            BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(16), sequenceId);
+            BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(16), message.SenderSequenceNumber);
 
             // MsgId (16)
             message.MessageId.TryWriteBytes(headerSpan.Slice(20));
@@ -201,8 +211,23 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             writer.Advance(headerTotalSize);
 
             // Payload & Crypto
-            if (isEncrypted && encryptor != null && payloadBytes != null)
+            if (isEncrypted && encryptor != null)
             {
+                // Prepare Payload for Encryption
+                byte[] payloadBytes;
+                if (message.MessageData is IBinarySerializable binarySerializable)
+                {
+                    var tempWriter = new ArrayBufferWriter<byte>();
+                    binarySerializable.Write(tempWriter);
+                    payloadBytes = tempWriter.WrittenSpan.ToArray();
+                }
+                else if (message.MessageData is byte[] b)
+                    payloadBytes = b;
+                else if (message.MessageData is string s)
+                    payloadBytes = Encoding.UTF8.GetBytes(s);
+                else
+                    payloadBytes = JsonSerializer.SerializeToUtf8Bytes(message.MessageData, jsonOptions);
+
                 // Native GCM Encryption
                 int totalCryptoSize = nonceLen + tagLen + payloadBytes.Length;
                 Span<byte> cryptoSpan = writer.GetSpan(totalCryptoSize);
@@ -222,245 +247,58 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
             else
             {
-                // Plaintext Payload - Zero Allocation Optimization
-                if (message.MessageData is IBinarySerializable binarySerializable)
+                // Plaintext Payload
+                if (integrityKey != null && integrityKey.Length > 0)
                 {
-                    binarySerializable.Write(writer);
-                }
-                else if (message.MessageData is byte[] b)
-                {
-                    writer.Write(b);
-                }
-                else if (message.MessageData is string s)
-                {
-                    int byteCount = Encoding.UTF8.GetByteCount(s);
-                    var span = writer.GetSpan(byteCount);
-                    int written = Encoding.UTF8.GetBytes(s, span);
-                    writer.Advance(written);
+                    // If integrity key is present, we need payload bytes for HMAC
+                    byte[] payloadBytes;
+                    if (message.MessageData is IBinarySerializable binarySerializable)
+                    {
+                        var tempWriter = new ArrayBufferWriter<byte>();
+                        binarySerializable.Write(tempWriter);
+                        payloadBytes = tempWriter.WrittenSpan.ToArray();
+                    }
+                    else if (message.MessageData is byte[] b)
+                        payloadBytes = b;
+                    else if (message.MessageData is string s)
+                        payloadBytes = Encoding.UTF8.GetBytes(s);
+                    else
+                        payloadBytes = JsonSerializer.SerializeToUtf8Bytes(message.MessageData, jsonOptions);
+
+                    // Compute HMAC
+                    byte[] hash = System.Security.Cryptography.HMACSHA256.HashData(integrityKey, payloadBytes);
+                    writer.Write(hash); // 32 bytes
+                    writer.Write(payloadBytes);
                 }
                 else
                 {
-                    using (var jsonWriter = new Utf8JsonWriter(writer))
+                    // Zero Allocation Optimization for truly plain messages
+                    if (message.MessageData is IBinarySerializable binarySerializable)
                     {
-                        JsonSerializer.Serialize(jsonWriter, message.MessageData, jsonOptions);
+                        binarySerializable.Write(writer);
+                    }
+                    else if (message.MessageData is byte[] b)
+                    {
+                        writer.Write(b);
+                    }
+                    else if (message.MessageData is string s)
+                    {
+                        int byteCount = Encoding.UTF8.GetByteCount(s);
+                        var span = writer.GetSpan(byteCount);
+                        int written = Encoding.UTF8.GetBytes(s, span);
+                        writer.Advance(written);
+                    }
+                    else
+                    {
+                        using (var jsonWriter = new Utf8JsonWriter(writer))
+                        {
+                            JsonSerializer.Serialize(jsonWriter, message.MessageData, jsonOptions);
+                        }
                     }
                 }
             }
         }
 
-        public static void SerializeToWriter(IBufferWriter<byte> writer, TransportMessage message, int sequenceId, byte[]? integrityKey, byte[]? encryptionKey, JsonSerializerOptions? jsonOptions = null)
-        {
-            // Calculate sizes
-            string type = message.MessageType;
-            int typeLen = Encoding.UTF8.GetByteCount(type);
-            if (typeLen > 255)
-                typeLen = 255;
-
-            string name = message.MessageSource.ResourceName ?? "Unknown";
-            int nameLen = Encoding.UTF8.GetByteCount(name);
-            if (nameLen > 255)
-                nameLen = 255;
-
-            // Prepare Payload (Serialize to JSON first if not already bytes/string)
-            // Ideally we want to write JSON directly to the writer too, but for now we might have intermediate bytes for the payload
-            // unless we use a fresh writer for payload.
-            // optimization: TransportMessage.MessageData might already be byte[] or string.
-
-            byte[] payloadBytes;
-            if (message.MessageData is IBinarySerializable binarySerializable)
-            {
-                // P5: IBinarySerializable Optimization
-                // TODO: Write directly to writer. For now we serialize to temp buffer because our layout assumes payload at end?
-                // Actually layout assumes header then payload.
-                // But we have logic below that calculates header size based on TypeLen/NameLen etc.
-                // We can start writing header, then write payload.
-
-                // For now, to minimize refactor risk in this step, let's treat it as byte[]
-                var tempWriter = new ArrayBufferWriter<byte>();
-                binarySerializable.Write(tempWriter);
-                payloadBytes = tempWriter.WrittenSpan.ToArray();
-            }
-            else if (message.MessageData is byte[] b)
-                payloadBytes = b;
-            else if (message.MessageData is string s)
-                payloadBytes = Encoding.UTF8.GetBytes(s);
-            else
-                payloadBytes = JsonSerializer.SerializeToUtf8Bytes(message.MessageData, jsonOptions);
-
-            bool isEncrypted = encryptionKey != null && message.IsEncrypted;
-            int nonceLen = isEncrypted ? 12 : 0; // GCM Nonce
-            int tagLen = isEncrypted ? 16 : 0;   // GCM Tag
-
-            // Header: 61 bytes fixed + variable strings
-            // [Magic:1][Version:1][Flags:1][NonceLen:1][TagLen:1][NameLen:1][Reserved:10][SeqId:4][MsgId:16][SourceId:16][Tick:8][TypeLen:1]
-            // + [Type:N] + [Name:K]
-
-            int headerFixedSize = 61;
-            int headerTotalSize = headerFixedSize + typeLen + nameLen;
-
-            // Allocate Span for Header
-            Span<byte> headerSpan = writer.GetSpan(headerTotalSize);
-
-            // 1. Magic & Version & Flags
-            headerSpan[0] = MagicByte;
-            headerSpan[1] = ProtocolVersion;
-
-            PacketFlags flags = PacketFlags.None;
-            if (message.RequestAck)
-                flags |= PacketFlags.RequestAck;
-            if (isEncrypted)
-                flags |= PacketFlags.Encrypted;
-            headerSpan[2] = (byte)flags;
-
-            // 2. Metadata Lengths
-            headerSpan[3] = (byte)nonceLen;
-            headerSpan[4] = (byte)tagLen;
-            headerSpan[5] = (byte)nameLen;
-
-            // Reserved (10 bytes) 6-15 (Clear it)
-            headerSpan.Slice(6, 10).Clear();
-
-            // SeqId (4)
-            BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(16), sequenceId);
-
-            // MsgId (16)
-            message.MessageId.TryWriteBytes(headerSpan.Slice(20));
-            message.MessageSource.ResourceId.TryWriteBytes(headerSpan.Slice(36));
-
-            // Timestamp (8) - Ticks
-            long ticks = DateTime.TryParse(message.TimeStamp, out var dt) ? dt.Ticks : DateTime.Now.Ticks;
-            BinaryPrimitives.WriteInt64LittleEndian(headerSpan.Slice(52), ticks);
-
-            // TypeLen (1)
-            headerSpan[60] = (byte)typeLen;
-
-            // Type (N)
-            Encoding.UTF8.GetBytes(type, headerSpan.Slice(61, typeLen));
-
-            // Source Name (K)
-            Encoding.UTF8.GetBytes(name, headerSpan.Slice(61 + typeLen, nameLen));
-
-            writer.Advance(headerTotalSize);
-
-            // Payload & Crypto
-            if (isEncrypted && encryptionKey != null)
-            {
-                // Native GCM Encryption
-                // Req: Nonce (12), Tag (16), Ciphertext (PayloadLength)
-                int totalCryptoSize = nonceLen + tagLen + payloadBytes.Length;
-                Span<byte> cryptoSpan = writer.GetSpan(totalCryptoSize);
-
-                // Split spans
-                Span<byte> nonceSpan = cryptoSpan.Slice(0, nonceLen);
-                Span<byte> tagSpan = cryptoSpan.Slice(nonceLen, tagLen);
-                Span<byte> cipherSpan = cryptoSpan.Slice(nonceLen + tagLen, payloadBytes.Length);
-
-                // Generate Nonce
-                System.Security.Cryptography.RandomNumberGenerator.Fill(nonceSpan);
-
-                // Encrypt directly into output span
-                using (var aesGcm = new System.Security.Cryptography.AesGcm(encryptionKey, 16))
-                {
-                    aesGcm.Encrypt(nonceSpan, payloadBytes, cipherSpan, tagSpan);
-                }
-
-                writer.Advance(totalCryptoSize);
-            }
-            else
-            {
-                // Plaintext Payload
-                writer.Write(payloadBytes);
-            }
-
-            // Future helper: Integrity Signature (HMAC) could be appended here if we wanted to sign the whole packet
-            // Currently the signature is inside the payload or header?
-            // In the original code, Signature was part of JSON or checked separately.
-            // For BinaryPacket, we might want to append a signature footer if IntegrityKey is present.
-            // But the current spec doesn't show a footer in "Wire Format" comment,
-            // relying on GCM Tag for integrity (if encrypted) or external mechanism.
-            // We will stick to the format: Header + [Crypto] + Payload.
-        }
-
-        // Keep legacy Deserialize for now, but mark Obsolete or update it.
-        // We need an updated Reader-based Deserialize too.
-        public static TransportMessage? Deserialize(ReadOnlySpan<byte> buffer, int sequenceId, JsonSerializerOptions jsonOptions, byte[]? encryptionKey)
-        {
-            if (buffer.Length < 61)
-                return null;
-
-            if (buffer[0] != MagicByte)
-                return null;
-
-            PacketFlags flags = (PacketFlags)buffer[2];
-
-            int nonceLen = buffer[3];
-            int tagLen = buffer[4];
-            int nameLen = buffer[5];
-
-            // int packetSeqId = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(16));
-
-            Guid msgId = new Guid(buffer.Slice(20, 16));
-            Guid sourceId = new Guid(buffer.Slice(36, 16));
-            long ticks = BinaryPrimitives.ReadInt64LittleEndian(buffer.Slice(52));
-
-            int typeLen = buffer[60];
-            if (buffer.Length < 61 + typeLen + nameLen)
-                return null;
-
-            string messageType = Encoding.UTF8.GetString(buffer.Slice(61, typeLen));
-            string sourceName = Encoding.UTF8.GetString(buffer.Slice(61 + typeLen, nameLen));
-            int offset = 61 + typeLen + nameLen;
-
-            bool isEnc = flags.HasFlag(PacketFlags.Encrypted);
-
-            // Extract Payload (Auth/Decryption handled here for native Binary Packet)
-            object? messageData = null;
-
-            if (isEnc)
-            {
-                if (encryptionKey == null)
-                    throw new System.Security.Authentication.AuthenticationException("Received encrypted packet but no key configured.");
-
-
-                // Bounds check
-                if (offset + nonceLen + tagLen > buffer.Length)
-                    return null;
-
-                var nonceSpan = buffer.Slice(offset, nonceLen);
-                var tagSpan = buffer.Slice(offset + nonceLen, tagLen);
-                var cipherSpan = buffer.Slice(offset + nonceLen + tagLen);
-
-                // Decrypt into temporary buffer (or string)
-                // We don't know the plaintext length exactly but it matches ciphertext length for GCM
-                byte[] plainBytes = new byte[cipherSpan.Length];
-
-                using (var aesGcm = new System.Security.Cryptography.AesGcm(encryptionKey, 16))
-                {
-                    aesGcm.Decrypt(nonceSpan, cipherSpan, tagSpan, plainBytes);
-                }
-
-                // Payload is JSON bytes
-                messageData = JsonSerializer.Deserialize<JsonElement>(plainBytes, jsonOptions);
-            }
-            else
-            {
-                var payloadSlice = buffer.Slice(offset);
-                messageData = JsonSerializer.Deserialize<JsonElement>(payloadSlice, jsonOptions);
-            }
-
-            return new TransportMessage
-            {
-                MessageId = msgId,
-                MessageSource = new EventSource(sourceId, sourceName),
-                MessageType = messageType,
-                RequestAck = flags.HasFlag(PacketFlags.RequestAck),
-                IsEncrypted = isEnc,
-                Nonce = null, // Not needed for app layer anymore
-                Tag = null,
-                TimeStamp = new DateTime(ticks).ToString(TransportMessage.DATE_FORMAT_NOW),
-                MessageData = messageData!
-            };
-        }
         public static bool TryReadHeader(ReadOnlySpan<byte> buffer, out PacketHeader header)
         {
             header = default;
@@ -470,7 +308,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 return false;
 
             // SeqId (4) at offset 16
-            int seqId = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(16));
+            int senderSequenceNumber = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(16));
 
             // Tick (8) at offset 52
             long ticks = BinaryPrimitives.ReadInt64LittleEndian(buffer.Slice(52));
@@ -483,7 +321,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 return false;
 
             string messageType = Encoding.UTF8.GetString(buffer.Slice(61, typeLen));
-            header = new PacketHeader(seqId, ticks, messageType);
+            header = new PacketHeader(senderSequenceNumber, ticks, messageType);
             return true;
         }
     }

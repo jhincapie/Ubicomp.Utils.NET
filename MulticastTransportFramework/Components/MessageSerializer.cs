@@ -30,7 +30,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
 
         public JsonSerializerOptions JsonOptions => _jsonOptions;
 
-        public void SerializeToWriter(IBufferWriter<byte> writer, TransportMessage message, int sequenceId, SecurityHandler security)
+        public void SerializeToWriter(IBufferWriter<byte> writer, TransportMessage message, SecurityHandler security)
         {
             var keySession = security.CurrentSession;
             if (security.EncryptionEnabled && keySession != null)
@@ -38,48 +38,73 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
                 message.IsEncrypted = true;
             }
 
-            BinaryPacket.SerializeToWriter(writer, message, sequenceId, null,
-                 message.IsEncrypted ? (EncryptorDelegate?)keySession!.Encrypt : null,
-                 _jsonOptions);
+            // Pass integrity key (HMAC) if not encrypted but key is available, or if encrypted (though GCM handles it)
+            // BinaryPacket now handles choosing between GCM Tag or HMAC Tag based on IsEncrypted.
+            // If IsEncrypted is true, we pass the Encryptor. If false, we pass the integrity key.
+            // Actually, BinaryPacket.SerializeToWriter takes both.
+            // We should pass the integrity key from the CurrentSession if available.
+
+            byte[]? integrityKey = keySession?.IntegrityKey.Memory.ToArray();
+
+            try
+            {
+                BinaryPacket.SerializeToWriter(writer, message, integrityKey,
+                     message.IsEncrypted ? (EncryptorDelegate?)keySession!.Encrypt : null,
+                     _jsonOptions);
+            }
+            finally
+            {
+                // Clean up sensitive key copy if possible, though ToArray() created a new copy on heap that GC handles.
+                // Ideally we'd use Spans throughout but BinaryPacket takes byte[] for integrityKey for now.
+                if (integrityKey != null) Array.Clear(integrityKey, 0, integrityKey.Length);
+            }
         }
 
-        public TransportMessage? Deserialize(SocketMessage msg, SecurityHandler security, out int senderSequenceId)
+        public TransportMessage? Deserialize(SocketMessage msg, SecurityHandler security)
         {
-            senderSequenceId = -1;
             TransportMessage? tMessage = null;
 
             if (msg.Length > 0 && msg.Data[0] == BinaryPacket.MagicByte)
             {
                 // Binary Protocol
-                if (BinaryPacket.TryReadHeader(msg.Data.AsSpan(0, msg.Length), out var h))
-                {
-                    senderSequenceId = h.SequenceId;
-                }
-
                 try
                 {
                     var current = security.CurrentSession;
                     var previous = security.PreviousSession;
 
+                    // Helper to convert Memory<byte> to byte[] temporarily for the API
+                    // In a future refactor, BinaryPacket should take ReadOnlySpan<byte> for key.
+                    byte[]? currentIntKey = current?.IntegrityKey.Memory.ToArray();
+                    byte[]? previousIntKey = previous?.IntegrityKey.Memory.ToArray();
+
                     try
                     {
-                         tMessage = BinaryPacket.Deserialize(
-                            msg.Data.AsSpan(0, msg.Length),
-                            msg.ArrivalSequenceId,
-                            _jsonOptions,
-                            current != null ? (DecryptorDelegate?)current.Decrypt : null);
-                    }
-                    catch (CryptographicException)
-                    {
-                        if (previous != null)
+                        try
                         {
-                            tMessage = BinaryPacket.Deserialize(
+                             tMessage = BinaryPacket.Deserialize(
                                 msg.Data.AsSpan(0, msg.Length),
-                                msg.ArrivalSequenceId,
                                 _jsonOptions,
-                                (DecryptorDelegate?)previous.Decrypt);
+                                current != null ? (DecryptorDelegate?)current.Decrypt : null,
+                                currentIntKey);
                         }
-                        else throw;
+                        catch (System.Security.Authentication.AuthenticationException)
+                        {
+                            // Try previous key if available
+                            if (previous != null)
+                            {
+                                tMessage = BinaryPacket.Deserialize(
+                                    msg.Data.AsSpan(0, msg.Length),
+                                    _jsonOptions,
+                                    (DecryptorDelegate?)previous.Decrypt,
+                                    previousIntKey);
+                            }
+                            else throw;
+                        }
+                    }
+                    finally
+                    {
+                        if (currentIntKey != null) Array.Clear(currentIntKey, 0, currentIntKey.Length);
+                        if (previousIntKey != null) Array.Clear(previousIntKey, 0, previousIntKey.Length);
                     }
                 }
                 catch (Exception ex)
@@ -90,9 +115,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
             }
             else
             {
-                // Legacy JSON
-                string sMessage = Encoding.UTF8.GetString(msg.Data, 0, msg.Length);
-                tMessage = JsonSerializer.Deserialize<TransportMessage>(sMessage, _jsonOptions);
+                // Legacy JSON - REMOVED
+                // We no longer support legacy JSON fallback.
+                _logger.LogWarning("Received non-binary packet (Legacy JSON). Dropping.");
+                return null;
             }
 
             return tMessage;
@@ -110,54 +136,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
             }
         }
 
-        public string ComputeSignature(TransportMessage message, byte[]? keyBytes)
-        {
-            var writer = new ArrayBufferWriter<byte>();
+        // ComputeSignature REMOVED
 
-            // 1. MessageId
-            WriteGuid(writer, message.MessageId);
-
-            // 2. TimeStamp
-            WriteAscii(writer, message.TimeStamp);
-
-            // 3. MessageType
-            WriteAscii(writer, message.MessageType);
-
-            // 4. RequestAck
-            WriteBool(writer, message.RequestAck);
-
-            // 5. IsEncrypted
-            WriteBool(writer, message.IsEncrypted);
-
-            // 6. Nonce
-            if (message.Nonce != null)
-                WriteAscii(writer, message.Nonce);
-
-            // 7. Tag
-            if (message.Tag != null)
-                WriteAscii(writer, message.Tag);
-
-            // 8. MessageData (JSON)
-            using (var jsonWriter = new Utf8JsonWriter(writer))
-            {
-                JsonSerializer.Serialize(jsonWriter, message.MessageData, _jsonOptions);
-            }
-
-            // Hashing
-            byte[] hash;
-            var payload = writer.WrittenSpan;
-
-            if (keyBytes != null && keyBytes.Length > 0)
-            {
-                hash = HMACSHA256.HashData(keyBytes, payload);
-            }
-            else
-            {
-                hash = SHA256.HashData(payload);
-            }
-
-            return Convert.ToBase64String(hash);
-        }
 
         private static readonly byte[] TrueBytes = Encoding.UTF8.GetBytes("true");
         private static readonly byte[] FalseBytes = Encoding.UTF8.GetBytes("false");

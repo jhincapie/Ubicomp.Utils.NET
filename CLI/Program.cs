@@ -102,7 +102,7 @@ namespace Ubicomp.Utils.NET.CLI
             {
                 string dump = TransportDiagnostics.DumpPacket(msg.Data);
                 Console.WriteLine("--------------------------------------------------");
-                Console.WriteLine($"Received Packet from {msg.RemoteEndpoint} (Seq: {msg.ArrivalSequenceId})");
+                Console.WriteLine($"Received Packet from {msg.RemoteEndpoint} (Len: {msg.Length})");
                 Console.WriteLine(dump);
             });
 

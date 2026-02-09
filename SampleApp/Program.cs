@@ -158,7 +158,7 @@ namespace Ubicomp.Utils.NET.SampleApp
                     await Task.Delay(5000);
                     if (verbose)
                     {
-                        var peers = transport.ActivePeers.ToList();
+                        var peers = transport.PeerManager.ActivePeers.ToList();
                         Console.WriteLine($"\n--- Active Peers ({peers.Count}) ---");
                         foreach (var peer in peers)
                         {
@@ -182,7 +182,7 @@ namespace Ubicomp.Utils.NET.SampleApp
                 };
 
                 // Wait for acks in a background task if not in noWait mode
-                var waitTask = session.WaitAsync(transport.DefaultAckTimeout);
+                var waitTask = session.WaitAsync(transport.AckManager.DefaultAckTimeout);
                 if (noWait)
                 {
                     await waitTask;

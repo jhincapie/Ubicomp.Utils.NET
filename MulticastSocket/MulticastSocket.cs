@@ -24,7 +24,6 @@ namespace Ubicomp.Utils.NET.Sockets
     public partial class MulticastSocket : IMulticastSocket, IDisposable
     {
         private Socket? _udpSocket;
-        private int _mConsecutive;
         private EndPoint _localEndPoint = null!;
         private IPEndPoint _localIPEndPoint = null!;
         private readonly MulticastSocketOptions _options;
@@ -87,7 +86,6 @@ namespace Ubicomp.Utils.NET.Sockets
             }
             options.Validate();
             _udpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-            _mConsecutive = 0;
             _options = options;
 
             // Initialize Object Pool
@@ -341,8 +339,6 @@ namespace Ubicomp.Utils.NET.Sockets
                     {
                         var result = await _udpSocket.ReceiveFromAsync(memoryBuffer, SocketFlags.None, _localEndPoint, cancellationToken);
 
-                        int seqId = Interlocked.Increment(ref _mConsecutive);
-
                         // P1: Smart Buffer Slicing
                         // If packet is small, copy to exact-sized array and return large buffer immediately.
                         // Threshold: 1024 bytes (Typical MTU is 1500, but control messages are small)
@@ -356,10 +352,10 @@ namespace Ubicomp.Utils.NET.Sockets
                             bufferPassedToMessage = true; // Technically returned, but handled safely
 
                             var msg = _messagePool.Get();
-                            msg.Reset(exactBuffer, result.ReceivedBytes, seqId, isRented: false, result.RemoteEndPoint);
+                            msg.Reset(exactBuffer, result.ReceivedBytes, isRented: false, result.RemoteEndPoint);
                             msg.ReturnCallback = _returnCallback;
 
-                            LogMessageReceived(Logger, seqId, result.ReceivedBytes);
+                            LogMessageReceived(Logger, result.ReceivedBytes);
                             OnMessageReceivedAction?.Invoke(msg);
 
                             if (!_messageChannel.Writer.TryWrite(msg))
@@ -372,12 +368,12 @@ namespace Ubicomp.Utils.NET.Sockets
                         {
                             // Keep the large rented buffer for zero-copy efficiency on large payloads
                             var msg = _messagePool.Get();
-                            msg.Reset(buffer, result.ReceivedBytes, seqId, isRented: true, result.RemoteEndPoint);
+                            msg.Reset(buffer, result.ReceivedBytes, isRented: true, result.RemoteEndPoint);
                             msg.ReturnCallback = _returnCallback;
 
                             bufferPassedToMessage = true; // Ownership transferred to msg
 
-                            LogMessageReceived(Logger, seqId, result.ReceivedBytes);
+                            LogMessageReceived(Logger, result.ReceivedBytes);
                             OnMessageReceivedAction?.Invoke(msg);
 
                             if (!_messageChannel.Writer.TryWrite(msg))
@@ -547,8 +543,8 @@ namespace Ubicomp.Utils.NET.Sockets
             _udpSocket?.Dispose();
         }
 
-        [LoggerMessage(Level = LogLevel.Trace, Message = "Received message with SeqId {SeqId}, Length {Length}")]
-        private static partial void LogMessageReceived(ILogger logger, int seqId, int length);
+        [LoggerMessage(Level = LogLevel.Trace, Message = "Received message with Length {Length}")]
+        private static partial void LogMessageReceived(ILogger logger, int length);
 
 
     }

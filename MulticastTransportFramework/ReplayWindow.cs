@@ -6,7 +6,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
     /// Implements a sliding window replay protection mechanism.
     /// Uses a 64-bit mask to track received sequence IDs relative to the highest seen.
     /// </summary>
-    internal class ReplayWindow
+    public class ReplayWindow
     {
         // Window size matches the bitmask size (ulong = 64 bits)
         private const int WindowSize = 64;
@@ -60,7 +60,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// </summary>
         /// <param name="sequenceId">The incoming sequence ID.</param>
         /// <returns>True if the message should be accepted; False if it's a replay or too old.</returns>
-        public bool CheckAndMark(int sequenceId)
+        public bool CheckAndMark(int senderSequenceNumber)
         {
             lock (_lock)
             {
@@ -69,15 +69,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 // Case 1: First packet ever
                 if (_highestSequenceId == -1)
                 {
-                    _highestSequenceId = sequenceId;
+                    _highestSequenceId = senderSequenceNumber;
                     _windowMask = 1; // Mark bit 0
                     return true;
                 }
 
                 // Case 2: New highest sequence ID
-                if (sequenceId > _highestSequenceId)
+                if (senderSequenceNumber > _highestSequenceId)
                 {
-                    int diff = sequenceId - _highestSequenceId;
+                    int diff = senderSequenceNumber - _highestSequenceId;
 
                     if (diff >= WindowSize)
                     {
@@ -90,13 +90,13 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                         _windowMask <<= diff;
                     }
 
-                    _highestSequenceId = sequenceId;
+                    _highestSequenceId = senderSequenceNumber;
                     _windowMask |= 1; // Mark the new highest (bit 0)
                     return true;
                 }
 
                 // Case 3: Old sequence ID
-                int offset = _highestSequenceId - sequenceId;
+                int offset = _highestSequenceId - senderSequenceNumber;
 
                 // If offset is negative, it means sequenceId > highest, handled above.
                 // So offset >= 0 here.

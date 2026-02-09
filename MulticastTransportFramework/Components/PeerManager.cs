@@ -9,7 +9,7 @@ using Ubicomp.Utils.NET.MulticastTransportFramework;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
 {
-    internal class PeerManager : IDisposable
+    public class PeerManager : IDisposable
     {
         private readonly PeerTable _peerTable = new PeerTable();
         private ILogger _logger;
@@ -21,7 +21,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
 
         public TimeSpan? HeartbeatInterval { get; set; }
         public string? InstanceMetadata { get; set; }
-        public EventSource LocalSource { get; set; }
 
         public IEnumerable<RemotePeer> ActivePeers => _peerTable.GetActivePeers();
 
@@ -44,7 +43,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
             _logger = logger;
         }
 
-        public void Start(Func<HeartbeatMessage, Task> sender)
+        public void Start(Func<HeartbeatMessage, Task> sender, string senderSourceId, string senderResourceName)
         {
             Stop();
 
@@ -56,8 +55,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
 
                 // Capture locals for task
                 var metadata = InstanceMetadata;
-                var sourceId = LocalSource.ResourceId.ToString();
-                var resourceName = LocalSource.ResourceName;
+                var sourceId = senderSourceId;
+                var resourceName = senderResourceName;
                 var startTime = System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime();
 
                 _heartbeatTask = Task.Run(async () =>
@@ -112,9 +111,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
             _heartbeatCts = null;
         }
 
-        public void HandleHeartbeat(HeartbeatMessage msg)
+        public void HandleHeartbeat(HeartbeatMessage msg, string localResourceId)
         {
-             if (msg.SourceId == LocalSource.ResourceId.ToString())
+             if (msg.SourceId == localResourceId)
                 return; // Ignore self
 
             _peerTable.UpdatePeer(msg.SourceId, msg.DeviceName, msg.Metadata);

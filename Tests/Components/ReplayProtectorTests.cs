@@ -16,7 +16,8 @@ namespace Ubicomp.Utils.NET.Tests.Components
             var msg = new TransportMessage(new EventSource(Guid.NewGuid(), "Test"), "type", "data");
 
             // senderSeq = 1
-            Assert.True(protector.IsValid(msg, 1, out _));
+            msg.SenderSequenceNumber = 1;
+            Assert.True(protector.IsValid(msg, out _));
         }
 
         [Fact]
@@ -28,10 +29,11 @@ namespace Ubicomp.Utils.NET.Tests.Components
             var oldTime = DateTime.UtcNow.AddSeconds(-10);
             var msg = new TransportMessage(new EventSource(Guid.NewGuid(), "Test"), "type", "data")
             {
-                TimeStamp = oldTime.ToString(TransportMessage.DATE_FORMAT_NOW)
+                TimeStamp = oldTime.ToString(TransportMessage.DATE_FORMAT_NOW),
+                SenderSequenceNumber = 1
             };
 
-            Assert.False(protector.IsValid(msg, 1, out var reason));
+            Assert.False(protector.IsValid(msg, out var reason));
             Assert.Contains("too old", reason);
         }
 
@@ -40,11 +42,11 @@ namespace Ubicomp.Utils.NET.Tests.Components
         {
             var protector = new ReplayProtector(NullLogger.Instance);
             var source = new EventSource(Guid.NewGuid(), "Test");
-            var msg1 = new TransportMessage(source, "type", "data");
-            var msg2 = new TransportMessage(source, "type", "data"); // Same source
+            var msg1 = new TransportMessage(source, "type", "data") { SenderSequenceNumber = 1 };
+            var msg2 = new TransportMessage(source, "type", "data") { SenderSequenceNumber = 1 }; // Same source
 
-            Assert.True(protector.IsValid(msg1, 1, out _));
-            Assert.False(protector.IsValid(msg2, 1, out var reason)); // Duplicate 1
+            Assert.True(protector.IsValid(msg1, out _));
+            Assert.False(protector.IsValid(msg2, out var reason)); // Duplicate 1
             Assert.Contains("Duplicate", reason);
         }
 
@@ -56,7 +58,8 @@ namespace Ubicomp.Utils.NET.Tests.Components
             var msg = new TransportMessage(new EventSource(sourceId, "Test"), "type", "data");
 
             // Must have seen a message first to create window
-            protector.IsValid(msg, 1, out _);
+            msg.SenderSequenceNumber = 1;
+            protector.IsValid(msg, out _);
 
             for (int i = 0; i < 10; i++)
             {
@@ -92,7 +95,7 @@ namespace Ubicomp.Utils.NET.Tests.Components
 
              var protector = new ReplayProtector(NullLogger.Instance);
              var sourceId = Guid.NewGuid();
-             protector.IsValid(new TransportMessage(new EventSource(sourceId, "Test"), "t", "d"), 1, out _);
+             protector.IsValid(new TransportMessage(new EventSource(sourceId, "Test"), "t", "d") { SenderSequenceNumber = 1 }, out _);
 
              // Exhaust rate limit
              for(int i=0; i<15; i++) protector.CheckAckRateLimit(sourceId);

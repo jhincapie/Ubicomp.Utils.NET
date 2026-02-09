@@ -32,12 +32,6 @@ namespace Ubicomp.Utils.NET.Sockets
             get; private set;
         }
 
-        /// <summary>Gets the arrival sequence number of the message.</summary>
-        public int ArrivalSequenceId
-        {
-            get; private set;
-        }
-
         /// <summary>Gets the timestamp when the message was received.</summary>
         public DateTime Timestamp
         {
@@ -57,7 +51,6 @@ namespace Ubicomp.Utils.NET.Sockets
         {
             Data = Array.Empty<byte>();
             Length = 0;
-            ArrivalSequenceId = 0;
             Timestamp = DateTime.MinValue;
         }
 
@@ -65,19 +58,17 @@ namespace Ubicomp.Utils.NET.Sockets
         /// Initializes a new instance of the <see cref="SocketMessage"/> class.
         ///For backward compatibility/testing.
         /// </summary>
-        public SocketMessage(byte[] data, int sequenceId)
+        public SocketMessage(byte[] data)
         {
             Data = data;
             Length = data.Length;
-            ArrivalSequenceId = sequenceId;
             Timestamp = DateTime.Now;
         }
 
-        internal void Reset(byte[] buffer, int length, int sequenceId, bool isRented, EndPoint? remoteEndpoint = null)
+        internal void Reset(byte[] buffer, int length, bool isRented, EndPoint? remoteEndpoint = null)
         {
             Data = buffer;
             Length = length;
-            ArrivalSequenceId = sequenceId;
             Timestamp = DateTime.Now;
             RemoteEndpoint = remoteEndpoint;
             if (isRented)

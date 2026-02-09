@@ -29,8 +29,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             var component = new TransportComponent(options)
             {
-                Logger = NullLogger.Instance,
-                EnforceOrdering = true
+                Logger = NullLogger.Instance
             };
             try
             {
@@ -55,7 +54,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             string json = JsonSerializer.Serialize(tm, options);
             byte[] data = Encoding.UTF8.GetBytes(json);
-            return new SocketMessage(data, seq);
+            return new SocketMessage(data);
         }
 
         [Fact]

@@ -27,7 +27,8 @@ namespace Ubicomp.Utils.NET.Tests
             // Act
             // Use fully qualified name to avoid ambiguity with internal ArrayBufferWriter
             var writer = new System.Buffers.ArrayBufferWriter<byte>();
-            BinaryPacket.SerializeToWriter(writer, message, 123, null, (byte[]?)null);
+            message.SenderSequenceNumber = 123;
+            BinaryPacket.SerializeToWriter(writer, message, null, (EncryptorDelegate?)null);
             var packet = writer.WrittenSpan.ToArray();
 
             // Assert
@@ -42,16 +43,16 @@ namespace Ubicomp.Utils.NET.Tests
             // Arrange
             var source = new EventSource(Guid.NewGuid(), "Host", "Desc");
             var content = new TestMessage { Data = "Roundtrip" };
-            var message = new TransportMessage(source, "test.binary", content);
+            var message = new TransportMessage(source, "test.binary", content) { SenderSequenceNumber = 55 };
 
             // Serialize
             var writer = new System.Buffers.ArrayBufferWriter<byte>();
-            BinaryPacket.SerializeToWriter(writer, message, 55, null, (byte[]?)null, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            BinaryPacket.SerializeToWriter(writer, message, null, (EncryptorDelegate?)null, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
             var packet = writer.WrittenSpan.ToArray();
 
             // Act
             // v2 Update: Pass null/empty keys for unencrypted
-            var deserialized = BinaryPacket.Deserialize(packet, 55, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }, (byte[]?)null);
+            var deserialized = BinaryPacket.Deserialize(packet, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }, (DecryptorDelegate?)null, null);
 
             // Assert
             Assert.NotNull(deserialized);

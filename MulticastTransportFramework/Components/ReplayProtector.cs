@@ -6,7 +6,7 @@ using Ubicomp.Utils.NET.MulticastTransportFramework;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
 {
-    internal class ReplayProtector
+    public class ReplayProtector
     {
         private readonly ConcurrentDictionary<Guid, ReplayWindow> _replayProtection = new ConcurrentDictionary<Guid, ReplayWindow>();
         private ILogger _logger;
@@ -24,7 +24,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
         /// Checks if the message is valid (not a replay and within time window).
         /// Returns true if valid, false if it should be dropped.
         /// </summary>
-        public bool IsValid(TransportMessage message, int senderSequenceId, out string reason)
+        public bool IsValid(TransportMessage message, out string reason)
         {
             reason = string.Empty;
 
@@ -44,17 +44,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
             var window = _replayProtection.GetOrAdd(message.MessageSource.ResourceId, _ => new ReplayWindow());
 
             // 3. Sequence ID Check
-            if (senderSequenceId == -1)
-            {
-                // No sequence ID to check (legacy), but we ensured window exists for rate limiting.
-                return true;
-            }
+            int senderSequenceNumber = message.SenderSequenceNumber;
+            // Legacy check for -1 removed. All messages must have a sequence number now.
 
-            if (!window.CheckAndMark(senderSequenceId))
+            if (!window.CheckAndMark(senderSequenceNumber))
             {
-                reason = $"Duplicate or out-of-window sequence ID {senderSequenceId}.";
+                reason = $"Duplicate or out-of-window sequence ID {senderSequenceNumber}.";
                 if (_logger.IsEnabled(LogLevel.Trace))
-                    _logger.LogTrace("Replay/Duplicate detected for Seq {0} from {1}", senderSequenceId, message.MessageSource.ResourceId);
+                    _logger.LogTrace("Replay/Duplicate detected for Seq {0} from {1}", senderSequenceNumber, message.MessageSource.ResourceId);
                 return false;
             }
 

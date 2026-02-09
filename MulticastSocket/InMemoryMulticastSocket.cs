@@ -26,7 +26,6 @@ namespace Ubicomp.Utils.NET.Sockets
         private int _port;
         private bool _joined;
         private bool _disposed;
-        private int _consecutiveSeq;
         private EndPoint _localEP; // Simulated local EP
 
         public IEnumerable<IPAddress> JoinedAddresses
@@ -167,10 +166,8 @@ namespace Ubicomp.Utils.NET.Sockets
             byte[] buffer = ArrayPool<byte>.Shared.Rent(data.Length);
             data.CopyTo(buffer);
 
-            int seq = Interlocked.Increment(ref _consecutiveSeq);
-
             var msg = new SocketMessage();
-            msg.Reset(buffer, data.Length, seq, isRented: true, sender);
+            msg.Reset(buffer, data.Length, isRented: true, sender);
             msg.ReturnCallback = (m) =>
             {
                 if (m.Data != null)

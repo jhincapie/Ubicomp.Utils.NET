@@ -29,7 +29,7 @@ namespace Ubicomp.Utils.NET.Generators.AutoDiscovery
 
 namespace Ubicomp.Utils.NET.Tests
 {
-    [Collection("TransportBuilderTests")]
+    [Collection("SharedTransport")]
     public class TransportBuilderAutoDiscoveryTests
     {
         [Fact]
@@ -46,6 +46,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             // Assert
             Assert.True(Ubicomp.Utils.NET.Generators.AutoDiscovery.TransportExtensions.WasCalled, "RegisterDiscoveredMessages should be called during Build()");
+
             Assert.Same(component, Ubicomp.Utils.NET.Generators.AutoDiscovery.TransportExtensions.Component);
         }
     }

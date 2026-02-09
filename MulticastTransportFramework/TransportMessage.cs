@@ -23,6 +23,21 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             get; set;
         }
 
+        /// <summary>
+        /// Gets or sets the sender's sequence number.
+        /// Use this for ordering and replay protection.
+        /// Serialized in the binary header.
+        /// </summary>
+        public int SenderSequenceNumber { get; set; } = -1;
+
+        /// <summary>
+        /// Gets or sets the local arrival sequence number.
+        /// Assigned by the receiver's socket.
+        /// NOT serialized.
+        /// </summary>
+        [JsonIgnore]
+        public int ArrivalSequenceNumber { get; set; } = -1;
+
         /// <summary>Gets or sets the source of the message.</summary>
         public EventSource MessageSource
         {
@@ -54,15 +69,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             get; set;
         }
 
-        /// <summary>
-        /// Gets or sets the HMAC signature of the message for integrity verification.
-        /// Computed over the MessageId, Timestamp, MessageType, and MessageData.
-        /// </summary>
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public string? Signature
-        {
-            get; set;
-        }
+
 
         /// <summary>
         /// Gets or sets a value indicating whether the MessageData is encrypted.
@@ -108,10 +115,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             // Defaults
             RequestAck = false;
-            Signature = null;
             IsEncrypted = false;
             Nonce = null;
             Tag = null;
+            SenderSequenceNumber = -1;
+            ArrivalSequenceNumber = -1;
         }
     }
 

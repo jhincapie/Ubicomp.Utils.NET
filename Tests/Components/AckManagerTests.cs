@@ -48,7 +48,7 @@ namespace Ubicomp.Utils.NET.Tests.Components
             var source = new EventSource(Guid.NewGuid(), "Test");
 
             // Ensure protector knows about source
-            protector.IsValid(new TransportMessage(source, "Init", "Data"), 1, out _);
+            protector.IsValid(new TransportMessage(source, "Init", "Data") { SenderSequenceNumber = 1 }, out _);
 
             // 1. Valid Request
             var msg = new TransportMessage(source, "TestType", "Data") { RequestAck = true };

@@ -7,7 +7,7 @@ using Ubicomp.Utils.NET.MulticastTransportFramework;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
 {
-    internal class AckManager
+    public class AckManager
     {
         private readonly ConcurrentDictionary<Guid, AckSession> _activeSessions = new ConcurrentDictionary<Guid, AckSession>();
         private ILogger _logger;

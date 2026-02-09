@@ -6,7 +6,7 @@ using Ubicomp.Utils.NET.MulticastTransportFramework;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
 {
-    internal class SecurityHandler : IDisposable
+    public class SecurityHandler : IDisposable
     {
         private readonly KeyManager _keyManager;
         private ILogger _logger;
@@ -40,7 +40,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
             }
         }
 
-        internal KeyManager KeyManager => _keyManager;
+        public KeyManager KeyManager => _keyManager;
 
         public KeySession? CurrentSession => _keyManager.Current;
         public KeySession? PreviousSession => _keyManager.Previous;
@@ -72,26 +72,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
         public void ClearPreviousKey() => _keyManager.ClearPreviousKey();
 
         // Helper for Legacy Decryption
-        public string Decrypt(string cipherText, string nonce, string? tag)
-        {
-            var session = _keyManager.Current;
-            if (session == null)
-                throw new InvalidOperationException("Cannot decrypt without EncryptionKey.");
-
-            if (session.AesGcmInstance != null && tag != null)
-            {
-                byte[] nonceBytes = Convert.FromBase64String(nonce);
-                byte[] cipherBytes = Convert.FromBase64String(cipherText);
-                byte[] tagBytes = Convert.FromBase64String(tag);
-                byte[] plainBytes = new byte[cipherBytes.Length];
-
-                session.AesGcmInstance.Decrypt(nonceBytes, cipherBytes, tagBytes, plainBytes);
-
-                return Encoding.UTF8.GetString(plainBytes);
-            }
-
-            throw new PlatformNotSupportedException("AES-GCM is required for decryption but not supported on this platform, or Tag was missing.");
-        }
+        // Legacy Decrypt (string-based) REMOVED
 
         public void Dispose()
         {

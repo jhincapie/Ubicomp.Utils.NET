@@ -115,33 +115,31 @@ namespace Ubicomp.Utils.NET.Tests
             var session = await tc.SendAsync(new AckMessageContent(), new SendOptions { RequestAck = true });
 
             // Create an Ack message for this msg
-            var manualSession = await tc.SendAsync(new AckMessageContent(), new SendOptions { RequestAck = true });
+            // var manualSession = await tc.SendAsync(new AckMessageContent(), new SendOptions { RequestAck = true }); // Don't need this to create an ack
 
-            var ackContent = new AckMessageContent { OriginalMessageId = manualSession.OriginalMessageId };
+            var ackContent = new AckMessageContent { OriginalMessageId = session.OriginalMessageId };
             var ackSource = new EventSource(Guid.NewGuid(), "Responder");
+            // AckMessageType is sys.ack
             var ackMsg = new TransportMessage(ackSource, TransportComponent.AckMessageType, ackContent);
+            ackMsg.SenderSequenceNumber = 123; // Must set sequence number
 
-            // Sign the message manually
-            ackMsg.Signature = tc.ComputeSignature(ackMsg, null);
-
-            var jsonOptions = new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                PropertyNameCaseInsensitive = true
-            };
-            string ackJson = JsonSerializer.Serialize(ackMsg, jsonOptions);
-            byte[] ackData = Encoding.UTF8.GetBytes(ackJson);
+            // Serialize using BinaryPacket (simulating arrival from network)
+            var writer = new Ubicomp.Utils.NET.MulticastTransportFramework.ArrayBufferWriter<byte>();
+            // Use SecurityHandler from TC to get (null) keys
+            // Actually, for simulation, we can just use BinaryPacket directly with valid params
+            BinaryPacket.SerializeToWriter(writer, ackMsg, null, (EncryptorDelegate?)null);
+            byte[] ackData = writer.WrittenSpan.ToArray();
 
             // Act
-            tc.HandleSocketMessage(new SocketMessage(ackData, 1));
+            tc.HandleSocketMessage(new SocketMessage(ackData));
 
             // Assert
-            var result = await manualSession.WaitAsync(TimeSpan.FromSeconds(2));
+            var result = await session.WaitAsync(TimeSpan.FromSeconds(2));
             tc.Stop();
 
             Assert.True(result, "Ack was not processed correctly in simulation");
-            Assert.True(manualSession.IsAnyAckReceived);
-            Assert.Contains(ackSource.ResourceId, manualSession.ReceivedAcks.Select(s => s.ResourceId));
+            Assert.True(session.IsAnyAckReceived);
+            Assert.Contains(ackSource.ResourceId, session.ReceivedAcks.Select(s => s.ResourceId));
         }
 
     }

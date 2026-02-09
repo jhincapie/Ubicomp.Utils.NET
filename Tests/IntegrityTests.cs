@@ -39,7 +39,7 @@ namespace Ubicomp.Utils.NET.Tests
             var content = await tcs.Task;
             Assert.Equal("Hello SHA256", content);
             // Verify SecurityKey is null
-            Assert.Null(transport.SecurityKey);
+            Assert.Null(transport.SecurityHandler.SecurityKey);
         }
 
         [Fact]
@@ -74,7 +74,7 @@ namespace Ubicomp.Utils.NET.Tests
             Assert.Equal(tcs.Task, result); // Message should be received
             var content = await tcs.Task;
             Assert.Equal("Hello HMAC", content);
-            Assert.Equal(key, transport.SecurityKey);
+            Assert.Equal(key, transport.SecurityHandler.SecurityKey);
         }
     }
 

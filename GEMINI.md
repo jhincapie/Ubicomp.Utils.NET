@@ -18,10 +18,10 @@ The solution is structured into several key projects:
 *   **Key Concept**: Separates data acquisition (`ContextMonitor`) from logic (`ContextService`) and state (`IEntity`).
 
 ### 2. MulticastTransportFramework (`net8.0`)
-*   **Role**: Higher-level reliable messaging layer over UDP multicast.
-*   **Architecture**: Actor-like model with dedicated internal loops (`GateKeeperLoop`, `ProcessingLoop`).
+*   **Role**: Higher-level reliable messaging layer over TCP/UDP multicast.
+*   **Architecture**: Actor-like model with dedicated internal loops (`ProcessingLoop`).
 *   **Key Features**:
-    - **Reliability**: `GateKeeper` (ordering via PriorityQueue), `ReplayWindow` (deduplication), `AckSession` (delivery confirmation).
+    - **Reliability**: `ReplayWindow` (deduplication), `AckSession` (delivery confirmation).
     - **Security**: AES-GCM encryption (Modern) / AES-CBC (Legacy) and HMAC-SHA256 integrity.
     - **Serialization**: Dual support for `BinaryPacket` (optimized) and JSON (via `System.Text.Json`).
     - **Discovery**: Uses `Generators` for auto-wiring message types.

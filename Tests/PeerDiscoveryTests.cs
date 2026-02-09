@@ -11,6 +11,7 @@ using Xunit;
 
 namespace Ubicomp.Utils.NET.Tests
 {
+    [Collection("SharedTransport")]
     public class PeerDiscoveryTests
     {
         [Fact]
@@ -39,13 +40,13 @@ namespace Ubicomp.Utils.NET.Tests
                 .WithHeartbeat(TimeSpan.FromMilliseconds(50))
                 .Build();
 
-            node1.OnPeerDiscovered += (p) =>
+            node1.PeerManager.OnPeerDiscovered += (p) =>
             {
                 if (p.DeviceName == "Node2")
                     peer1Discovered.Set();
             };
 
-            node2.OnPeerDiscovered += (p) =>
+            node2.PeerManager.OnPeerDiscovered += (p) =>
             {
                 if (p.DeviceName == "Node1")
                     peer2Discovered.Set();
@@ -59,8 +60,8 @@ namespace Ubicomp.Utils.NET.Tests
             bool success = WaitHandle.WaitAll(new WaitHandle[] { peer1Discovered, peer2Discovered }, 2000);
             Assert.True(success, "Nodes failed to discover each other within timeout.");
 
-            var peers1 = node1.ActivePeers.ToList();
-            var peers2 = node2.ActivePeers.ToList();
+            var peers1 = node1.PeerManager.ActivePeers.ToList();
+            var peers2 = node2.PeerManager.ActivePeers.ToList();
 
             Assert.Single(peers1);
             Assert.Single(peers2);
@@ -97,7 +98,7 @@ namespace Ubicomp.Utils.NET.Tests
                 .WithInstanceMetadata("{\"Role\":\"Master\"}")
                 .Build();
 
-            receiver.OnPeerDiscovered += (p) =>
+            receiver.PeerManager.OnPeerDiscovered += (p) =>
             {
                 if (p.DeviceName == "Sender")
                 {
@@ -146,8 +147,8 @@ namespace Ubicomp.Utils.NET.Tests
                 .WithHeartbeat(TimeSpan.FromMilliseconds(50))
                 .Build();
 
-            receiver.OnPeerDiscovered += (p) => discoveryEvent.Set();
-            receiver.OnPeerLost += (p) => lostEvent.Set();
+            receiver.PeerManager.OnPeerDiscovered += (p) => discoveryEvent.Set();
+            receiver.PeerManager.OnPeerLost += (p) => lostEvent.Set();
 
             receiver.Start();
             sender.Start();
@@ -165,7 +166,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             // Assert
             Assert.True(lost, "Peer was not removed after stopping heartbeats.");
-            Assert.Empty(receiver.ActivePeers);
+            Assert.Empty(receiver.PeerManager.ActivePeers);
 
             return Task.CompletedTask;
         }

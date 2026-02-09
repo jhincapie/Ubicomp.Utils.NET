@@ -15,7 +15,7 @@ namespace Ubicomp.Utils.NET.Tests.Components
         public async Task Start_SendsHeartbeats()
         {
             var manager = new PeerManager(NullLogger.Instance);
-            manager.LocalSource = new EventSource(Guid.NewGuid(), "Local");
+            var localSource = new EventSource(Guid.NewGuid(), "Local");
             manager.HeartbeatInterval = TimeSpan.FromMilliseconds(50);
 
             int sentCount = 0;
@@ -26,7 +26,7 @@ namespace Ubicomp.Utils.NET.Tests.Components
                 Interlocked.Increment(ref sentCount);
                 if (sentCount >= 2) tcs.TrySetResult(true);
                 await Task.CompletedTask;
-            });
+            }, localSource.ResourceId.ToString(), localSource.ResourceName);
 
             var task = await Task.WhenAny(tcs.Task, Task.Delay(2000));
             Assert.True(task == tcs.Task, "Timed out waiting for heartbeats");
@@ -39,7 +39,7 @@ namespace Ubicomp.Utils.NET.Tests.Components
         {
             var manager = new PeerManager(NullLogger.Instance);
             var localId = Guid.NewGuid();
-            manager.LocalSource = new EventSource(localId, "Local");
+            var localSource = new EventSource(localId, "Local");
 
             bool discovered = false;
             manager.OnPeerDiscovered += (p) => discovered = true;
@@ -49,7 +49,7 @@ namespace Ubicomp.Utils.NET.Tests.Components
             {
                 SourceId = remoteId,
                 DeviceName = "Remote"
-            });
+            }, localId.ToString());
 
             Assert.True(discovered);
             Assert.Contains(manager.ActivePeers, p => p.SourceId == remoteId);
@@ -60,7 +60,7 @@ namespace Ubicomp.Utils.NET.Tests.Components
         {
             var id = Guid.NewGuid();
             var manager = new PeerManager(NullLogger.Instance);
-            manager.LocalSource = new EventSource(id, "Local");
+            var localSource = new EventSource(id, "Local");
 
             bool discovered = false;
             manager.OnPeerDiscovered += (p) => discovered = true;
@@ -69,7 +69,7 @@ namespace Ubicomp.Utils.NET.Tests.Components
             {
                 SourceId = id.ToString(),
                 DeviceName = "Local"
-            });
+            }, id.ToString());
 
             Assert.False(discovered);
             Assert.Empty(manager.ActivePeers);

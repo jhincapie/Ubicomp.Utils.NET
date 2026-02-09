@@ -46,6 +46,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         public const int TransportComponentID = 0;
         public const string AckMessageType = "sys.ack";
+        private const int MaxQueueSize = 10000;
 
         private IMulticastSocket? _socket;
         private readonly MulticastSocketOptions _socketOptions;
@@ -56,16 +57,26 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private CancellationTokenSource? _receiveCts;
         private Task? _receiveTask;
 
+        private int _senderSequenceNumber = 0;
+        private int _arrivalSequenceNumber = 0;
+
         private readonly ConcurrentDictionary<string, Type> _knownTypes = new ConcurrentDictionary<string, Type>();
         private readonly ConcurrentDictionary<string, Delegate> _genericHandlers = new ConcurrentDictionary<string, Delegate>();
         private readonly ConcurrentDictionary<Type, string> _typeToIdMap = new ConcurrentDictionary<Type, string>();
 
         // Components
         private readonly ReplayProtector _replayProtector;
+        public ReplayProtector ReplayProtector => _replayProtector;
+
         private readonly AckManager _ackManager;
+        public AckManager AckManager => _ackManager;
+
         private readonly PeerManager _peerManager;
-        private readonly GateKeeper _gateKeeper;
+        public PeerManager PeerManager => _peerManager;
+
         private readonly SecurityHandler _securityHandler;
+        public SecurityHandler SecurityHandler => _securityHandler;
+
         private readonly MessageSerializer _messageSerializer;
 
         // Rx & Tracing
@@ -73,56 +84,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private readonly Subject<SocketMessage> _messageSubject = new Subject<SocketMessage>();
         public IObservable<SocketMessage> MessageStream => _messageSubject.AsObservable();
 
-        public IEnumerable<RemotePeer> ActivePeers => _peerManager.ActivePeers;
-
-        public event Action<RemotePeer> OnPeerDiscovered
-        {
-            add => _peerManager.OnPeerDiscovered += value;
-            remove => _peerManager.OnPeerDiscovered -= value;
-        }
-
-        public event Action<RemotePeer> OnPeerLost
-        {
-            add => _peerManager.OnPeerLost += value;
-            remove => _peerManager.OnPeerLost -= value;
-        }
-
         public event EventHandler<MessageErrorEventArgs>? OnMessageError;
 
-        // Configuration Properties (delegated)
-        public TimeSpan DefaultAckTimeout { get => _ackManager.DefaultAckTimeout; set => _ackManager.DefaultAckTimeout = value; }
-        public TimeSpan ReplayWindow { get => _replayProtector.ReplayWindowDuration; set => _replayProtector.ReplayWindowDuration = value; }
-        public TimeSpan GateKeeperTimeout { get => _gateKeeper.GateKeeperTimeout; set => _gateKeeper.GateKeeperTimeout = value; }
-        public EventSource LocalSource { get => _peerManager.LocalSource; set => _peerManager.LocalSource = value; }
-        public bool AutoSendAcks { get => _ackManager.AutoSendAcks; set => _ackManager.AutoSendAcks = value; }
-        public bool EnforceOrdering { get; set; } = false;
-        public int MaxQueueSize { get => _gateKeeper.MaxQueueSize; set => _gateKeeper.MaxQueueSize = value; }
-
-        public string? SecurityKey
-        {
-            get => _securityHandler.SecurityKey;
-            set => _securityHandler.SecurityKey = value;
-        }
-
-        internal KeyManager KeyManager => _securityHandler.KeyManager;
-
-        public bool EncryptionEnabled
-        {
-            get => _securityHandler.EncryptionEnabled;
-            set => _securityHandler.EncryptionEnabled = value;
-        }
-
-        public TimeSpan? HeartbeatInterval
-        {
-            get => _peerManager.HeartbeatInterval;
-            set => _peerManager.HeartbeatInterval = value;
-        }
-
-        public string? InstanceMetadata
-        {
-            get => _peerManager.InstanceMetadata;
-            set => _peerManager.InstanceMetadata = value;
-        }
+        public EventSource LocalSource { get; internal set; } = new EventSource(Guid.Empty, "Uninitialized");
 
         // Processing Channel
         private Channel<SocketMessage>? _processingChannel;
@@ -136,7 +100,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             _replayProtector = new ReplayProtector(Logger);
             _ackManager = new AckManager(Logger);
             _peerManager = new PeerManager(Logger);
-            _gateKeeper = new GateKeeper(Logger);
             _securityHandler = new SecurityHandler(Logger);
             _messageSerializer = new MessageSerializer(Logger);
 
@@ -151,18 +114,18 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             if (_replayProtector != null) _replayProtector.Logger = _logger;
             if (_ackManager != null) _ackManager.Logger = _logger;
             if (_peerManager != null) _peerManager.Logger = _logger;
-            if (_gateKeeper != null) _gateKeeper.Logger = _logger;
             if (_securityHandler != null) _securityHandler.Logger = _logger;
             if (_messageSerializer != null) _messageSerializer.Logger = _logger;
         }
 
         private void RegisterInternalTypes()
         {
+            // AckMessage has no handler (processed in pipeline), so we register it manually for deserialization
             _knownTypes.TryAdd(AckMessageType, typeof(AckMessageContent));
-            _knownTypes.TryAdd("sys.heartbeat", typeof(HeartbeatMessage));
-            _typeToIdMap.TryAdd(typeof(HeartbeatMessage), "sys.heartbeat");
-            _knownTypes.TryAdd("sys.rekey", typeof(RekeyMessage));
-            _typeToIdMap.TryAdd(typeof(RekeyMessage), "sys.rekey");
+
+            // System handlers
+            RegisterHandler<HeartbeatMessage>((msg, ctx) => _peerManager.HandleHeartbeat(msg, LocalSource.ResourceId.ToString()));
+            RegisterHandler<RekeyMessage>(HandleRekey);
         }
 
         public void RegisterHandler<T>(Action<T, MessageContext> handler) where T : class
@@ -198,8 +161,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             _processingLoopTask = Task.Run(ProcessingLoop);
 
-            // GateKeeper
-            _gateKeeper.Start(_processingChannel.Writer);
+
 
             if (_socket == null)
             {
@@ -214,11 +176,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             Logger.LogInformation("Multicast Socket Started on {0}:{1}", _socketOptions.GroupAddress, _socketOptions.Port);
 
             // PeerManager
-            _peerManager.Start(async msg => { await SendAsync(msg); });
-
-            // Handlers for system messages
-            RegisterHandler<HeartbeatMessage>("sys.heartbeat", (msg, ctx) => _peerManager.HandleHeartbeat(msg));
-            RegisterHandler<RekeyMessage>("sys.rekey", HandleRekey);
+            _peerManager.Start(async msg => { await SendAsync(msg); }, LocalSource.ResourceId.ToString(), LocalSource.ResourceName);
         }
 
         private void HandleRekey(RekeyMessage msg, MessageContext context)
@@ -229,7 +187,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
              Logger.LogInformation("Received Rekey Message (KeyId: {0}). Rotating keys...", msg.KeyId);
              _securityHandler.HandleRekey(msg.NewKey);
 
-             Task.Delay(ReplayWindow.Add(TimeSpan.FromSeconds(5))).ContinueWith(_ => _securityHandler.ClearPreviousKey());
+             Task.Delay(ReplayProtector.ReplayWindowDuration.Add(TimeSpan.FromSeconds(5))).ContinueWith(_ => _securityHandler.ClearPreviousKey());
         }
 
         public void Stop()
@@ -246,7 +204,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 _socket = null;
             }
 
-            _gateKeeper.Stop();
             _peerManager.Stop();
             _processingChannel?.Writer.TryComplete();
             try { _processingLoopTask?.Wait(1000); } catch { }
@@ -257,7 +214,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             Stop();
             _securityHandler.Dispose();
             _peerManager.Dispose();
-            _gateKeeper.Dispose();
             try { _messageSubject.OnCompleted(); _messageSubject.Dispose(); } catch { }
             GC.SuppressFinalize(this);
         }
@@ -281,14 +237,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         internal void HandleSocketMessage(SocketMessage msg)
         {
-            if (!EnforceOrdering)
-            {
-                if (!(_processingChannel?.Writer.TryWrite(msg) ?? false)) msg.Dispose();
-            }
-            else
-            {
-                if (!_gateKeeper.TryPush(msg)) msg.Dispose();
-            }
+            if (!(_processingChannel?.Writer.TryWrite(msg) ?? false)) msg.Dispose();
         }
 
         private async Task ProcessingLoop()
@@ -304,9 +253,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                         {
                             using (var activity = _activitySource.StartActivity("ReceiveMessage", System.Diagnostics.ActivityKind.Consumer))
                             {
-                                activity?.SetTag("transport.seq", msg.ArrivalSequenceId);
+                                int arrivalSeq = Interlocked.Increment(ref _arrivalSequenceNumber);
+                                activity?.SetTag("transport.seq", arrivalSeq);
                                 _messageSubject.OnNext(msg);
-                                ProcessSingleMessage(msg);
+                                ProcessInboundPacket(msg, arrivalSeq);
                             }
                         }
                         finally { msg.Dispose(); }
@@ -316,12 +266,22 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             catch (Exception ex) { Logger.LogError(ex, "Critical error in ProcessingLoop"); }
         }
 
-        private void ProcessSingleMessage(SocketMessage msg)
+        /// <summary>
+        /// Handles the raw incoming packet: Deserialization, Security Check, Replay Protection.
+        /// </summary>
+        private void ProcessInboundPacket(SocketMessage msg, int arrivalSeqNum)
         {
             try
             {
                 // Deserialize
-                TransportMessage? tMessage = _messageSerializer.Deserialize(msg, _securityHandler, out int senderSequenceId);
+                TransportMessage? tMessage = _messageSerializer.Deserialize(msg, _securityHandler);
+
+                if (tMessage != null)
+                {
+                    var val = tMessage.Value;
+                    val.ArrivalSequenceNumber = arrivalSeqNum;
+                    tMessage = val;
+                }
 
                 if (tMessage == null)
                     return;
@@ -329,77 +289,33 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 TransportMessage message = tMessage.Value;
 
                 // Replay Protection
-                if (!_replayProtector.IsValid(message, senderSequenceId, out var reason))
+                if (!_replayProtector.IsValid(message, out var reason))
                 {
                     return;
                 }
 
-                // Legacy Signature Check (if not binary magic byte)
-                if (msg.Length > 0 && msg.Data[0] != BinaryPacket.MagicByte)
-                {
-                    if (!ValidateLegacySignature(message, msg))
-                        return;
-                }
-
-                // Legacy Decryption (if string cipher)
-                if (message.IsEncrypted && message.MessageData is string cipherText && message.Nonce != null)
-                {
-                    if (!TryDecryptLegacy(ref message, cipherText, msg))
-                        return;
-                }
-
-                ProcessTransportMessage(message, msg.ArrivalSequenceId);
+                DispatchMessage(message);
             }
             catch (Exception ex)
             {
-                Logger.LogError("Error Processing Received Message {0}: {1}", msg.ArrivalSequenceId, ex.Message);
+                OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Inbound Packet Error", ex));
+                Logger.LogError("Error Processing Received Message {0}: {1}", arrivalSeqNum, ex.Message);
             }
         }
 
-        private bool ValidateLegacySignature(TransportMessage message, SocketMessage msg)
-        {
-             if (string.IsNullOrEmpty(message.Signature))
-             {
-                 Logger.LogWarning("Dropped unsigned message {0}.", message.MessageId);
-                 OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Missing Signature"));
-                 return false;
-             }
-
-             byte[]? tempInt = _securityHandler.CurrentSession?.IntegrityKey.Memory.ToArray();
-             string expected = _messageSerializer.ComputeSignature(message, tempInt);
-             if (tempInt != null) Array.Clear(tempInt, 0, tempInt.Length);
-
-             if (message.Signature != expected)
-             {
-                 Logger.LogWarning("Dropped message {0} with invalid signature.", message.MessageId);
-                 OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Invalid Signature"));
-                 return false;
-             }
-             return true;
-        }
-
-        private bool TryDecryptLegacy(ref TransportMessage message, string cipherText, SocketMessage msg)
-        {
-            try
-            {
-                string plainText = _securityHandler.Decrypt(cipherText, message.Nonce!, message.Tag);
-                message.MessageData = plainText;
-                return true;
-            }
-            catch (Exception ex)
-            {
-                 Logger.LogError(ex, "Decryption failed for message {0}.", message.MessageId);
-                 OnMessageError?.Invoke(this, new MessageErrorEventArgs(msg, "Decryption Failed", ex));
-                 return false;
-            }
-        }
-
-        private void ProcessTransportMessage(TransportMessage tMessage, int sequenceId)
+        /// <summary>
+        /// Routes the valid TransportMessage to appropriate handlers and manages ACKs.
+        /// </summary>
+        private void DispatchMessage(TransportMessage tMessage)
         {
             if (_knownTypes.TryGetValue(tMessage.MessageType, out Type? targetType))
             {
                 try { _messageSerializer.DeserializeContent(ref tMessage, targetType); }
-                catch (Exception ex) { Logger.LogError(ex, "Failed to deserialize message content"); }
+                catch (Exception ex)
+                {
+                    OnMessageError?.Invoke(this, new MessageErrorEventArgs(null!, "Content Deserialization Error", ex));
+                    Logger.LogError(ex, "Failed to deserialize message content");
+                }
             }
 
             if (tMessage.MessageType == AckMessageType && tMessage.MessageData is AckMessageContent ackContent)
@@ -407,7 +323,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 _ackManager.ProcessIncomingAck(ackContent.OriginalMessageId, tMessage.MessageSource);
             }
 
-            Logger.LogTrace("Processing message {0}", sequenceId);
+            Logger.LogTrace("Processing message {0}", tMessage.ArrivalSequenceNumber);
             bool handled = false;
 
             if (_genericHandlers.TryGetValue(tMessage.MessageType, out var handler))
@@ -453,7 +369,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             try
             {
-                _messageSerializer.SerializeToWriter(writer, message, 0, _securityHandler);
+                message.SenderSequenceNumber = Interlocked.Increment(ref _senderSequenceNumber);
+                _messageSerializer.SerializeToWriter(writer, message, _securityHandler);
             }
             catch (Exception ex)
             {
@@ -485,11 +402,6 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             if (success) Logger.LogInformation("Network Diagnostics Passed.");
             else Logger.LogWarning("Network Diagnostics Failed.");
             return success;
-        }
-
-        internal string ComputeSignature(TransportMessage message, byte[]? keyBytes)
-        {
-            return _messageSerializer.ComputeSignature(message, keyBytes);
         }
     }
 }
