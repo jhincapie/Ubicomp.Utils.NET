@@ -132,24 +132,27 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             if (nameLen > 255)
                 nameLen = 255;
 
-            // Prepare Payload
-            byte[] payloadBytes;
-            if (message.MessageData is IBinarySerializable binarySerializable)
-            {
-                var tempWriter = new ArrayBufferWriter<byte>();
-                binarySerializable.Write(tempWriter);
-                payloadBytes = tempWriter.WrittenSpan.ToArray();
-            }
-            else if (message.MessageData is byte[] b)
-                payloadBytes = b;
-            else if (message.MessageData is string s)
-                payloadBytes = Encoding.UTF8.GetBytes(s);
-            else
-                payloadBytes = JsonSerializer.SerializeToUtf8Bytes(message.MessageData, jsonOptions);
-
             bool isEncrypted = encryptor != null && message.IsEncrypted;
             int nonceLen = isEncrypted ? 12 : 0; // GCM Nonce
             int tagLen = isEncrypted ? 16 : 0;   // GCM Tag
+
+            // Prepare Payload (Only for Encrypted path)
+            byte[]? payloadBytes = null;
+            if (isEncrypted)
+            {
+                if (message.MessageData is IBinarySerializable binarySerializable)
+                {
+                    var tempWriter = new ArrayBufferWriter<byte>();
+                    binarySerializable.Write(tempWriter);
+                    payloadBytes = tempWriter.WrittenSpan.ToArray();
+                }
+                else if (message.MessageData is byte[] b)
+                    payloadBytes = b;
+                else if (message.MessageData is string s)
+                    payloadBytes = Encoding.UTF8.GetBytes(s);
+                else
+                    payloadBytes = JsonSerializer.SerializeToUtf8Bytes(message.MessageData, jsonOptions);
+            }
 
             // Header: 61 bytes fixed + variable strings
             int headerFixedSize = 61;
@@ -198,7 +201,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             writer.Advance(headerTotalSize);
 
             // Payload & Crypto
-            if (isEncrypted && encryptor != null)
+            if (isEncrypted && encryptor != null && payloadBytes != null)
             {
                 // Native GCM Encryption
                 int totalCryptoSize = nonceLen + tagLen + payloadBytes.Length;
@@ -219,8 +222,29 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
             else
             {
-                // Plaintext Payload
-                writer.Write(payloadBytes);
+                // Plaintext Payload - Zero Allocation Optimization
+                if (message.MessageData is IBinarySerializable binarySerializable)
+                {
+                    binarySerializable.Write(writer);
+                }
+                else if (message.MessageData is byte[] b)
+                {
+                    writer.Write(b);
+                }
+                else if (message.MessageData is string s)
+                {
+                    int byteCount = Encoding.UTF8.GetByteCount(s);
+                    var span = writer.GetSpan(byteCount);
+                    int written = Encoding.UTF8.GetBytes(s, span);
+                    writer.Advance(written);
+                }
+                else
+                {
+                    using (var jsonWriter = new Utf8JsonWriter(writer))
+                    {
+                        JsonSerializer.Serialize(jsonWriter, message.MessageData, jsonOptions);
+                    }
+                }
             }
         }
 
