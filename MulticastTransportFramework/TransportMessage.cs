@@ -66,10 +66,24 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// <summary>Gets or sets the message timestamp.</summary>
         public string TimeStamp
         {
-            get; set;
+            get => new DateTime(Ticks).ToString(DATE_FORMAT_NOW);
+            set
+            {
+                if (DateTime.TryParse(value, out var dt))
+                {
+                    Ticks = dt.Ticks;
+                }
+            }
         }
 
-
+        /// <summary>
+        /// Gets or sets the raw ticks of the message timestamp.
+        /// </summary>
+        [JsonIgnore]
+        public long Ticks
+        {
+            get; set;
+        }
 
         /// <summary>
         /// Gets or sets a value indicating whether the MessageData is encrypted.
@@ -108,7 +122,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public TransportMessage(EventSource source, string type, object data)
         {
             MessageId = Guid.NewGuid();
-            TimeStamp = DateTime.UtcNow.ToString(DATE_FORMAT_NOW);
+            Ticks = DateTime.UtcNow.Ticks;
             MessageSource = source;
             MessageType = type;
             MessageData = data;
