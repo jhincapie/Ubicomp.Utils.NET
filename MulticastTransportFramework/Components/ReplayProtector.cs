@@ -29,8 +29,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
             reason = string.Empty;
 
             // 1. Timestamp Check
-            if (DateTime.TryParse(message.TimeStamp, out var ts))
+            if (message.Ticks > 0)
             {
+                var ts = new DateTime(message.Ticks);
                 var now = DateTime.UtcNow;
                 if (ts < now.Subtract(ReplayWindowDuration))
                 {

@@ -139,7 +139,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 IsEncrypted = isEnc,
                 Nonce = null,
                 Tag = null,
-                TimeStamp = new DateTime(ticks).ToString(TransportMessage.DATE_FORMAT_NOW),
+                Ticks = ticks,
                 MessageData = messageData!,
                 SenderSequenceNumber = senderSequenceNumber
             };
@@ -198,7 +198,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             message.MessageSource.ResourceId.TryWriteBytes(headerSpan.Slice(36));
 
             // Timestamp (8) - Ticks
-            long ticks = DateTime.TryParse(message.TimeStamp, out var dt) ? dt.Ticks : DateTime.Now.Ticks;
+            long ticks = message.Ticks;
+            if (ticks == 0) ticks = DateTime.UtcNow.Ticks;
             BinaryPrimitives.WriteInt64LittleEndian(headerSpan.Slice(52), ticks);
 
             // TypeLen (1)
