@@ -1,46 +1,51 @@
 # MulticastSocket Context
 
-## Project Scope
-**MulticastSocket** is the foundational networking library for the Ubicomp.Utils.NET solution. It wraps standard .NET UDP sockets to provide specific multicast capabilities with a modern, fluent, and reactive API.
+## Module Purpose
+**MulticastSocket** is the foundational networking layer for the `Ubicomp.Utils.NET` solution. It abstracts the complexity of `System.Net.Sockets` for UDP multicast operations, providing a modern, async-first API.
 
-## Architecture
-
-![Class Diagram](assets/class_diagram.png)
+## Architectural Context
+*   **Layer**: Bottom-most layer (Networking Hardware Abstraction).
+*   **Used By**: `MulticastTransportFramework` (via `TransportComponent`).
+*   **Dependencies**: `System.Net.Sockets`, `System.Threading.Channels`, `Microsoft.Extensions.Logging`.
 
 ## Key Components
-*   **`MulticastSocketBuilder`**: The primary entry point for configuration. Use this to set options, filters, and callbacks.
-*   **`MulticastSocket`**: The core engine. Handles socket creation, binding, joining multicast groups, and async I/O.
-    *   **Streaming**: `GetMessageStream()` returns an `IAsyncEnumerable<SocketMessage>`, allowing for modern, reactive consumption using `await foreach`.
-    *   **Decoupling**: Uses `System.Threading.Channels` to decouple the high-speed receive loop from the processing logic.
-*   **`SocketMessage`**: Represents a received packet.
-    *   **Pooling**: Utilizes `ObjectPool<SocketMessage>` and `ArrayPool<byte>` to minimize Garbage Collection (GC) pressure in high-throughput scenarios.
-*   **`InMemoryMulticastSocket`**: A testing utility that simulates multicast traffic in-memory using a shared dictionary, avoiding OS networking stack calls.
 
-## Implementation Details
-*   **Target Framework**: **.NET 8.0**
-*   **Async I/O**: Uses `ReceiveFromAsync` with `Memory<byte>` for modern, high-performance async I/O.
-*   **Threading**: A dedicated `ReceiveAsyncLoop` offloads incoming data to a bounded Channel. Consumers process messages from this channel.
-*   **Socket Options**: Configurable via `MulticastSocketOptions` factory methods (e.g., `LocalNetwork`).
-*   **Sequence ID**: Assigns a monotonic sequence ID to every received packet, enabling ordering logic in higher layers.
+### 1. `IMulticastSocket`
+*   **Interface**: Defines the contract for multicast operations (`SendAsync`, `GetMessageStream`, `StartReceiving`).
+*   **Mocking**: `InMemoryMulticastSocket` implements this for testing.
+
+### 2. `MulticastSocket`
+*   **Implementation**: Wraps `System.Net.Sockets.Socket`.
+*   **Threading**:
+    *   **Receive Loop**: Runs on a background `Task`. Reads from socket -> writes to `Channel`.
+    *   **Consumption**: Consumers iterate `GetMessageStream()` which reads from the `Channel`.
+*   **Memory Management**:
+    *   Uses `ArrayPool<byte>.Shared` to rent buffers for `ReceiveFromAsync`.
+    *   Uses `ObjectPool<SocketMessage>` to reuse message envelopes.
+    *   **Zero-Copy**: Passes `Memory<byte>` slices to consumers.
+
+### 3. `MulticastSocketOptions`
+*   **Configuration**: Stores IP, Port, TTL, Buffer Sizes.
+*   **Factories**:
+    *   `LocalNetwork(ip, port)`: TTL 1, auto-filters private IPs.
+    *   `WideAreaNetwork(ip, port, ttl)`: Configurable TTL.
 
 ## Do's and Don'ts
-*   **Do** use `GetMessageStream()` for consuming messages in a modern, async-friendly way.
-*   **Do** use `MulticastSocketOptions.LocalNetwork(...)` or `WideAreaNetwork(...)` factory methods.
-*   **Don't** use the legacy `ReceiveCallback` or `StateObject`.
-*   **Don't** forget to `Dispose()` the socket or the messages if manual handling is required.
 
-## Usage
-Used by **MulticastTransportFramework**, but valid for any low-level multicast needs.
+### Do's
+*   **Do** use `GetMessageStream()` for consuming messages. It handles backpressure via the bounded channel.
+*   **Do** use `MulticastSocketOptions` factory methods instead of the constructor.
+*   **Do** prefer `SendAsync(ReadOnlyMemory<byte>)` for high-performance sending.
+*   **Do** dispose the socket to release the port and stop the background loop.
 
-```csharp
-var socket = new MulticastSocketBuilder()
-    .WithOptions(MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000))
-    .Build();
+### Don'ts
+*   **Don't** use `ReceiveCallback` or legacy APM patterns.
+*   **Don't** manually bind the socket; let `StartReceiving()` or `JoinGroupAsync()` handle it.
+*   **Don't** assume the `SocketMessage.Data` buffer is exactly the size of the payload; always use `SocketMessage.Length`.
 
-await socket.JoinGroupAsync();
-
-await foreach (var msg in socket.GetMessageStream())
-{
-    // Process msg
-}
-```
+## File Structure
+*   `MulticastSocket.cs`: Main implementation.
+*   `IMulticastSocket.cs`: Interface.
+*   `MulticastSocketOptions.cs`: Configuration.
+*   `SocketMessage.cs`: Pooled message envelope.
+*   `InMemoryMulticastSocket.cs`: Test implementation.

@@ -1,45 +1,42 @@
-# Ubicomp.Utils.NET.CLI
+# CLI Tools
 
-A command-line tool for diagnosing and inspecting multicast network traffic using the **MulticastSocket** and **MulticastTransportFramework**.
+The **Ubicomp.Utils.NET.CLI** project provides command-line utilities for diagnostics, monitoring, and debugging of the multicast network.
 
-## Target Framework
-This tool targets **.NET 8.0**.
-
-## Installation & Usage
-You can run the tool directly from source:
+## Installation
+Build and run directly from the repository root:
 
 ```bash
-dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- <command>
+dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- [command]
 ```
 
 ## Commands
 
-### `check`
-Runs a suite of network diagnostics, including firewall checks and loopback tests, to verify that the environment is correctly configured for multicast.
+### 1. `check`
+Runs a suite of network diagnostics to verify multicast connectivity.
+*   **Checks**: Firewall rules, Multicast Loopback support.
+*   **Usage**:
+    ```bash
+    dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- check
+    ```
 
-```bash
-dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- check
-```
+### 2. `sniff`
+Listens for multicast packets on the default group (`239.0.0.1:5000`) and dumps their contents to the console.
+*   **Usage**:
+    ```bash
+    dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- sniff
+    ```
 
-### `sniff`
-Listens for multicast packets on the default group (239.0.0.1:5000) and prints their raw contents (hex dump and parsed structure) to the console. Useful for verifying that packets are arriving on the wire.
+### 3. `dashboard`
+Launches an interactive TUI (Text User Interface) dashboard using `Spectre.Console`.
+*   **Features**:
+    *   Live Peer List.
+    *   Transport Status.
+    *   (Placeholder) Real-time metrics and logs.
+*   **Usage**:
+    ```bash
+    dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- dashboard
+    ```
 
-```bash
-dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- sniff
-```
-
-### `dashboard`
-Launches an interactive, live terminal dashboard (using Spectre.Console) that displays:
-*   Transport Status
-*   Active Peers
-*   Live Logs
-*   Metrics
-
-```bash
-dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- dashboard
-```
-
-## Troubleshooting
-If `check` fails or `sniff` sees no packets:
-1.  **Firewall**: Ensure UDP port 5000 is open for inbound/outbound traffic.
-2.  **Interface**: The tool binds to `IPAddress.Any` by default. If you have multiple NICs (e.g., VPN, VirtualBox), multicast routing might be confused. You may need to disable virtual adapters temporarily.
+## Dependencies
+*   `Spectre.Console`: For rich terminal UI.
+*   `MulticastTransportFramework`: Core networking logic.

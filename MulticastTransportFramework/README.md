@@ -1,20 +1,23 @@
 # MulticastTransportFramework
 
-**MulticastTransportFramework** implements a higher-level, reliable messaging protocol over UDP multicast, focusing on security, ordering, and developer productivity. It provides a robust Actor-Model-like communication layer for distributed local network applications, targeting **.NET 8.0**.
+**MulticastTransportFramework** implements a higher-level, reliable messaging protocol over UDP multicast. It provides a robust Actor-Model-like communication layer, targeting **.NET 8.0**, with features for reliability, security, and ordering.
 
 ## Key Features
 
-*   **Reliable Delivery**: Built-in acknowledgement (ACK) system with optional automatic responses.
-*   **Ordered Processing**: "GateKeeper" mechanism ensures strict message sequencing using PriorityQueues, correcting UDP out-of-order delivery.
-*   **Security**: Zero-conf encryption (AES-GCM) and integrity signing (HMAC-SHA256) derived from a shared secret.
-*   **Optimized Protocol**: Uses a custom `BinaryPacket` format for reduced overhead, with fallback to JSON for legacy clients.
-*   **Auto-Discovery**: Leverages Roslyn Source Generators to automatically register message types.
-*   **Peer Discovery**: Automatic peer detection and tracking via heartbeats.
-*   **Diagnostic Tools**: Built-in network verification and firewall checks.
+*   **Reliable Delivery**: Built-in acknowledgement (ACK) system (`AckSession`) for critical message delivery.
+*   **Ordered Processing**: "GateKeeper" mechanism enforces strict message sequencing using `PriorityQueue`, correcting UDP out-of-order delivery.
+*   **Security**: Zero-conf encryption (**AES-GCM**) and integrity signing (**HMAC-SHA256**) derived from a shared secret.
+*   **Optimized Protocol**: Uses a custom `BinaryPacket` format for reduced overhead (~66% smaller than JSON), with fallback to JSON for legacy clients.
+*   **Auto-Discovery**: Leverages Roslyn Source Generators to automatically register `[MessageType]` classes.
+*   **Peer Discovery**: Automatic peer detection and tracking via heartbeats (`PeerManager`).
+*   **Diagnostic Tools**: Built-in network verification and firewall checks (`NetworkDiagnostics`).
 
-## Quick Start
+## Installation
+The library is part of the `Ubicomp.Utils.NET` solution. Ensure your project targets `.NET 8.0`.
 
-### 1. Define a Message
+## Usage
+
+### 1. Define Message Types
 Create a POCO and decorate it with the `[MessageType]` attribute. This ID is used for routing.
 
 ```csharp
@@ -23,7 +26,7 @@ using Ubicomp.Utils.NET.MulticastTransportFramework;
 [MessageType("app.greeting")]
 public class GreetingMessage
 {
-    public string Text { get; set; }
+    public string Text { get; set; } = string.Empty;
     public int Priority { get; set; }
 }
 ```
@@ -32,142 +35,65 @@ public class GreetingMessage
 Use the `TransportBuilder` to create and start the component.
 
 ```csharp
+using Ubicomp.Utils.NET.MulticastTransportFramework;
+using Ubicomp.Utils.NET.Sockets;
+
+var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000);
+
 var transport = new TransportBuilder()
-    .WithMulticastOptions(MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000))
+    .WithMulticastOptions(options)
     .WithLogging(loggerFactory)
-    .WithSecurityKey("SuperSecretSharedKey123!") // Enables HMAC integrity
-    .WithEncryption(true)                         // Enables AES payload encryption
+    .WithSecurityKey("SuperSecretKey123!") // Enables HMAC integrity & Encryption
+    .WithEncryption(true)                   // Enables AES-GCM payload encryption
     .RegisterHandler<GreetingMessage>((msg, context) =>
     {
-        Console.WriteLine($"Received from {context.Source.ResourceName}: {msg.Text}");
+        Console.WriteLine($"Received: {msg.Text} from {context.Source.ResourceName}");
     })
     .Build();
 
 transport.Start();
 ```
 
-> **Note**: The `TransportBuilder.Build()` method uses the `Generators` component to automatically find and register all `[MessageType]` classes in your assembly.
+> **Note**: `TransportBuilder.Build()` automatically scans your assembly for `[MessageType]` attributes and registers them using a Source Generator.
 
 ### 3. Send a Message
+Sending is asynchronous and supports reliability options.
+
 ```csharp
-await transport.SendAsync(new GreetingMessage
-{
-    Text = "Hello World!",
-    Priority = 1
-});
-```
+// Simple Send (Fire-and-forget)
+await transport.SendAsync(new GreetingMessage { Text = "Hello!" });
 
----
-
-## Configuration
-
-The `TransportBuilder` provides a fluent API for all configuration needs.
-
-| Method | Description |
-|--------|-------------|
-| `WithMulticastOptions(options)` | Sets the underlying socket options (Group IP, Port, TTL). |
-| `WithSecurityKey(key)` | Sets the shared secret. Required for integrity signing and encryption. |
-| `WithEncryption(bool)` | Enables AES payload encryption. Requires `WithSecurityKey`. |
-| `WithEnforceOrdering(bool)` | Enables strict sequencing (GateKeeper). |
-| `WithAutoSendAcks(bool)` | Automatically replies to messages requesting ACKs. |
-| `WithHeartbeat(TimeSpan)` | Enables periodic heartbeats for peer discovery. |
-| `WithInstanceMetadata(string)` | Sets custom metadata broadcast in heartbeats. |
-| `WithLogging(ILoggerFactory)` | Connects the internal logger. |
-| `WithLocalSource(name, id)` | Sets the identity of this node. |
-
----
-
-## Core Features in Depth
-
-### 1. Ordering (GateKeeper)
-UDP packets often arrive out of order. The framework can enforce strict sequencing.
-
-*   **How it works**: Incoming messages are assigned a sequence ID. If a gap is detected (e.g., received 1, then 3), message 3 is held in a `PriorityQueue`.
-*   **Configuration**:
-    ```csharp
-    .WithEnforceOrdering(true)
-    ```
-*   **Behavior**: If the missing packet (2) does not arrive within `GateKeeperTimeout` (default 500ms), the system logs a warning and processes the next available message to prevent stalling.
-
-### 2. Security (Encryption & Integrity)
-Security is handled transparently. Keys are derived from the `SecurityKey` using HKDF (HMAC-SHA256).
-
-*   **Integrity**: All messages are signed with HMAC-SHA256 (if key is present) or SHA256 (if no key). Unsigned or invalid messages are dropped.
-*   **Encryption**: Uses **AES-GCM** (Hardware Accelerated) for authenticated encryption.
-*   **Usage**:
-    ```csharp
-    .WithSecurityKey("My_Shared_Secret_Passphrase")
-    .WithEncryption(true)
-    ```
-
-### 3. Reliability (Acknowledgements)
-You can request receipt confirmation for critical messages.
-
-**Manual Request & Handling:**
-```csharp
+// Reliable Send (Request ACK)
 var options = new SendOptions { RequestAck = true, AckTimeout = TimeSpan.FromSeconds(2) };
-var session = await transport.SendAsync(new CriticalMessage(), options);
+var session = await transport.SendAsync(new GreetingMessage { Text = "Important!" }, options);
 
 // Wait for ACKs
-bool receivedAny = await session.WaitAsync(TimeSpan.FromSeconds(2));
-
-// Inspect individual ACKs
-foreach(var source in session.ReceivedAcks)
+bool success = await session.WaitAsync(TimeSpan.FromSeconds(2));
+if (success)
 {
-    Console.WriteLine($"Acknowledged by {source.ResourceName}");
-}
-```
-
-**Automatic Responses:**
-Enable `WithAutoSendAcks(true)` on the receiver to automatically reply with a system ACK (`sys.ack`) whenever a message with `RequestAck=true` is successfully processed.
-
-### 4. Protocol & Serialization
-*   **BinaryPacket**: The default wire format. Compact binary structure containing Security Headers, Sequence IDs, and Payload.
-*   **JSON Fallback**: If a message lacks the Binary Magic Byte, it is treated as a legacy JSON envelope (using `System.Text.Json`), ensuring backward compatibility with older clients.
-
-### 5. Peer Discovery
-The framework can track other active nodes on the multicast group.
-
-*   **Setup**:
-    ```csharp
-    .WithHeartbeat(TimeSpan.FromSeconds(5))
-    .WithInstanceMetadata("{\"role\": \"server\"}")
-    ```
-*   **Accessing Peers**:
-    ```csharp
-    // Real-time access
-    foreach(var peer in transport.ActivePeers)
-    {
-        Console.WriteLine($"Peer: {peer.DeviceName} (Last Seen: {peer.LastSeen})");
-    }
-
-    // Events
-    transport.OnPeerDiscovered += peer => Console.WriteLine($"New Peer: {peer.DeviceName}");
-    transport.OnPeerLost += peer => Console.WriteLine($"Peer Lost: {peer.DeviceName}");
-    ```
-
-### 6. Network Diagnostics
-Multicast can be tricky due to firewalls. The framework includes diagnostic tools.
-
-```csharp
-// Helper method on TransportComponent
-bool isOk = await transport.VerifyNetworkingAsync();
-
-// Or direct use of NetworkDiagnostics
-NetworkDiagnostics.LogFirewallStatus(5000, logger);
-bool loopbackOk = await NetworkDiagnostics.PerformLoopbackTestAsync(transport);
-
-if (!loopbackOk)
-{
-    Console.WriteLine("WARNING: Multicast loopback failed. Check firewall.");
+    Console.WriteLine($"Acknowledged by {session.ReceivedAcks.Count} peers.");
 }
 ```
 
 ## Architecture
 
-*   **TransportComponent**: The main entry point. Manages the socket, serialization, and actor loops.
-*   **GateKeeper**: An internal actor loop that manages the `PriorityQueue` for ordering.
-*   **AckSession**: Tracks acknowledgements for specific message IDs.
-*   **PeerTable**: Manages the list of active peers and handles expiration.
+### Components
+*   **`TransportComponent`**: The central facade. Manages the lifecycle and delegates to internal components.
+*   **`GateKeeper`**: Ensures strict ordering. Buffers out-of-sequence messages in a `PriorityQueue`.
+*   **`AckManager`**: Handles reliable delivery sessions (`AckSession`) and automatic ACK responses.
+*   **`PeerManager`**: Tracks active peers via `HeartbeatMessage` and exposes `ActivePeers`.
+*   **`SecurityHandler`**: Manages encryption/decryption and key rotation (`RekeyMessage`).
+*   **`MessageSerializer`**: Handles `BinaryPacket` (primary) and JSON (fallback) serialization.
 
-![MulticastTransportFramework Flow Diagram](assets/transport_flow_diagram.png)
+### Protocol
+The framework uses a dual-protocol approach:
+1.  **BinaryPacket**: Default. Compact binary header + payload.
+2.  **JSON**: Legacy fallback. Standard JSON envelope.
+
+## Diagnostics
+Use `NetworkDiagnostics` to verify multicast connectivity.
+
+```csharp
+bool isOk = await transport.VerifyNetworkingAsync();
+if (!isOk) Console.WriteLine("Multicast loopback failed!");
+```

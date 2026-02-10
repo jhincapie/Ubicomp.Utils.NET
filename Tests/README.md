@@ -1,25 +1,36 @@
-# Ubicomp.Utils.NET Tests
+# Tests
 
-This project contains the unit tests for the Ubicomp.Utils.NET solution.
+The **Tests** project contains comprehensive unit and integration tests for the entire `Ubicomp.Utils.NET` solution.
+
+## Structure
+
+*   **Components/**: Unit tests for internal components (`AckManager`, `GateKeeper`, `ReplayWindow`, `PeerManager`).
+*   **Integration**: End-to-end tests verifying `TransportComponent` and `MulticastSocket` interactions.
+    *   `MulticastSocketTests.cs`: Low-level socket behavior.
+    *   `TransportComponentTests.cs`: High-level messaging and handlers.
+*   **Security**: Verification of Encryption (`EncryptionTests.cs`) and Integrity (`IntegrityTests.cs`).
+
+## Key Test Classes
+
+### `MulticastSocketTests`
+*   Verifies binding, joining groups, and sending/receiving bytes.
+*   Includes `FirewallCheck` diagnostic test.
+
+### `TransportComponentTests`
+*   Verifies the full pipeline: Serialize -> Send -> Receive -> Deserialize -> Dispatch.
+*   Tests `[MessageType]` routing.
+
+### `InMemorySocketTests`
+*   Uses `InMemoryMulticastSocket` to test logic without touching the OS network stack.
 
 ## Running Tests
-You can run the tests using the .NET CLI from the solution root:
+Run all tests from the repository root:
 
 ```bash
 dotnet test Tests/Ubicomp.Utils.NET.Tests.csproj
 ```
 
-## Scope
-The tests and core libraries target **.NET 8.0**.
-*   **Serialization**: Verifies that `TransportMessage` objects (including polymorphic content) are correctly serialized/deserialized using both `Newtonsoft.Json` (Legacy) and `System.Text.Json` (Modern).
-*   **MulticastSocket**: Verification of socket options, buffer management, and async streaming.
-    *   *Note*: `NetworkChange` tests use Reflection to simulate system events.
-*   **TransportFramework**: End-to-end flow of message creation, security (Encryption/Integrity), and ordering (GateKeeper).
-*   **Generators**: Verifies that `[MessageType]` attributes are correctly discovered.
-
-## Configuration
-Dependencies include:
-*   `Newtonsoft.Json`
-*   `Microsoft.NET.Test.Sdk`
-*   `xunit`
-*   `xunit.runner.visualstudio`
+**Run a specific test:**
+```bash
+dotnet test Tests/Ubicomp.Utils.NET.Tests.csproj --filter "FullyQualifiedName~TransportComponentTests"
+```

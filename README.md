@@ -36,6 +36,7 @@ The foundational layer that wraps standard .NET UDP sockets.
 ### 4. Tooling (Generators & Analyzers)
 - **Generators**: Roslyn Source Generator for auto-discovery of `[MessageType]` classes.
 - **Analyzers**: Roslyn Analyzers (`UBI001`) to enforce correct usage of the transport layer.
+- **CLI**: Command-line tools for network diagnostics (`check`) and packet sniffing (`sniff`).
 
 ## Project Documentation
 *   [**MulticastSocket**](MulticastSocket/README.md): Low-level multicast networking wrapper.
@@ -44,6 +45,9 @@ The foundational layer that wraps standard .NET UDP sockets.
 *   [**Generators**](Generators/README.md): Source generation tools.
 *   [**Analyzers**](Analyzers/README.md): Code analysis tools.
 *   [**CLI**](CLI/README.md): Command-line diagnostic and sniffing tools.
+*   [**SampleApp**](SampleApp/README.md): Example usage.
+*   [**Tests**](Tests/README.md): Test suite overview.
+*   [**Benchmarks**](Benchmarks/README.md): Performance benchmarks.
 
 ## Modernization Status
 This project targets **.NET 8.0** exclusively to leverage the latest language features (C# 12), performance improvements, and runtime capabilities (e.g., `ReceiveFromAsync` with `Memory<byte>`).

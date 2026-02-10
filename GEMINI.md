@@ -1,4 +1,4 @@
-# Ubicomp.Utils.NET Project Context
+# Ubicomp.Utils.NET Solution Context
 
 ## Core Mandates
 *   **NEVER push directly to the `master` branch.** All changes must be submitted via Pull Requests for review.
@@ -17,7 +17,7 @@ The solution is structured into several key projects:
 *   **Key Concept**: Separates data acquisition (`ContextMonitor`) from logic (`ContextService`) and state (`IEntity`).
 
 ### 2. MulticastTransportFramework
-*   **Role**: Higher-level reliable messaging layer over TCP/UDP multicast.
+*   **Role**: Higher-level reliable messaging layer over UDP multicast.
 *   **Architecture**: Actor-like model with dedicated internal loops (`ProcessingLoop`).
 *   **Key Features**:
     - **Reliability**: `ReplayWindow` (deduplication), `AckSession` (delivery confirmation).
@@ -30,20 +30,15 @@ The solution is structured into several key projects:
 *   **Architecture**: Uses `System.Threading.Channels` to decouple receive logic from consumption.
 *   **Key Features**: `IAsyncEnumerable` streaming, object/array pooling for performance.
 
-### 4. Generators & Analyzers
-*   **Role**: Roslyn tooling.
-*   **Generators**: Scans code for `[MessageType]` attributes and generates registration code.
-*   **Analyzers**: Enforces usage of `[MessageType]` via `UBI001` (Error) and `UbicompNET001` (Warning).
+### 4. Tooling
+*   **Generators**: Scans code for `[MessageType]` attributes and generates registration code (`TransportExtensions`).
+*   **Analyzers**: Enforces usage of `[MessageType]` via `UBI001` (Error).
+*   **CLI**: Provides network diagnostics (`check`) and packet sniffing (`sniff`) capabilities.
 
-### 5. CLI
-*   **Role**: Command-line interface tools.
-*   **Function**: Provides network diagnostics (`check`) and packet sniffing (`sniff`) capabilities.
-
-### Applications & Tests
+### 5. Applications & Tests
 *   **`SampleApp`**: Demonstrates library usage.
-*   **`ContextAwarenessFramework.TestApp`**: Context framework testbed.
-*   **`Multicast.TestApp`**: Multicast functionality testbed.
 *   **`Tests`**: Comprehensive unit tests covering all layers.
+*   **`Benchmarks`**: Performance comparisons (JSON vs Binary).
 
 ## Development Workflow
 

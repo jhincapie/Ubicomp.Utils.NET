@@ -1,9 +1,9 @@
 # ContextAwarenessFramework
 
-A framework for building context-aware applications by decoupling context sensing (`ContextMonitor`) from context management and application logic (`ContextService`) using the **Monitor-Service-Entity (MSE)** pattern.
+**ContextAwarenessFramework** is a library for building context-aware applications by decoupling context sensing (`ContextMonitor`) from context management and application logic (`ContextService`) using the **Monitor-Service-Entity (MSE)** pattern.
 
 ## Overview
-The **ContextAwarenessFramework** provides a standard structure for:
+The framework provides a standard structure for:
 1.  **Sensing**: Acquiring data from sensors or external events via `ContextMonitor`.
 2.  **Processing**: Aggregating, transforming, and persisting context via `ContextService`.
 3.  **Data Modeling**: Representing state using thread-safe `IEntity` objects.
@@ -12,52 +12,74 @@ The **ContextAwarenessFramework** provides a standard structure for:
 ## Architecture
 The framework follows the **Monitor-Service-Entity (MSE)** pattern, ensuring a clear separation of concerns.
 
-![MSE Pattern Diagram](assets/mse_pattern_diagram.png)
-
-## Key Components
-
-### ContextMonitor
+### 1. ContextMonitor
 Abstract base class for data producers.
 - **Update Types**: Continuous (event-based), Interval (polling), or OnRequest.
 - **Threading**: Monitors typically run their own background tasks to avoid blocking the main application.
 - **Usage**: Inherit from this to create specific sensors (e.g., `LocationMonitor`, `BatteryMonitor`).
 
-### ContextService
+### 2. ContextService
 Abstract base class for data coordinators.
 - **Persistence**: Built-in support for `Periodic`, `OnRequest`, or `Combined` persistence strategies.
 - **Integration**: Designed to work seamlessly with the `MulticastTransportFramework` for distributed context sharing.
 - **Threading**: Updates are received on the Monitor's background thread. **UI marshalling must be handled manually** (the base class does not capture `Dispatcher`).
 
-### IEntity
+### 3. IEntity
 Interface for context data objects.
 - **Reactive**: Implements `INotifyPropertyChanged` for direct integration with WPF/MAUI/Blazor data binding.
 - **Passive**: Should ideally remain a plain data holder (POCO) to simplify serialization.
 
-## Usage Example
+## Usage
 
 ### 1. Define Components
 
 ```csharp
 // 1. Define Entity
-public class RoomTemperature : IEntity { ... }
+public class RoomTemperature : IEntity
+{
+    private double _value;
+    public double Value
+    {
+        get => _value;
+        set { _value = value; OnPropertyChanged(); }
+    }
+}
 
 // 2. Define Monitor
-public class TempSensorMonitor : ContextMonitor { ... }
+public class TempSensorMonitor : ContextMonitor
+{
+    public TempSensorMonitor() : base("TempSensor") { }
+
+    protected override void CustomStart()
+    {
+        // Start polling or listening to hardware
+        Task.Run(async () =>
+        {
+             while(IsRunning)
+             {
+                 NotifyContextServices("TempSensor", new RoomTemperature { Value = 22.5 });
+                 await Task.Delay(1000);
+             }
+        });
+    }
+}
 
 // 3. Define Service
 public class HVACService : ContextService
 {
-    private readonly RoomTemperature _entity = new RoomTemperature();
+    public HVACService() : base("HVACService") { }
 
-    protected override void CustomUpdateMonitorReading(object sender, NotifyContextMonitorListenersEventArgs e)
+    public override void UpdateMonitorReading(object sender, NotifyContextMonitorListenersEventArgs e)
     {
-        // Update logic here (Runs on background thread)
+        if (e.MonitorId == "TempSensor" && e.ContextData is RoomTemperature temp)
+        {
+            Console.WriteLine($"Current Temp: {temp.Value}");
+        }
     }
 }
 ```
 
 ### 2. Wiring it Up (The Container Way)
-
 The framework provides static containers to manage the lifecycle of your components.
 
 ```csharp
@@ -84,6 +106,3 @@ ContextServiceContainer.StartServices();
 ContextMonitorContainer.StopMonitors();
 ContextServiceContainer.StopServices();
 ```
-
-## Dependencies
-- `Microsoft.Extensions.Logging.Abstractions`

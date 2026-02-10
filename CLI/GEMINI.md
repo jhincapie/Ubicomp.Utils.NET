@@ -1,17 +1,20 @@
 # CLI Context
 
-## Purpose
-Diagnostic and inspection tools for the multicast environment.
+## Module Purpose
+**CLI** provides developer tools for diagnosing and monitoring the multicast environment.
 
-## Target Framework
-**.NET 8.0**
+## Key Components
 
-## Key Commands
-*   **`check`**: Validates networking (loopback, firewall). Uses `TransportComponent.VerifyNetworkingAsync()`.
-*   **`sniff`**: Raw packet capture and hex dump. Helpful for debugging low-level wire issues. Uses `TransportDiagnostics.DumpPacket`.
-*   **`dashboard`**: TUI (Text User Interface) for monitoring peer status and transport metrics in real-time. Uses `Spectre.Console`.
+### 1. `Program.cs`
+*   **Entry Point**: Parses arguments and dispatches commands (`check`, `sniff`, `dashboard`).
+
+### 2. `DashboardCommand`
+*   **UI Framework**: Uses `Spectre.Console` for TUI layout (`Layout`, `Table`, `Panel`).
+*   **Logic**: Starts a `TransportComponent`, verifies networking, and updates the display in a loop.
+
+### 3. `TransportDiagnostics` (via Framework)
+*   **Sniffer**: Uses `TransportDiagnostics.DumpPacket` to format binary payloads.
 
 ## Do's and Don'ts
-*   **Do** use `check` first when troubleshooting connectivity issues.
-*   **Do** use `sniff` to verify if packets are physically reaching the machine.
-*   **Don't** assume the CLI has access to application-specific keys; it uses default settings unless configured otherwise.
+*   **Do** use `check` before deploying to a new environment to verify firewall rules.
+*   **Do** use `sniff` to debug serialization issues or inspect raw traffic.
