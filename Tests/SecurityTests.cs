@@ -103,5 +103,53 @@ namespace Ubicomp.Utils.NET.Tests
 
             Assert.True(foundLog, "Did not find the expected log message.");
         }
+
+        [Fact]
+        public void TestLogInjectionVulnerability_Sanitized_ControlChars()
+        {
+            // Arrange
+            var options = MulticastSocketOptions.LocalNetwork();
+            var transport = new TransportComponent(options);
+            var logger = new TestLogger();
+            transport.Logger = logger;
+            transport.EnforceOrdering = false;
+
+            var originalMsgId = Guid.NewGuid();
+            var session = new AckSession(originalMsgId);
+
+            var activeSessionsField = typeof(TransportComponent).GetField("_activeSessions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var activeSessions = (System.Collections.Concurrent.ConcurrentDictionary<Guid, AckSession>)activeSessionsField.GetValue(transport);
+            activeSessions.TryAdd(originalMsgId, session);
+
+            // Construct malicious ACK message with BACKSPACE
+            var maliciousSource = "Normal\b\b\b\b\b\bEvil"; // Backspaces might hide "Normal"
+            var ackContent = new AckMessageContent { OriginalMessageId = originalMsgId };
+
+            var tMsg = new TransportMessage(
+                new EventSource(Guid.NewGuid(), maliciousSource),
+                TransportComponent.AckMessageType,
+                ackContent
+            );
+
+            var json = JsonSerializer.Serialize(tMsg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true });
+            var bytes = Encoding.UTF8.GetBytes(json);
+            var socketMsg = new SocketMessage(bytes, 1);
+
+            var processMethod = typeof(TransportComponent).GetMethod("ProcessSingleMessage", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            processMethod.Invoke(transport, new object[] { socketMsg });
+
+            bool foundLog = false;
+            foreach (var log in logger.Logs)
+            {
+                if (log.Contains("Received Ack for message"))
+                {
+                    foundLog = true;
+                    // Check if it contains BACKSPACE
+                    Assert.False(log.Contains("\b"), $"Log contained backspace: '{log}'");
+                }
+            }
+            Assert.True(foundLog, "Did not find the expected log message.");
+        }
+
     }
 }

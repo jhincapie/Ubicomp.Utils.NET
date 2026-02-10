@@ -640,8 +640,20 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             if (string.IsNullOrEmpty(input))
                 return input;
-            // Replace newlines and carriage returns to prevent log injection
-            return input.Replace("\r", "_").Replace("\n", "_");
+
+            var sb = new StringBuilder(input.Length);
+            foreach (char c in input)
+            {
+                if (char.IsControl(c))
+                {
+                    sb.Append('_');
+                }
+                else
+                {
+                    sb.Append(c);
+                }
+            }
+            return sb.ToString();
         }
     }
 }
