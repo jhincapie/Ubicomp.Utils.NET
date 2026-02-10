@@ -1,16 +1,23 @@
 # Benchmarks
 
-This project contains performance benchmarks for the Ubicomp.Utils.NET solution, utilizing **BenchmarkDotNet**.
+The **Benchmarks** project uses [BenchmarkDotNet](https://github.com/dotnet/BenchmarkDotNet) to measure the performance of critical components in the `MulticastTransportFramework`.
 
 ## Scenarios
-*   **Serialization**: Compares the performance of `Newtonsoft.Json` (Legacy) vs `System.Text.Json` (Modern) for `TransportMessage` serialization and polymorphic deserialization.
+
+### 1. Serialization
+Compares the performance of serializing a `TransportMessage` payload.
+*   **Newtonsoft.Json**: Legacy baseline.
+*   **System.Text.Json**: Modern, high-performance JSON (Target).
+*   **BinaryPacket**: Custom binary protocol.
+
+**Goal**: Validate that `System.Text.Json` provides ~2x improvement over Newtonsoft, and `BinaryPacket` provides further gains in size and speed.
+
+### 2. Binary Packet Construction
+Measures the overhead of writing the `BinaryPacket` structure (Header + Payload) to an `ArrayBufferWriter<byte>`.
 
 ## Running Benchmarks
-Benchmarks should always be run in **Release** configuration to ensure accurate results.
+Run the project in **Release** mode:
 
 ```bash
 dotnet run -c Release --project Benchmarks/Benchmarks.csproj
 ```
-
-## Results
-Recent runs demonstrate that `System.Text.Json` provides approximately **2x performance improvement** and reduced memory allocations compared to `Newtonsoft.Json`.

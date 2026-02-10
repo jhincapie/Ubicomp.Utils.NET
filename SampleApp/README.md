@@ -1,42 +1,47 @@
 # SampleApp
 
-A comprehensive console application demonstrating the capabilities of the **MulticastTransportFramework**. It acts as a reference implementation for configuring the transport, handling messages, and using advanced features like encryption and reliability.
+The **Ubicomp.Utils.NET.SampleApp** demonstrates the usage of the `MulticastTransportFramework`. It can act as a sender or receiver, sending simple text messages and processing acknowledgements.
 
-## Features Demonstrated
-*   **Configuration**: Loading settings from `appsettings.json` and command-line arguments.
-*   **Secure Transport**: Using AES encryption and HMAC integrity.
-*   **Reliability**: Sending messages with acknowledgement requests (`RequestAck`).
-*   **Reactive Stream**: Consuming messages via Rx (`System.Reactive`).
-*   **Peer Discovery**: visualizing active peers on the network.
+## Features
+*   **TransportBuilder**: Configures the stack with encryption, logging, and handlers.
+*   **Rx Integration**: Shows how to subscribe to `MessageStream` using Reactive Extensions.
+*   **Peer Discovery**: Periodically prints active peers.
+*   **Reliability**: Demonstrates sending with `RequestAck=true`.
 
 ## Usage
+Run the app from the root directory:
 
-### Run with Default Settings
+```bash
+dotnet run --project SampleApp/Ubicomp.Utils.NET.SampleApp.csproj -- [options]
+```
+
+### Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--address <ip>` | Multicast Group IP | `239.0.0.1` |
+| `--port <port>` | UDP Port | `5000` |
+| `--ttl <value>` | Time-To-Live | `1` |
+| `--interface <ip>` | Bind to a specific NIC | Auto |
+| `--key <secret>` | Shared secret for encryption/integrity | None (Cleartext) |
+| `--local` | Allow loopback (receive own messages) | `false` |
+| `--ack` | Send a test message requesting ACKs | `false` |
+| `--no-wait` | Exit after sending (don't block for ACKs) | `false` |
+| `-v`, `--verbose` | Enable verbose logging | `false` |
+
+### Examples
+
+**1. Basic Receiver:**
 ```bash
 dotnet run --project SampleApp/Ubicomp.Utils.NET.SampleApp.csproj
 ```
 
-### Command Line Arguments
-*   `--no-wait`: Exit immediately after sending (useful for scripts).
-*   `--key <string>`: Set the shared security key (overrides appsettings).
-*   `--address <ip>`: Set multicast group address.
-*   `--port <int>`: Set multicast port.
-*   `--ttl <int>`: Set Time-To-Live.
-*   `--interface <ip>`: Bind to a specific network interface.
-*   `--local`: Enable loopback (receive own messages).
-*   `--ack`: Send a test message requesting an acknowledgement.
-*   `--no-encryption`: Disable encryption even if a key is provided.
-*   `-v`, `--verbose`: Enable verbose logging.
-
-### Example: Secure Chat
-Run two instances in separate terminals to see them communicate.
-
-**Instance 1:**
+**2. Secure Sender (with Encryption):**
 ```bash
-dotnet run --project SampleApp/Ubicomp.Utils.NET.SampleApp.csproj -- --key "Secret123" --local
+dotnet run --project SampleApp/Ubicomp.Utils.NET.SampleApp.csproj -- --key "MySecretKey" --ack
 ```
 
-**Instance 2:**
+**3. Specific Interface:**
 ```bash
-dotnet run --project SampleApp/Ubicomp.Utils.NET.SampleApp.csproj -- --key "Secret123" --local --ack
+dotnet run --project SampleApp/Ubicomp.Utils.NET.SampleApp.csproj -- --interface 192.168.1.50
 ```

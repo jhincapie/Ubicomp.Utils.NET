@@ -1,69 +1,85 @@
 # MulticastSocket
 
-**MulticastSocket** is the foundational networking library for the Ubicomp.Utils.NET solution. It wraps standard .NET UDP sockets to provide specific multicast capabilities with a modern, fluent, and reactive API, targeting **.NET 8.0**.
+**MulticastSocket** is a high-performance, asynchronous wrapper around standard .NET UDP sockets, designed specifically for multicast communication. It targets **.NET 8.0** and leverages modern features like `IAsyncEnumerable`, `System.Threading.Channels`, and `ArrayPool` to minimize allocations and maximize throughput.
 
-## Key Components
-*   **`MulticastSocketBuilder`**: The primary entry point for configuration. Use this to set options, filters, and callbacks.
-*   **`MulticastSocket`**: The core engine. Handles socket creation, binding, joining multicast groups, and async I/O.
-    *   **Streaming**: `GetMessageStream()` returns an `IAsyncEnumerable<SocketMessage>`, allowing for modern, reactive consumption using `await foreach`.
-    *   **Decoupling**: Uses `System.Threading.Channels` to decouple the high-speed receive loop from the processing logic.
-*   **`SocketMessage`**: Represents a received packet.
-    *   **Pooling**: Utilizes `ObjectPool<SocketMessage>` and `ArrayPool<byte>` to minimize Garbage Collection (GC) pressure.
-*   **`SocketErrorContext`**: Provides details about runtime exceptions.
-*   **`InMemoryMulticastSocket`**: An in-memory implementation of `IMulticastSocket` for unit testing.
-    *   **Simulation**: Uses a shared `ConcurrentDictionary` hub to simulate a multicast network bus within the same process.
+## Key Features
+*   **Reactive API**: Exposes incoming messages as an `IAsyncEnumerable<SocketMessage>` stream via `GetMessageStream()`.
+*   **Zero-Allocation**: Uses `ArrayPool<byte>` and `ObjectPool<SocketMessage>` to reduce Garbage Collection (GC) pressure during high-frequency updates.
+*   **Thread Safety**: Decouples the high-speed receive loop from message processing using bounded channels.
+*   **Flexible Configuration**: Fluent builder pattern (`MulticastSocketBuilder`) and safe option factories (`MulticastSocketOptions`).
 
-## Diagrams
-![MulticastSocket Class Diagram](assets/class_diagram.png)
-
-## Implementation Details
-*   **High Performance**: Uses `ReceiveFromAsync` with `Memory<byte>` for efficient, zero-allocation data reception on .NET 8.0.
-*   **Threading**: A dedicated loop offloads incoming data to a bounded `Channel`. Consumers process messages from this channel, ensuring the socket remains responsive.
-*   **Buffer Management**: Uses `ArrayPool<byte>` for zero-allocation buffer management in the receive loop.
-*   **Socket Options**:
-    *   **Strict Adherence**: Boolean options (`NoDelay`, `ReuseAddress`) are strictly enforced.
-    *   **Error Handling**: `SocketOptionName.NoDelay` is wrapped in a `try-catch` block as some platforms/drivers throw on this option for UDP.
+## Installation
+The library is part of the `Ubicomp.Utils.NET` solution. Ensure your project targets `.NET 8.0`.
 
 ## Usage
 
-### Initialization & Receiving (Async Stream)
-The recommended way to receive messages is via the `GetMessageStream` method.
+### 1. Initialization
+Use the `MulticastSocketBuilder` to configure and build the socket.
 
 ```csharp
 using Ubicomp.Utils.NET.Sockets;
+using Microsoft.Extensions.Logging;
 
-var socket = new MulticastSocketBuilder()
-    // Use factory methods for safe configuration
-    .WithOptions(MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000))
-    .WithLogging(loggerFactory)
+// Create options using factory methods
+var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000);
+// Or for WAN: MulticastSocketOptions.WideAreaNetwork("239.0.0.1", 5000, ttl: 16);
+
+// Build the socket
+using var socket = new MulticastSocketBuilder()
+    .WithOptions(options)
+    .WithLogging(loggerFactory) // Optional
     .Build();
 
-await socket.JoinGroupAsync();
+// Join the multicast group
+socket.StartReceiving();
+```
 
-// Consume messages as an async stream
-await foreach (var msg in socket.GetMessageStream(cts.Token))
+### 2. Receiving Messages (Async Stream)
+The recommended way to consume messages is via the async stream.
+
+```csharp
+var cts = new CancellationTokenSource();
+
+try
 {
-    Console.WriteLine($"Received {msg.Data.Length} bytes. Seq: {msg.ArrivalSequenceId}");
-    // Note: msg.Dispose() is called automatically by the stream enumerator
+    await foreach (var msg in socket.GetMessageStream(cts.Token))
+    {
+        // Access data (Memory<byte>)
+        Console.WriteLine($"Received {msg.Length} bytes from {msg.RemoteEndpoint}");
+
+        // Process data...
+        // Note: The message is automatically returned to the pool after the loop iteration.
+    }
+}
+catch (OperationCanceledException)
+{
+    // Graceful shutdown
 }
 ```
 
-### Sending Messages
-You can send data using `ReadOnlyMemory<byte>` for zero-copy efficiency, or simple strings.
+### 3. Sending Messages
+You can send `string`, `byte[]`, or `ReadOnlyMemory<byte>` (preferred).
 
 ```csharp
-// 1. Zero-Allocation Send (Preferred)
-byte[] data = Encoding.UTF8.GetBytes("Hello Multicast!");
-await socket.SendAsync(new ReadOnlyMemory<byte>(data));
+// Zero-allocation send
+byte[] buffer = Encoding.UTF8.GetBytes("Hello Multicast!");
+await socket.SendAsync(new ReadOnlyMemory<byte>(buffer));
 
-// 2. String Send
-await socket.SendAsync("Hello Multicast!");
-
-// 3. Byte Array Send
-await socket.SendAsync(data);
+// String helper
+await socket.SendAsync("Hello World");
 ```
 
-## Dependencies
-- `Microsoft.Extensions.Logging.Abstractions`
-- `System.Threading.Channels`
-- `Microsoft.Extensions.ObjectPool`
+## Architecture
+*   **`MulticastSocket`**: Manages the underlying `System.Net.Sockets.Socket`. It runs a background `ReceiveAsyncLoop` that pushes data into a `Channel<SocketMessage>`.
+*   **`MulticastSocketOptions`**: Configuration container.
+    *   `LocalNetwork()`: Sets TTL=1, suitable for local subnets.
+    *   `WideAreaNetwork()`: Sets higher TTL (default 16).
+*   **`SocketMessage`**: A pooled object wrapping the received data. It implements `IDisposable` to return itself to the pool.
+
+## Testing
+The library includes `InMemoryMulticastSocket` for unit testing without network I/O.
+
+```csharp
+var mockSocket = new InMemoryMulticastSocket();
+// Inject mockSocket into your components
+```
