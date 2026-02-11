@@ -1,11 +1,11 @@
 # MulticastTransportFramework
 
-**MulticastTransportFramework** implements a higher-level, reliable messaging protocol over UDP multicast. It provides a robust Actor-Model-like communication layer, targeting **.NET 8.0**, with features for reliability, security, and ordering.
+**MulticastTransportFramework** implements a higher-level, reliable messaging protocol over UDP multicast. It provides a robust Actor-Model-like communication layer, targeting **.NET 8.0**, with features for reliability, security, and replay protection.
 
 ## Key Features
 
 *   **Reliable Delivery**: Built-in acknowledgement (ACK) system (`AckSession`) for critical message delivery.
-*   **Ordered Processing**: "GateKeeper" mechanism enforces strict message sequencing using `PriorityQueue`, correcting UDP out-of-order delivery.
+*   **Replay Protection**: `ReplayProtector` protects against replay attacks and deduplicates messages within a sliding window.
 *   **Security**: Zero-conf encryption (**AES-GCM**) and integrity signing (**HMAC-SHA256**) derived from a shared secret.
 *   **Optimized Protocol**: Uses a custom `BinaryPacket` format for reduced overhead (~66% smaller than JSON), with fallback to JSON for legacy clients.
 *   **Auto-Discovery**: Leverages Roslyn Source Generators to automatically register `[MessageType]` classes.
@@ -79,7 +79,7 @@ if (success)
 
 ### Components
 *   **`TransportComponent`**: The central facade. Manages the lifecycle and delegates to internal components.
-*   **`GateKeeper`**: Ensures strict ordering. Buffers out-of-sequence messages in a `PriorityQueue`.
+*   **`ReplayProtector`**: Validates message sequence numbers to prevent replay attacks and duplication.
 *   **`AckManager`**: Handles reliable delivery sessions (`AckSession`) and automatic ACK responses.
 *   **`PeerManager`**: Tracks active peers via `HeartbeatMessage` and exposes `ActivePeers`.
 *   **`SecurityHandler`**: Manages encryption/decryption and key rotation (`RekeyMessage`).

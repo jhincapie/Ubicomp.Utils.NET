@@ -20,7 +20,7 @@ The solution is structured into several key projects:
 *   **Role**: Higher-level reliable messaging layer over UDP multicast.
 *   **Architecture**: Actor-like model with dedicated internal loops (`ProcessingLoop`).
 *   **Key Features**:
-    - **Reliability**: `ReplayWindow` (deduplication), `AckSession` (delivery confirmation).
+    - **Reliability**: `ReplayProtector` (deduplication), `AckSession` (delivery confirmation).
     - **Security**: AES-GCM encryption and HMAC-SHA256 integrity.
     - **Serialization**: Dual support for `BinaryPacket` (optimized) and JSON.
     - **Discovery**: Uses `Generators` for auto-wiring message types.

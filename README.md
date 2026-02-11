@@ -20,8 +20,7 @@ The top layer implements the **Monitor-Service-Entity (MSE)** pattern.
 The middle layer provides a structured, reliable messaging protocol over UDP multicast.
 - **TransportComponent**: The central hub using an actor-like model for message processing.
 - **Reliability**:
-    - **GateKeeper**: Ensures strictly ordered message processing using sequence IDs and PriorityQueues.
-    - **ReplayWindow**: Protects against replay attacks and duplicate messages.
+    - **Replay Protection**: Protects against replay attacks and duplicate messages.
     - **ACKs**: Optional acknowledgement sessions (`AckSession`) for critical message delivery.
 - **Security**: Built-in **AES-GCM** encryption and **HMAC-SHA256** integrity verification.
 - **Serialization**: Supports optimized `BinaryPacket` protocol and legacy JSON (via `System.Text.Json`).

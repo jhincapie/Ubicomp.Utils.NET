@@ -72,8 +72,8 @@ await socket.SendAsync("Hello World");
 ## Architecture
 *   **`MulticastSocket`**: Manages the underlying `System.Net.Sockets.Socket`. It runs a background `ReceiveAsyncLoop` that pushes data into a `Channel<SocketMessage>`.
 *   **`MulticastSocketOptions`**: Configuration container.
-    *   `LocalNetwork()`: Sets TTL=1, suitable for local subnets.
-    *   `WideAreaNetwork()`: Sets higher TTL (default 16).
+    *   `LocalNetwork()`: Sets TTL=1 and applies an interface filter for private IP ranges (10.x, 172.16-31.x, 192.168.x).
+    *   `WideAreaNetwork()`: Sets higher TTL (default 16) without interface filtering.
 *   **`SocketMessage`**: A pooled object wrapping the received data. It implements `IDisposable` to return itself to the pool.
 
 ## Testing
