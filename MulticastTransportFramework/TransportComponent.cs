@@ -46,6 +46,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private readonly ConcurrentDictionary<Guid, AckSession> _activeSessions = new ConcurrentDictionary<Guid, AckSession>();
 
+        // Replay Protection
+        private readonly ConcurrentDictionary<Guid, DateTime> _seenMessages = new ConcurrentDictionary<Guid, DateTime>();
+        private DateTime _lastCleanupTime = DateTime.MinValue;
+
         private readonly JsonSerializerOptions _jsonOptions;
 
         // Lock-Free Actor Model Channels
@@ -595,6 +599,21 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             Logger.LogTrace("Processing message {0}", sequenceId);
 
+            // Replay Protection Check - Atomically try to add. If it fails, it's a duplicate.
+            // Using UtcNow for consistency across timezones.
+            if (!_seenMessages.TryAdd(tMessage.MessageId, DateTime.UtcNow.AddMinutes(6)))
+            {
+                Logger.LogWarning("Duplicate message detected (Replay Attack Prevention): {0}", tMessage.MessageId);
+                return;
+            }
+
+            // Periodic cleanup (fire and forget)
+            if ((DateTime.UtcNow - _lastCleanupTime).TotalMinutes > 1)
+            {
+                _lastCleanupTime = DateTime.UtcNow;
+                Task.Run(() => CleanupSeenMessages());
+            }
+
             bool handled = false;
 
             if (_genericHandlers.TryGetValue(tMessage.MessageType, out var handler))
@@ -633,6 +652,18 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     "Automatically sending Ack for message {0}",
                     tMessage.MessageId);
                 _ = SendAckAsync(tMessage.MessageId);
+            }
+        }
+
+        private void CleanupSeenMessages()
+        {
+            var now = DateTime.UtcNow;
+            foreach (var kvp in _seenMessages)
+            {
+                if (kvp.Value < now)
+                {
+                    _seenMessages.TryRemove(kvp.Key, out _);
+                }
             }
         }
 

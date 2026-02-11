@@ -12,3 +12,8 @@
 **Vulnerability:** `MulticastSocket` used an internal unbounded `Channel<SocketMessage>` to buffer incoming UDP packets. A slow consumer or high-traffic flood could cause memory exhaustion (DoS).
 **Learning:** Even low-level transport components must enforce backpressure or limits. `Channel.CreateUnbounded` is a dangerous default for network-facing buffers.
 **Prevention:** Use `Channel.CreateBounded` with a sensible default limit and `DropWrite` (or other policy) to shed load gracefully under pressure.
+
+## 2026-02-12 - [Replay Attack via Multicast]
+**Vulnerability:** `TransportComponent` accepted all messages with valid timestamps but lacked a mechanism to detect and block duplicate `MessageId`s within the validity window.
+**Learning:** Checking timestamps only ensures messages are recent, not unique. In multicast environments where packets can be duplicated or maliciously replayed, uniqueness checks are critical.
+**Prevention:** Implement a sliding window deduplication cache using `MessageId` and expiration times to reject previously seen messages.
