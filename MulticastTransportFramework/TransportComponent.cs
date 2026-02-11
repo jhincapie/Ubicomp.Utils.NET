@@ -11,16 +11,25 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Ubicomp.Utils.NET.Sockets;
 using Ubicomp.Utils.NET.MulticastTransportFramework.Components;
+using Ubicomp.Utils.NET.Sockets;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework
 {
     public class MessageErrorEventArgs : EventArgs
     {
-        public SocketMessage RawMessage { get; }
-        public Exception? Exception { get; }
-        public string Reason { get; }
+        public SocketMessage RawMessage
+        {
+            get;
+        }
+        public Exception? Exception
+        {
+            get;
+        }
+        public string Reason
+        {
+            get;
+        }
 
         public MessageErrorEventArgs(SocketMessage msg, string reason, Exception? ex = null)
         {
@@ -61,7 +70,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private int _arrivalSequenceNumber = 0;
 
         private readonly ConcurrentDictionary<string, Type> _knownTypes = new ConcurrentDictionary<string, Type>();
-        private readonly ConcurrentDictionary<string, Delegate> _genericHandlers = new ConcurrentDictionary<string, Delegate>();
+        private readonly ConcurrentDictionary<string, Action<object, MessageContext>> _genericHandlers = new ConcurrentDictionary<string, Action<object, MessageContext>>();
         private readonly ConcurrentDictionary<Type, string> _typeToIdMap = new ConcurrentDictionary<Type, string>();
 
         // Components
@@ -111,11 +120,16 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private void UpdateComponentLoggers()
         {
-            if (_replayProtector != null) _replayProtector.Logger = _logger;
-            if (_ackManager != null) _ackManager.Logger = _logger;
-            if (_peerManager != null) _peerManager.Logger = _logger;
-            if (_securityHandler != null) _securityHandler.Logger = _logger;
-            if (_messageSerializer != null) _messageSerializer.Logger = _logger;
+            if (_replayProtector != null)
+                _replayProtector.Logger = _logger;
+            if (_ackManager != null)
+                _ackManager.Logger = _logger;
+            if (_peerManager != null)
+                _peerManager.Logger = _logger;
+            if (_securityHandler != null)
+                _securityHandler.Logger = _logger;
+            if (_messageSerializer != null)
+                _messageSerializer.Logger = _logger;
         }
 
         private void RegisterInternalTypes()
@@ -131,21 +145,24 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public void RegisterHandler<T>(Action<T, MessageContext> handler) where T : class
         {
             var attr = (MessageTypeAttribute?)Attribute.GetCustomAttribute(typeof(T), typeof(MessageTypeAttribute));
-            if (attr == null) throw new InvalidOperationException($"Type {typeof(T).Name} does not have a [MessageType] attribute.");
+            if (attr == null)
+                throw new InvalidOperationException($"Type {typeof(T).Name} does not have a [MessageType] attribute.");
             RegisterHandler(attr.MsgId, handler);
         }
 
         public void RegisterHandler<T>(string id, Action<T, MessageContext> handler) where T : class
         {
-            if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Message ID cannot be null or empty.", nameof(id));
-            _genericHandlers[id] = handler;
+            if (string.IsNullOrWhiteSpace(id))
+                throw new ArgumentException("Message ID cannot be null or empty.", nameof(id));
+            _genericHandlers[id] = (data, ctx) => handler((T)data, ctx);
             _typeToIdMap[typeof(T)] = id;
             _knownTypes[id] = typeof(T);
         }
 
         public void RegisterMessageType<T>(string id)
         {
-            if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Message ID cannot be null or empty.", nameof(id));
+            if (string.IsNullOrWhiteSpace(id))
+                throw new ArgumentException("Message ID cannot be null or empty.", nameof(id));
             _typeToIdMap[typeof(T)] = id;
             _knownTypes[id] = typeof(T);
         }
@@ -165,9 +182,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             if (_socket == null)
             {
-                 var builder = new MulticastSocketBuilder().WithOptions(_socketOptions).OnError(err => Logger.LogError("Socket Error: {0}", err.Message));
-                 builder.WithLogger(Logger);
-                 _socket = builder.Build();
+                var builder = new MulticastSocketBuilder().WithOptions(_socketOptions).OnError(err => Logger.LogError("Socket Error: {0}", err.Message));
+                builder.WithLogger(Logger);
+                _socket = builder.Build();
             }
 
             _socket.StartReceiving();
@@ -181,19 +198,24 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private void HandleRekey(RekeyMessage msg, MessageContext context)
         {
-             // Check if self
-             if (string.Compare(LocalSource.ResourceId.ToString(), context.Source.ResourceId.ToString(), StringComparison.OrdinalIgnoreCase) == 0) return;
+            // Check if self
+            if (string.Compare(LocalSource.ResourceId.ToString(), context.Source.ResourceId.ToString(), StringComparison.OrdinalIgnoreCase) == 0)
+                return;
 
-             Logger.LogInformation("Received Rekey Message (KeyId: {0}). Rotating keys...", msg.KeyId);
-             _securityHandler.HandleRekey(msg.NewKey);
+            Logger.LogInformation("Received Rekey Message (KeyId: {0}). Rotating keys...", msg.KeyId);
+            _securityHandler.HandleRekey(msg.NewKey);
 
-             Task.Delay(ReplayProtector.ReplayWindowDuration.Add(TimeSpan.FromSeconds(5))).ContinueWith(_ => _securityHandler.ClearPreviousKey());
+            Task.Delay(ReplayProtector.ReplayWindowDuration.Add(TimeSpan.FromSeconds(5))).ContinueWith(_ => _securityHandler.ClearPreviousKey());
         }
 
         public void Stop()
         {
             _receiveCts?.Cancel();
-            try { _receiveTask?.Wait(500); } catch { }
+            try
+            {
+                _receiveTask?.Wait(500);
+            }
+            catch { }
             _receiveCts?.Dispose();
             _receiveCts = null;
 
@@ -206,7 +228,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             _peerManager.Stop();
             _processingChannel?.Writer.TryComplete();
-            try { _processingLoopTask?.Wait(1000); } catch { }
+            try
+            {
+                _processingLoopTask?.Wait(1000);
+            }
+            catch { }
         }
 
         public void Dispose()
@@ -214,13 +240,19 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             Stop();
             _securityHandler.Dispose();
             _peerManager.Dispose();
-            try { _messageSubject.OnCompleted(); _messageSubject.Dispose(); } catch { }
+            try
+            {
+                _messageSubject.OnCompleted();
+                _messageSubject.Dispose();
+            }
+            catch { }
             GC.SuppressFinalize(this);
         }
 
         private async Task ReceiveLoop(CancellationToken cancellationToken)
         {
-            if (_socket == null) return;
+            if (_socket == null)
+                return;
             try
             {
                 await foreach (var msg in _socket.GetMessageStream(cancellationToken))
@@ -231,18 +263,21 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                if (_receiveCts != null && !_receiveCts.IsCancellationRequested) Logger.LogError(ex, "Error in ReceiveLoop");
+                if (_receiveCts != null && !_receiveCts.IsCancellationRequested)
+                    Logger.LogError(ex, "Error in ReceiveLoop");
             }
         }
 
         internal void HandleSocketMessage(SocketMessage msg)
         {
-            if (!(_processingChannel?.Writer.TryWrite(msg) ?? false)) msg.Dispose();
+            if (!(_processingChannel?.Writer.TryWrite(msg) ?? false))
+                msg.Dispose();
         }
 
         private async Task ProcessingLoop()
         {
-            if (_processingChannel == null) return;
+            if (_processingChannel == null)
+                return;
             try
             {
                 while (await _processingChannel.Reader.WaitToReadAsync())
@@ -310,7 +345,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             if (_knownTypes.TryGetValue(tMessage.MessageType, out Type? targetType))
             {
-                try { _messageSerializer.DeserializeContent(ref tMessage, targetType); }
+                try
+                {
+                    _messageSerializer.DeserializeContent(ref tMessage, targetType);
+                }
                 catch (Exception ex)
                 {
                     OnMessageError?.Invoke(this, new MessageErrorEventArgs(null!, "Content Deserialization Error", ex));
@@ -329,7 +367,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             if (_genericHandlers.TryGetValue(tMessage.MessageType, out var handler))
             {
                 var context = new MessageContext(tMessage.MessageId, tMessage.MessageSource, tMessage.TimeStamp, tMessage.RequestAck);
-                handler.DynamicInvoke(tMessage.MessageData, context);
+                // Optimized dispatch: using the wrapper delegate avoids the reflection overhead of DynamicInvoke
+                handler(tMessage.MessageData, context);
                 handled = true;
             }
 
@@ -342,19 +381,20 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         public async Task<AckSession> SendAsync<T>(T content, SendOptions? options = null) where T : class
         {
-             string? messageType;
-             if (options?.MessageType != null) messageType = options.MessageType;
-             else if (!_typeToIdMap.TryGetValue(typeof(T), out messageType))
-             {
-                 var attr = (MessageTypeAttribute?)Attribute.GetCustomAttribute(typeof(T), typeof(MessageTypeAttribute));
-                 messageType = attr?.MsgId ?? throw new ArgumentException($"Type {typeof(T).Name} is not registered.");
-             }
+            string? messageType;
+            if (options?.MessageType != null)
+                messageType = options.MessageType;
+            else if (!_typeToIdMap.TryGetValue(typeof(T), out messageType))
+            {
+                var attr = (MessageTypeAttribute?)Attribute.GetCustomAttribute(typeof(T), typeof(MessageTypeAttribute));
+                messageType = attr?.MsgId ?? throw new ArgumentException($"Type {typeof(T).Name} is not registered.");
+            }
 
-             var message = new TransportMessage(LocalSource, messageType, content)
-             {
-                 RequestAck = options?.RequestAck ?? false
-             };
-             return await SendInternalAsync(message, options?.AckTimeout);
+            var message = new TransportMessage(LocalSource, messageType, content)
+            {
+                RequestAck = options?.RequestAck ?? false
+            };
+            return await SendInternalAsync(message, options?.AckTimeout);
         }
 
         private async Task<AckSession> SendInternalAsync(TransportMessage message, TimeSpan? ackTimeout)
@@ -378,9 +418,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 throw;
             }
 
-            if (_socket != null) await _socket.SendAsync(writer.WrittenMemory);
+            if (_socket != null)
+                await _socket.SendAsync(writer.WrittenMemory);
 
-            if (!message.RequestAck) session.ReportAck(LocalSource);
+            if (!message.RequestAck)
+                session.ReportAck(LocalSource);
 
             return session;
         }
@@ -399,8 +441,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             Logger.LogInformation("Performing Network Diagnostics...");
             NetworkDiagnostics.LogFirewallStatus(_socketOptions.Port, Logger);
             bool success = await NetworkDiagnostics.PerformLoopbackTestAsync(this);
-            if (success) Logger.LogInformation("Network Diagnostics Passed.");
-            else Logger.LogWarning("Network Diagnostics Failed.");
+            if (success)
+                Logger.LogInformation("Network Diagnostics Passed.");
+            else
+                Logger.LogWarning("Network Diagnostics Failed.");
             return success;
         }
     }

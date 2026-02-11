@@ -47,7 +47,8 @@ namespace Benchmarks
         public void SerializeToWriter()
         {
             _writer.Clear();
-            BinaryPacket.SerializeToWriter(_writer, _message, 1, (byte[]?)null, (Ubicomp.Utils.NET.MulticastTransportFramework.EncryptorDelegate?)null, _jsonOptions);
+            _message.SenderSequenceNumber = 1;
+            BinaryPacket.SerializeToWriter(_writer, _message, (byte[]?)null, (Ubicomp.Utils.NET.MulticastTransportFramework.EncryptorDelegate?)null, _jsonOptions);
         }
     }
 }
