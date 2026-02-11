@@ -13,3 +13,7 @@
 ## 2024-05-24 - Zero-Allocation Send with ValueTask
 **Learning:** Replacing `Task`-based APM socket methods with `ValueTask`-based `SendToAsync` allows passing `ReadOnlyMemory<byte>` directly, eliminating `byte[]` allocations and `Task` object overhead for every packet sent.
 **Action:** Prefer `ValueTask` and `ReadOnlyMemory<byte>` over `byte[]` and `Task` for high-frequency network I/O methods.
+
+## 2024-05-24 - Reflection Overhead in Hot Path
+**Learning:** `Delegate.DynamicInvoke` used for message dispatch added significant overhead (~440ns per message) and allocations. Wrapping the typed handler in an `Action<object, MessageContext>` lambda allowed direct invocation, reducing dispatch cost to ~17ns (25x speedup) and eliminating allocations.
+**Action:** Avoid `DynamicInvoke` in high-frequency loops; use delegate wrappers to bridge generic and specific types.
