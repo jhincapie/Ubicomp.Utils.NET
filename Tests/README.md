@@ -4,7 +4,7 @@ The **Tests** project contains comprehensive unit and integration tests for the 
 
 ## Structure
 
-*   **Components/**: Unit tests for internal components (`AckManager`, `GateKeeper`, `ReplayWindow`, `PeerManager`).
+*   **Components/**: Unit tests for internal components (`AckManager`, `ReplayProtector`, `PeerManager`).
 *   **Integration**: End-to-end tests verifying `TransportComponent` and `MulticastSocket` interactions.
     *   `MulticastSocketTests.cs`: Low-level socket behavior.
     *   `TransportComponentTests.cs`: High-level messaging and handlers.

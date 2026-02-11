@@ -18,9 +18,9 @@
     *   Integration of sub-components (`AckManager`, `PeerManager`, etc.).
 
 ### 2. Internal Components
-*   **`GateKeeper`**:
-    *   **Function**: Enforces strict ordering using sequence numbers.
-    *   **Mechanism**: Uses `PriorityQueue<TransportMessage, int>` to buffer out-of-order packets.
+*   **`ReplayProtector`**:
+    *   **Function**: Prevents replay attacks.
+    *   **Mechanism**: Sliding window of sequence IDs + Timestamp validity check (5 min window).
 *   **`AckManager`**:
     *   **Function**: Manages reliability.
     *   **Mechanism**: Creates `AckSession` for outgoing messages with `RequestAck=true`. Automatically replies with `sys.ack` for incoming requests.
@@ -30,9 +30,6 @@
 *   **`SecurityHandler`**:
     *   **Function**: Encryption and Integrity.
     *   **Mechanism**: AES-GCM (Encryption), HMAC-SHA256 (Integrity). Supports key rotation via `RekeyMessage`.
-*   **`ReplayProtector`**:
-    *   **Function**: Prevents replay attacks.
-    *   **Mechanism**: Sliding window of sequence IDs + Timestamp validity check (5 min window).
 
 ### 3. Serialization
 *   **`MessageSerializer`**:
@@ -53,12 +50,12 @@
 
 ### Don'ts
 *   **Don't** use `TransportComponent` constructor directly; use the builder.
-*   **Don't** assume messages arrive in order unless `GateKeeper` is enabled (it is by default in `TransportComponent`, but check `WithEnforceOrdering`).
+*   **Don't** assume messages arrive strictly in order; the transport layer handles replay protection but not reordering.
 *   **Don't** share `SecurityKey` in insecure channels.
 
 ## File Structure
 *   `TransportComponent.cs`: Main class.
 *   `TransportBuilder.cs`: Fluent configuration.
 *   `TransportMessage.cs`: Message envelope.
-*   `Components/`: Internal logic (`AckManager`, `GateKeeper`, `PeerManager`).
+*   `Components/`: Internal logic (`AckManager`, `PeerManager`, `ReplayProtector`).
 *   `BinaryPacket.cs`: Protocol definition.
