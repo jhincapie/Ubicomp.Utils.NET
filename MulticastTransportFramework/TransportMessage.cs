@@ -73,7 +73,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private void SetTimeStamp()
         {
-            TimeStamp = DateTime.Now.ToString(DATE_FORMAT_NOW);
+            TimeStamp = DateTime.UtcNow.ToString(DATE_FORMAT_NOW);
         }
     }
 
