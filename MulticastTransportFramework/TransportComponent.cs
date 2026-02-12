@@ -628,11 +628,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 }
 
                 // Enforce time window (+/- 5 minutes)
-                if (Math.Abs((DateTime.Now - msgTime).TotalMinutes) > 5)
+                if (Math.Abs((DateTime.UtcNow - msgTime).TotalMinutes) > 5)
                 {
                     Logger.LogWarning("Dropped message {0} due to timestamp out of bounds: {1}",
                         tMessage.MessageId,
-                        tMessage.TimeStamp);
+                        SanitizeLog(tMessage.TimeStamp));
                     return;
                 }
 

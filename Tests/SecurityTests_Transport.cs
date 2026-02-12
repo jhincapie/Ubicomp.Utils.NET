@@ -98,7 +98,7 @@ namespace Ubicomp.Utils.NET.Tests
 
             try
             {
-                var oldTimestamp = DateTime.Now.AddMinutes(-10).ToString(TransportMessage.DATE_FORMAT_NOW);
+                var oldTimestamp = DateTime.UtcNow.AddMinutes(-10).ToString(TransportMessage.DATE_FORMAT_NOW);
                 var messageId = Guid.NewGuid();
                 var json = $@"{{
                     ""messageId"": ""{messageId}"",
