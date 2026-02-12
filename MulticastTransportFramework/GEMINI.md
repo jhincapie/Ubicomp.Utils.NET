@@ -19,7 +19,7 @@
 
 ### 2. Internal Components
 *   **`ReplayProtector`**:
-    *   **Function**: Prevents replay attacks.
+    *   **Function**: Prevents replay attacks and handles message deduplication.
     *   **Mechanism**: Sliding window of sequence IDs + Timestamp validity check (5 min window).
 *   **`AckManager`**:
     *   **Function**: Manages reliability.
@@ -28,8 +28,9 @@
     *   **Function**: Discovers peers.
     *   **Mechanism**: Broadcasts periodic `HeartbeatMessage` (ID: `sys.heartbeat`). Maintains a `PeerTable`.
 *   **`SecurityHandler`**:
-    *   **Function**: Encryption and Integrity.
+    *   **Function**: Encryption, Integrity, and Log Sanitization.
     *   **Mechanism**: AES-GCM (Encryption), HMAC-SHA256 (Integrity). Supports key rotation via `RekeyMessage`.
+    *   **Log Security**: Implements `SanitizeLog` to neutralize Log Injection (CWE-117) by replacing control characters.
 
 ### 3. Serialization
 *   **`MessageSerializer`**:
@@ -57,5 +58,5 @@
 *   `TransportComponent.cs`: Main class.
 *   `TransportBuilder.cs`: Fluent configuration.
 *   `TransportMessage.cs`: Message envelope.
-*   `Components/`: Internal logic (`AckManager`, `PeerManager`, `ReplayProtector`).
+*   `Components/`: Internal logic (`AckManager`, `PeerManager`, `ReplayProtector`, `SecurityHandler`, `MessageSerializer`).
 *   `BinaryPacket.cs`: Protocol definition.

@@ -6,6 +6,7 @@
 ## Key Components
 *   **`MessageTypeAnalyzer`**:
     *   **ID**: `UBI001`
+    *   **Severity**: Error
     *   **Logic**: Inspects invocations of `SendAsync<T>`. Checks if `T` has `[MessageType]`.
 
 ## Do's and Don'ts

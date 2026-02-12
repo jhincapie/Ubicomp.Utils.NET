@@ -39,8 +39,8 @@
 *   **Don't** put business logic in `IEntity` classes.
 
 ## File Structure
-*   `ContextMonitor.cs`: Base class for monitors.
-*   `ContextService.cs`: Base class for services.
-*   `IEntity.cs`: Interface for data entities.
-*   `ContextMonitorContainer.cs`: Lifecycle manager for monitors.
-*   `ContextServiceContainer.cs`: Lifecycle manager for services.
+*   `ContextAdapter/ContextMonitor.cs`: Base class for monitors.
+*   `ContextAdapter/ContextMonitorContainer.cs`: Lifecycle manager for monitors.
+*   `ContextService/ContextService.cs`: Base class for services.
+*   `ContextService/ContextServiceContainer.cs`: Lifecycle manager for services.
+*   `DataModel/IEntity.cs`: Interface for data entities.
