@@ -366,7 +366,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             if (_genericHandlers.TryGetValue(tMessage.MessageType, out var handler))
             {
-                var context = new MessageContext(tMessage.MessageId, tMessage.MessageSource, tMessage.TimeStamp, tMessage.RequestAck);
+                // Bolt: Optimized using raw ticks to avoid string allocation
+                var context = new MessageContext(tMessage.MessageId, tMessage.MessageSource, tMessage.Ticks, tMessage.RequestAck);
                 // Optimized dispatch: using the wrapper delegate avoids the reflection overhead of DynamicInvoke
                 handler(tMessage.MessageData, context);
                 handled = true;

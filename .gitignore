@@ -25,3 +25,6 @@ nanobanana-output/
 # OS files
 .DS_Store
 Thumbs.db
+
+# BenchmarkDotNet
+BenchmarkDotNet.Artifacts/
