@@ -58,14 +58,17 @@ catch (OperationCanceledException)
 ```
 
 ### 3. Sending Messages
-You can send `string`, `byte[]`, or `ReadOnlyMemory<byte>` (preferred).
+You can send `string`, `byte[]`, or `ReadOnlyMemory<byte>`.
+
+*   **`ReadOnlyMemory<byte>` (Preferred)**: Uses `Socket.SendToAsync` for high performance and zero-allocation.
+*   **`string` / `byte[]`**: Convenience wrappers that may incur allocations or use legacy APM methods.
 
 ```csharp
-// Zero-allocation send
+// High-Performance Send (Preferred)
 byte[] buffer = Encoding.UTF8.GetBytes("Hello Multicast!");
 await socket.SendAsync(new ReadOnlyMemory<byte>(buffer));
 
-// String helper
+// Convenience Helpers
 await socket.SendAsync("Hello World");
 ```
 

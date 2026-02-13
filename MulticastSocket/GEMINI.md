@@ -46,6 +46,7 @@
 ## File Structure
 *   `MulticastSocket.cs`: Main implementation.
 *   `IMulticastSocket.cs`: Interface.
+*   `MulticastSocketBuilder.cs`: Fluent builder for socket creation.
 *   `MulticastSocketOptions.cs`: Configuration.
 *   `SocketMessage.cs`: Pooled message envelope.
 *   `InMemoryMulticastSocket.cs`: Test implementation.
