@@ -567,6 +567,42 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private void ProcessTransportMessage(TransportMessage tMessage, int sequenceId)
         {
+            Logger.LogTrace("Processing message {0}", sequenceId);
+
+            // 1. Validate TimeStamp to prevent log injection and ensure integrity
+            if (!DateTime.TryParseExact(tMessage.TimeStamp, TransportMessage.DATE_FORMAT_NOW, CultureInfo.InvariantCulture, DateTimeStyles.None, out var msgTime))
+            {
+                Logger.LogWarning("Dropped message {0} due to invalid timestamp format: {1}",
+                    tMessage.MessageId,
+                    SanitizeLog(tMessage.TimeStamp));
+                return;
+            }
+
+            // Enforce time window (+/- 5 minutes)
+            if (Math.Abs((DateTime.UtcNow - msgTime).TotalMinutes) > 5)
+            {
+                Logger.LogWarning("Dropped message {0} due to timestamp out of bounds: {1}",
+                    tMessage.MessageId,
+                    SanitizeLog(tMessage.TimeStamp));
+                return;
+            }
+
+            // 2. Replay Protection Check - Atomically try to add. If it fails, it's a duplicate.
+            // Using UtcNow for consistency across timezones.
+            if (!_seenMessages.TryAdd(tMessage.MessageId, DateTime.UtcNow.AddMinutes(6)))
+            {
+                Logger.LogWarning("Duplicate message detected (Replay Attack Prevention): {0}", tMessage.MessageId);
+                return;
+            }
+
+            // Periodic cleanup (fire and forget)
+            if ((DateTime.UtcNow - _lastCleanupTime).TotalMinutes > 1)
+            {
+                _lastCleanupTime = DateTime.UtcNow;
+                Task.Run(() => CleanupSeenMessages());
+            }
+
+            // 3. Payload Deserialization
             if (tMessage.MessageData is JsonElement element)
             {
                 if (_knownTypes.TryGetValue(tMessage.MessageType, out Type? targetType))
@@ -582,6 +618,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 }
             }
 
+            // 4. Ack Handling
             if (tMessage.MessageType == AckMessageType &&
                 tMessage.MessageData is AckMessageContent ackContent)
             {
@@ -597,45 +634,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 }
             }
 
-            Logger.LogTrace("Processing message {0}", sequenceId);
-
-            // Replay Protection Check - Atomically try to add. If it fails, it's a duplicate.
-            // Using UtcNow for consistency across timezones.
-            if (!_seenMessages.TryAdd(tMessage.MessageId, DateTime.UtcNow.AddMinutes(6)))
-            {
-                Logger.LogWarning("Duplicate message detected (Replay Attack Prevention): {0}", tMessage.MessageId);
-                return;
-            }
-
-            // Periodic cleanup (fire and forget)
-            if ((DateTime.UtcNow - _lastCleanupTime).TotalMinutes > 1)
-            {
-                _lastCleanupTime = DateTime.UtcNow;
-                Task.Run(() => CleanupSeenMessages());
-            }
-
             bool handled = false;
 
+            // 5. Generic Handler
             if (_genericHandlers.TryGetValue(tMessage.MessageType, out var handler))
             {
-                // Validate TimeStamp to prevent log injection and ensure integrity
-                if (!DateTime.TryParseExact(tMessage.TimeStamp, TransportMessage.DATE_FORMAT_NOW, CultureInfo.InvariantCulture, DateTimeStyles.None, out var msgTime))
-                {
-                    Logger.LogWarning("Dropped message {0} due to invalid timestamp format: {1}",
-                        tMessage.MessageId,
-                        SanitizeLog(tMessage.TimeStamp));
-                    return;
-                }
-
-                // Enforce time window (+/- 5 minutes)
-                if (Math.Abs((DateTime.UtcNow - msgTime).TotalMinutes) > 5)
-                {
-                    Logger.LogWarning("Dropped message {0} due to timestamp out of bounds: {1}",
-                        tMessage.MessageId,
-                        SanitizeLog(tMessage.TimeStamp));
-                    return;
-                }
-
                 var context = new MessageContext(
                     tMessage.MessageId,
                     tMessage.MessageSource,
