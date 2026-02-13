@@ -21,6 +21,42 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
         }
 
         /// <summary>
+        /// Checks if the message is a KNOWN replay or too old, without marking it.
+        /// Returns true if it is a replay (should be dropped).
+        /// </summary>
+        public bool IsKnownReplay(Guid sourceId, int sequenceNumber, long ticks, out string reason)
+        {
+            reason = string.Empty;
+
+            // 1. Timestamp Check
+            if (ticks > 0)
+            {
+                var ts = new DateTime(ticks);
+                var now = DateTime.UtcNow;
+                if (ts < now.Subtract(ReplayWindowDuration))
+                {
+                    reason = $"Message too old (Timestamp: {ts}). Window is {ReplayWindowDuration.TotalSeconds}s.";
+                    return true;
+                }
+            }
+
+            // 2. Window Retrieval
+            // If we don't know the source, it's not a replay (it's new).
+            // We shouldn't create a window here because we haven't verified integrity yet.
+            if (_replayProtection.TryGetValue(sourceId, out var window))
+            {
+                // 3. Sequence ID Check
+                if (window.IsReplay(sequenceNumber))
+                {
+                    reason = $"Duplicate or out-of-window sequence ID {sequenceNumber}.";
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Checks if the message is valid (not a replay and within time window).
         /// Returns true if valid, false if it should be dropped.
         /// </summary>

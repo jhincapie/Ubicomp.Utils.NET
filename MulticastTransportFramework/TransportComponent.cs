@@ -308,6 +308,22 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             try
             {
+                // Bolt: Optimization - Early Rejection of Replays/Old Packets
+                // Check header first before expensive deserialization and crypto.
+                if (BinaryPacket.TryReadHeader(msg.Data.AsSpan(0, msg.Length), out var header))
+                {
+                    if (_replayProtector.IsKnownReplay(header.SourceId, header.SenderSequenceNumber, header.Ticks, out var earlyReason))
+                    {
+                        Logger.LogTrace("Dropped known replay/old message {0} (Seq {1}). Reason: {2}", header.SourceId, header.SenderSequenceNumber, earlyReason);
+                        return;
+                    }
+                }
+                else
+                {
+                    // Invalid header, drop immediately
+                    return;
+                }
+
                 // Deserialize
                 TransportMessage? tMessage = _messageSerializer.Deserialize(msg, _securityHandler);
 
