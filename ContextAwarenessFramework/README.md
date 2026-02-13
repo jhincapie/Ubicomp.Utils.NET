@@ -33,6 +33,12 @@ Interface for context data objects.
 
 ### 1. Define Components
 
+The framework uses the Template Method pattern. You should override the protected `Custom*` methods instead of the public lifecycle methods.
+
+*   `CustomStart()`: Called when the component is started. Initialize resources here.
+*   `CustomStop()`: Called when the component is stopped. Cleanup resources here.
+*   `CustomRun()`: (Monitors Only) Called repeatedly by the container's background thread if `UpdateType` is set to `Continuous` or `Interval`.
+
 ```csharp
 // 1. Define Entity
 public class RoomTemperature : IEntity
@@ -48,19 +54,22 @@ public class RoomTemperature : IEntity
 // 2. Define Monitor
 public class TempSensorMonitor : ContextMonitor
 {
-    public TempSensorMonitor() : base("TempSensor") { }
+    public TempSensorMonitor() : base("TempSensor")
+    {
+        // Configure update strategy
+        UpdateType = ContextAdapterUpdateType.Interval;
+        UpdateInterval = 1000;
+    }
 
     protected override void CustomStart()
     {
-        // Start polling or listening to hardware
-        Task.Run(async () =>
-        {
-             while(IsRunning)
-             {
-                 NotifyContextServices("TempSensor", new RoomTemperature { Value = 22.5 });
-                 await Task.Delay(1000);
-             }
-        });
+        Console.WriteLine("Sensor Started");
+    }
+
+    protected override void CustomRun()
+    {
+        // This runs on a background thread every 1000ms
+        NotifyContextServices("TempSensor", new RoomTemperature { Value = 22.5 });
     }
 }
 
@@ -71,6 +80,7 @@ public class HVACService : ContextService
 
     public override void UpdateMonitorReading(object sender, NotifyContextMonitorListenersEventArgs e)
     {
+        // IMPORTANT: This runs on the Monitor's background thread!
         if (e.MonitorId == "TempSensor" && e.ContextData is RoomTemperature temp)
         {
             Console.WriteLine($"Current Temp: {temp.Value}");

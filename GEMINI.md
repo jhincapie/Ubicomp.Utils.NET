@@ -39,6 +39,8 @@ The solution is structured into several key projects:
 *   **`SampleApp`**: Demonstrates library usage.
 *   **`Tests`**: Comprehensive unit tests covering all layers.
 *   **`Benchmarks`**: Performance comparisons (JSON vs Binary).
+*   **`Multicast.TestApp`**: Isolated transport testing.
+*   **`ContextAwarenessFramework.TestApp`**: Isolated CAF testing.
 
 ## Development Workflow
 

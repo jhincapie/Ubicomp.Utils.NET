@@ -47,6 +47,9 @@ The foundational layer that wraps standard .NET UDP sockets.
 *   [**SampleApp**](SampleApp/README.md): Example usage.
 *   [**Tests**](Tests/README.md): Test suite overview.
 *   [**Benchmarks**](Benchmarks/README.md): Performance benchmarks.
+*   **Test Harnesses**:
+    *   [Multicast.TestApp](Multicast.TestApp/README.md): Minimal transport verification.
+    *   [ContextAwarenessFramework.TestApp](ContextAwarenessFramework.TestApp/README.md): Minimal CAF verification.
 
 ## Modernization Status
 This project targets **.NET 8.0** exclusively to leverage the latest language features (C# 12), performance improvements, and runtime capabilities (e.g., `ReceiveFromAsync` with `Memory<byte>`).
