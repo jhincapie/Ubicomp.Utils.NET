@@ -22,10 +22,24 @@ namespace Ubicomp.Utils.NET.Tests
             public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
             {
                 Logs.Add(formatter(state, exception));
+                if (exception != null)
+                {
+                    Logs.Add(exception.Message);
+                }
             }
 
             public void Dispose()
             {
+            }
+        }
+
+        [MessageType("test.bomb")]
+        public class BombPayload
+        {
+            public string Data
+            {
+                get => "";
+                set => throw new InvalidOperationException("BOOM! Payload Deserialized!");
             }
         }
 
@@ -149,6 +163,103 @@ namespace Ubicomp.Utils.NET.Tests
                 }
             }
             Assert.True(foundLog, "Did not find the expected log message.");
+        }
+
+        [Fact]
+        public void Verify_Replay_Check_Happens_Before_Deserialization()
+        {
+            // Arrange
+            var options = MulticastSocketOptions.LocalNetwork();
+            var transport = new TransportComponent(options);
+            var logger = new TestLogger();
+            transport.Logger = logger;
+
+            // Register the bomb type
+            transport.RegisterHandler<BombPayload>((msg, ctx) => { });
+
+            // Create a message that is ALREADY seen (replayed)
+            var msgId = Guid.NewGuid();
+            var seenMessagesField = typeof(TransportComponent).GetField("_seenMessages", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var seenMessages = (System.Collections.Concurrent.ConcurrentDictionary<Guid, DateTime>)seenMessagesField.GetValue(transport);
+            seenMessages.TryAdd(msgId, DateTime.UtcNow.AddMinutes(1)); // Already seen
+
+            var payload = new { Data = "explode" };
+            var tMsg = new TransportMessage(
+                new EventSource(Guid.NewGuid(), "Attacker"),
+                "test.bomb",
+                payload
+            )
+            {
+                MessageId = msgId // Same ID
+            };
+
+            // Serialize the envelope
+            var json = JsonSerializer.Serialize(tMsg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            var bytes = Encoding.UTF8.GetBytes(json);
+            var socketMsg = new SocketMessage(bytes, 1);
+
+            // Act
+            var processMethod = typeof(TransportComponent).GetMethod("ProcessSingleMessage", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            processMethod.Invoke(transport, new object[] { socketMsg });
+
+            // Assert
+            bool sawBoom = false;
+            foreach (var log in logger.Logs)
+            {
+                if (log.Contains("BOOM! Payload Deserialized!")) sawBoom = true;
+                if (log.Contains("Failed to deserialize message content")) sawBoom = true;
+            }
+
+            if (sawBoom)
+            {
+                Assert.Fail("Security Vulnerability: Payload was deserialized despite being a replay attack! Logs: " + string.Join(", ", logger.Logs));
+            }
+        }
+
+        [Fact]
+        public void Verify_Timestamp_Check_Happens_Before_Deserialization()
+        {
+            // Arrange
+            var options = MulticastSocketOptions.LocalNetwork();
+            var transport = new TransportComponent(options);
+            var logger = new TestLogger();
+            transport.Logger = logger;
+
+            transport.RegisterHandler<BombPayload>((msg, ctx) => { });
+
+            var msgId = Guid.NewGuid();
+
+            var payload = new { Data = "explode" };
+            var tMsg = new TransportMessage(
+                new EventSource(Guid.NewGuid(), "Attacker"),
+                "test.bomb",
+                payload
+            )
+            {
+                MessageId = msgId,
+                TimeStamp = DateTime.UtcNow.AddMinutes(-10).ToString(TransportMessage.DATE_FORMAT_NOW) // Expired
+            };
+
+            var json = JsonSerializer.Serialize(tMsg, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            var bytes = Encoding.UTF8.GetBytes(json);
+            var socketMsg = new SocketMessage(bytes, 1);
+
+            // Act
+            var processMethod = typeof(TransportComponent).GetMethod("ProcessSingleMessage", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            processMethod.Invoke(transport, new object[] { socketMsg });
+
+            // Assert
+            bool sawBoom = false;
+            foreach (var log in logger.Logs)
+            {
+                if (log.Contains("BOOM! Payload Deserialized!")) sawBoom = true;
+                if (log.Contains("Failed to deserialize message content")) sawBoom = true;
+            }
+
+            if (sawBoom)
+            {
+                Assert.Fail("Security Vulnerability: Payload was deserialized despite having expired timestamp! Logs: " + string.Join(", ", logger.Logs));
+            }
         }
 
     }
