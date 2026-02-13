@@ -31,12 +31,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             public readonly int SenderSequenceNumber;
             public readonly long Ticks;
             public readonly string MessageType; // We might want Span<char> but string is required by GateKeeper for now
+            public readonly Guid SourceId;
 
-            public PacketHeader(int senderSequenceNumber, long ticks, string type)
+            public PacketHeader(int senderSequenceNumber, long ticks, string type, Guid sourceId)
             {
                 SenderSequenceNumber = senderSequenceNumber;
                 Ticks = ticks;
                 MessageType = type;
+                SourceId = sourceId;
             }
         }
 
@@ -311,6 +313,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             // SeqId (4) at offset 16
             int senderSequenceNumber = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(16));
 
+            // SourceId (16) at offset 36
+            Guid sourceId = new Guid(buffer.Slice(36, 16));
+
             // Tick (8) at offset 52
             long ticks = BinaryPrimitives.ReadInt64LittleEndian(buffer.Slice(52));
 
@@ -322,7 +327,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 return false;
 
             string messageType = Encoding.UTF8.GetString(buffer.Slice(61, typeLen));
-            header = new PacketHeader(senderSequenceNumber, ticks, messageType);
+            header = new PacketHeader(senderSequenceNumber, ticks, messageType, sourceId);
             return true;
         }
     }

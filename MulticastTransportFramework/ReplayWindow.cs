@@ -55,10 +55,51 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         }
 
         /// <summary>
+        /// Checks if a sequence ID is a replay or too old, without marking it.
+        /// </summary>
+        public bool IsReplay(int senderSequenceNumber)
+        {
+            lock (_lock)
+            {
+                // Case 1: First packet ever - Not a replay
+                if (_highestSequenceId == -1)
+                {
+                    return false;
+                }
+
+                // Case 2: New highest sequence ID - Not a replay
+                if (senderSequenceNumber > _highestSequenceId)
+                {
+                    return false;
+                }
+
+                // Case 3: Old sequence ID
+                int offset = _highestSequenceId - senderSequenceNumber;
+
+                if (offset >= WindowSize)
+                {
+                    // Too old, outside the window
+                    return true;
+                }
+
+                // Case 4: Within window, check for duplicates
+                ulong maskPosition = 1UL << offset;
+
+                if ((_windowMask & maskPosition) != 0)
+                {
+                    // Already set, this is a replay
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Checks if a sequence ID is valid (not a replay and not too old).
         /// Marks it as received if valid.
         /// </summary>
-        /// <param name="sequenceId">The incoming sequence ID.</param>
+        /// <param name="senderSequenceNumber">The incoming sequence ID.</param>
         /// <returns>True if the message should be accepted; False if it's a replay or too old.</returns>
         public bool CheckAndMark(int senderSequenceNumber)
         {
