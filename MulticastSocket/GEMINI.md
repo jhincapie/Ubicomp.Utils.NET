@@ -34,6 +34,7 @@
 
 ### Do's
 *   **Do** use `GetMessageStream()` for consuming messages. It handles backpressure via the bounded channel.
+*   **Do** explicitly dispose `SocketMessage` (or use `using`) to return buffers to the shared pool.
 *   **Do** use `MulticastSocketOptions` factory methods instead of the constructor.
 *   **Do** prefer `SendAsync(ReadOnlyMemory<byte>)` for high-performance sending.
 *   **Do** dispose the socket to release the port and stop the background loop.
@@ -42,6 +43,7 @@
 *   **Don't** use `ReceiveCallback` or legacy APM patterns.
 *   **Don't** manually bind the socket; let `StartReceiving()` or `JoinGroupAsync()` handle it.
 *   **Don't** assume the `SocketMessage.Data` buffer is exactly the size of the payload; always use `SocketMessage.Length`.
+*   **Don't** keep references to `SocketMessage.Data` after disposal, as the buffer is returned to the pool and may be overwritten.
 
 ## File Structure
 *   `MulticastSocket.cs`: Main implementation.

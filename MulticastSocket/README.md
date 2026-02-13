@@ -36,6 +36,7 @@ socket.StartReceiving();
 
 ### 2. Receiving Messages (Async Stream)
 The recommended way to consume messages is via the async stream.
+**Important:** You **must** dispose the `SocketMessage` to return the buffer to the shared pool.
 
 ```csharp
 var cts = new CancellationTokenSource();
@@ -44,11 +45,15 @@ try
 {
     await foreach (var msg in socket.GetMessageStream(cts.Token))
     {
-        // Access data (Memory<byte>)
-        Console.WriteLine($"Received {msg.Length} bytes from {msg.RemoteEndpoint}");
+        // Use 'using' to ensure the message is returned to the pool
+        using (msg)
+        {
+            // Access data (Memory<byte>)
+            // Note: Use msg.Length, not msg.Data.Length
+            Console.WriteLine($"Received {msg.Length} bytes from {msg.RemoteEndpoint}");
 
-        // Process data...
-        // Note: The message is automatically returned to the pool after the loop iteration.
+            // Process data...
+        }
     }
 }
 catch (OperationCanceledException)

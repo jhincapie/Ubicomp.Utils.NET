@@ -34,12 +34,38 @@
 
 ### 3. Serialization
 *   **`MessageSerializer`**:
-    *   **BinaryPacket**: Optimized format. `MagicByte` -> `Header` -> `Payload`.
+    *   **BinaryPacket**: Optimized format.
     *   **JSON**: Fallback. Uses `System.Text.Json` (v8.0).
     *   **Zero-Allocation**: Uses `ArrayBufferWriter<byte>` and `Span<byte>` where possible.
 
 ### 4. Auto-Discovery
 *   **Source Generator**: Scans for `[MessageType]` attributes and generates a `RegisterDiscoveredMessages` extension method called by `TransportBuilder`.
+
+## Binary Protocol (BinaryPacket)
+The default wire format is a custom binary protocol designed for compactness.
+
+**Structure:**
+`[Magic:1][Version:1][Flags:1][NonceLen:1][TagLen:1][NameLen:1][Reserved:10][SeqId:4][MsgId:16][SourceId:16][Tick:8][TypeLen:1][Type:N][Name:K][Nonce:L][Tag:M][Payload:P]`
+
+| Field | Size (Bytes) | Description |
+| :--- | :--- | :--- |
+| **Magic** | 1 | Protocol Magic Byte (`0xAA`) |
+| **Version** | 1 | Protocol Version (`1`) |
+| **Flags** | 1 | Bitmask (0x1: RequestAck, 0x2: Encrypted) |
+| **NonceLen** | 1 | Length of Nonce (12 for AES-GCM, 0 otherwise) |
+| **TagLen** | 1 | Length of Auth Tag (16 for AES-GCM, 32 for HMAC) |
+| **NameLen** | 1 | Length of Sender Name |
+| **Reserved** | 10 | Reserved for future use (zeroed) |
+| **SeqId** | 4 | Sender Sequence Number (Int32) |
+| **MsgId** | 16 | Message GUID |
+| **SourceId** | 16 | Source GUID |
+| **Tick** | 8 | Timestamp (Ticks) |
+| **TypeLen** | 1 | Length of Message Type string |
+| **Type** | N | Message Type (UTF-8) |
+| **Name** | K | Sender Name (UTF-8) |
+| **Nonce** | L | IV/Nonce (if Encrypted) |
+| **Tag** | M | Auth Tag / HMAC |
+| **Payload** | P | Serialized Message Body (JSON/Binary) |
 
 ## Do's and Don'ts
 

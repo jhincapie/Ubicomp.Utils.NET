@@ -29,9 +29,10 @@ Listens for multicast packets on the default group (`239.0.0.1:5000`) and dumps 
 ### 3. `dashboard`
 Launches an interactive TUI (Text User Interface) dashboard using `Spectre.Console`.
 *   **Features**:
-    *   Live Peer List.
-    *   Transport Status.
-    *   (Placeholder) Real-time metrics and logs.
+    *   **Live Peer List**: Shows active peers discovered via heartbeats.
+    *   **Transport Status**: Displays local address, port, and state.
+    *   **Metrics**: (Coming Soon) Real-time throughput and packet counters.
+    *   **Logs**: (Coming Soon) Live log stream.
 *   **Usage**:
     ```bash
     dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- dashboard
