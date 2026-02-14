@@ -17,7 +17,7 @@
 ### 2. `MulticastSocket`
 *   **Implementation**: Wraps `System.Net.Sockets.Socket`.
 *   **Threading**:
-    *   **Receive Loop**: Runs on a background `Task`. Reads from socket -> writes to `Channel`.
+    *   **Receive Loop**: Runs on a background `Task`. Reads from socket -> writes to `BoundedChannel` (DropWrite strategy on overflow).
     *   **Consumption**: Consumers iterate `GetMessageStream()` which reads from the `Channel`.
 *   **Memory Management**:
     *   Uses `ArrayPool<byte>.Shared` to rent buffers for `ReceiveFromAsync`.
@@ -29,6 +29,7 @@
 *   **Factories**:
     *   `LocalNetwork(ip, port)`: TTL 1, auto-filters private IPs.
     *   `WideAreaNetwork(ip, port, ttl)`: Configurable TTL.
+    *   `WithInterface(predicate)`: Allows binding to specific network interfaces.
 
 ## Do's and Don'ts
 

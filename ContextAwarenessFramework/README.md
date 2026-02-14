@@ -40,8 +40,14 @@ The framework uses the Template Method pattern. You should override the protecte
 *   `CustomRun()`: (Monitors Only) Called repeatedly by the container's background thread if `UpdateType` is set to `Continuous` or `Interval`.
 
 ```csharp
+using Ubicomp.Utils.NET.ContextAwarenessFramework.DataModel;
+using Ubicomp.Utils.NET.ContextAwarenessFramework.ContextAdapter;
+using Ubicomp.Utils.NET.ContextAwarenessFramework.ContextService;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+
 // 1. Define Entity
-public class RoomTemperature : IEntity
+public class RoomTemperature : IEntity, INotifyPropertyChanged
 {
     private double _value;
     public double Value
@@ -49,6 +55,10 @@ public class RoomTemperature : IEntity
         get => _value;
         set { _value = value; OnPropertyChanged(); }
     }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    protected void OnPropertyChanged([CallerMemberName] string? name = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
 // 2. Define Monitor

@@ -11,7 +11,7 @@
 ### 2. `DashboardCommand`
 *   **UI Framework**: Uses `Spectre.Console` for TUI layout (`Layout`, `Table`, `Panel`).
 *   **Logic**: Starts a `TransportComponent`, verifies networking, and updates the display in a loop.
-*   **Status**: Metrics and Logs panels are currently placeholders implementation-wise.
+*   **Status**: Metrics and Logs panels are currently visual placeholders.
 
 ### 3. `TransportDiagnostics` (via Framework)
 *   **Sniffer**: Uses `TransportDiagnostics.DumpPacket` to format binary payloads.
@@ -19,3 +19,7 @@
 ## Do's and Don'ts
 *   **Do** use `check` before deploying to a new environment to verify firewall rules.
 *   **Do** use `sniff` to debug serialization issues or inspect raw traffic.
+
+## File Structure
+*   `Program.cs`: Main entry point.
+*   `DashboardCommand.cs`: Dashboard TUI logic using Spectre.Console.

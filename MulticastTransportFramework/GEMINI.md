@@ -84,5 +84,6 @@ The default wire format is a custom binary protocol designed for compactness.
 *   `TransportComponent.cs`: Main class.
 *   `TransportBuilder.cs`: Fluent configuration.
 *   `TransportMessage.cs`: Message envelope.
+*   `PeerTable.cs`: Thread-safe peer tracking implementation.
 *   `Components/`: Internal logic (`AckManager`, `PeerManager`, `ReplayProtector`, `SecurityHandler`, `MessageSerializer`).
 *   `BinaryPacket.cs`: Protocol definition.
