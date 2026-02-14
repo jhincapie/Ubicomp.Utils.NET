@@ -33,7 +33,7 @@ The solution is structured into several key projects:
 ### 4. Tooling
 *   **Generators**: Scans code for `[MessageType]` attributes and generates registration code (`TransportExtensions`).
 *   **Analyzers**: Enforces usage of `[MessageType]` via `UBI001` (Error).
-*   **CLI**: Provides network diagnostics (`check`) and packet sniffing (`sniff`) capabilities.
+*   **CLI**: Provides network diagnostics (`check`), packet sniffing (`sniff`), and monitoring (`dashboard`).
 
 ### 5. Applications & Tests
 *   **`SampleApp`**: Demonstrates library usage.
@@ -67,6 +67,14 @@ All commands should be run from the repository root.
 *   **Messaging**: Use `[MessageType("id")]` attributes on POCOs for transport routing.
 *   **Dependencies**: Prefer NuGet packages. Ensure all libraries target `net8.0`.
 
-## Important Files
+## File Structure
+*   `MulticastSocket/`: Network layer.
+*   `MulticastTransportFramework/`: Transport layer.
+*   `ContextAwarenessFramework/`: Application framework.
+*   `CLI/`: Diagnostic tools.
+*   `Generators/`: Source generators.
+*   `Analyzers/`: Roslyn analyzers.
+*   `SampleApp/`: Usage example.
+*   `Tests/`: Unit tests.
+*   `Benchmarks/`: Performance benchmarks.
 *   `Ubicomp.Utils.NET.sln`: The main solution file.
-*   `README.md`: Basic instructions and authorship.

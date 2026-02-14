@@ -31,8 +31,8 @@ Launches an interactive TUI (Text User Interface) dashboard using `Spectre.Conso
 *   **Features**:
     *   **Live Peer List**: Shows active peers discovered via heartbeats.
     *   **Transport Status**: Displays local address, port, and state.
-    *   **Metrics**: (Coming Soon) Real-time throughput and packet counters.
-    *   **Logs**: (Coming Soon) Live log stream.
+    *   **Metrics**: (Visual Placeholder) Real-time throughput and packet counters.
+    *   **Logs**: (Visual Placeholder) Live log stream.
 *   **Usage**:
     ```bash
     dotnet run --project CLI/Ubicomp.Utils.NET.CLI.csproj -- dashboard

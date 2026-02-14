@@ -19,6 +19,7 @@ Use the `MulticastSocketBuilder` to configure and build the socket.
 ```csharp
 using Ubicomp.Utils.NET.Sockets;
 using Microsoft.Extensions.Logging;
+using System.Net.NetworkInformation;
 
 // Create options using factory methods
 var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000);
@@ -27,7 +28,9 @@ var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000);
 // Build the socket
 using var socket = new MulticastSocketBuilder()
     .WithOptions(options)
-    .WithLogging(loggerFactory) // Optional
+    // Optional: Bind to specific interface (e.g., Ethernet only)
+    .WithInterface(nic => nic.NetworkInterfaceType == NetworkInterfaceType.Ethernet)
+    .WithLogging(loggerFactory)
     .Build();
 
 // Join the multicast group

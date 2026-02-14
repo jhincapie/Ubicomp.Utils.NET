@@ -42,8 +42,11 @@ var options = MulticastSocketOptions.LocalNetwork("239.0.0.1", 5000);
 
 var transport = new TransportBuilder()
     .WithMulticastOptions(options)
+    .WithLocalSource("MyDevice")
+    .WithHeartbeat(TimeSpan.FromSeconds(5)) // Optional: Set heartbeat interval
+    .WithInstanceMetadata("Version=1.0;Env=Prod") // Optional: Share metadata with peers
     .WithLogging(loggerFactory)
-    .WithSecurityKey("SuperSecretKey123!") // Enables HMAC integrity & Encryption
+    .WithSecurityKey("SuperSecretKey123!")  // Enables HMAC integrity & Encryption
     .WithEncryption(true)                   // Enables AES-GCM payload encryption
     .RegisterHandler<GreetingMessage>((msg, context) =>
     {
@@ -81,7 +84,7 @@ if (success)
 *   **`TransportComponent`**: The central facade. Manages the lifecycle and delegates to internal components.
 *   **`ReplayProtector`**: Validates message sequence numbers to prevent replay attacks and handles deduplication.
 *   **`AckManager`**: Handles reliable delivery sessions (`AckSession`) and automatic ACK responses.
-*   **`PeerManager`**: Tracks active peers via `HeartbeatMessage` and exposes `ActivePeers`.
+*   **`PeerManager`**: Tracks active peers via `HeartbeatMessage` and exposes `ActivePeers` property.
 *   **`SecurityHandler`**: Manages encryption/decryption, key rotation (`RekeyMessage`), and log sanitization.
 *   **`MessageSerializer`**: Handles `BinaryPacket` (primary) and JSON (fallback) serialization.
 

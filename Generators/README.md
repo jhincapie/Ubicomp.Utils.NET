@@ -30,6 +30,9 @@ namespace Ubicomp.Utils.NET.Generators.AutoDiscovery
 
 This method is automatically called by `TransportBuilder.Build()`, ensuring you never forget to register a message type.
 
+### Legacy Analyzer
+This project also contains `MessageTypeAnalyzer` (ID: `UbicompNET001`), which is considered legacy. The primary analyzer implementation is located in the `Analyzers` project (ID: `UBI001`).
+
 ## Dependencies
 *   `Microsoft.CodeAnalysis.CSharp`
 *   `Microsoft.CodeAnalysis.Analyzers`
