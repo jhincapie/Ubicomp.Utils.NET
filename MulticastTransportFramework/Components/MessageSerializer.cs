@@ -44,20 +44,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
             // Actually, BinaryPacket.SerializeToWriter takes both.
             // We should pass the integrity key from the CurrentSession if available.
 
-            byte[]? integrityKey = keySession?.IntegrityKey.Memory.ToArray();
+            ReadOnlySpan<byte> integrityKey = keySession != null ? keySession.IntegrityKey.Memory.Span : default;
 
-            try
-            {
-                BinaryPacket.SerializeToWriter(writer, message, integrityKey,
-                     message.IsEncrypted ? (EncryptorDelegate?)keySession!.Encrypt : null,
-                     _jsonOptions);
-            }
-            finally
-            {
-                // Clean up sensitive key copy if possible, though ToArray() created a new copy on heap that GC handles.
-                // Ideally we'd use Spans throughout but BinaryPacket takes byte[] for integrityKey for now.
-                if (integrityKey != null) Array.Clear(integrityKey, 0, integrityKey.Length);
-            }
+            BinaryPacket.SerializeToWriter(writer, message, integrityKey,
+                    message.IsEncrypted ? (EncryptorDelegate?)keySession!.Encrypt : null,
+                    _jsonOptions);
         }
 
         public TransportMessage? Deserialize(SocketMessage msg, SecurityHandler security)
@@ -72,39 +63,30 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
                     var current = security.CurrentSession;
                     var previous = security.PreviousSession;
 
-                    // Helper to convert Memory<byte> to byte[] temporarily for the API
-                    // In a future refactor, BinaryPacket should take ReadOnlySpan<byte> for key.
-                    byte[]? currentIntKey = current?.IntegrityKey.Memory.ToArray();
-                    byte[]? previousIntKey = previous?.IntegrityKey.Memory.ToArray();
+                    // Pass ReadOnlySpan<byte> directly to avoid allocation
+                    ReadOnlySpan<byte> currentIntKey = current != null ? current.IntegrityKey.Memory.Span : default;
+                    ReadOnlySpan<byte> previousIntKey = previous != null ? previous.IntegrityKey.Memory.Span : default;
 
                     try
                     {
-                        try
+                         tMessage = BinaryPacket.Deserialize(
+                            msg.Data.AsSpan(0, msg.Length),
+                            _jsonOptions,
+                            current != null ? (DecryptorDelegate?)current.Decrypt : null,
+                            currentIntKey);
+                    }
+                    catch (System.Security.Authentication.AuthenticationException)
+                    {
+                        // Try previous key if available
+                        if (previous != null)
                         {
-                             tMessage = BinaryPacket.Deserialize(
+                            tMessage = BinaryPacket.Deserialize(
                                 msg.Data.AsSpan(0, msg.Length),
                                 _jsonOptions,
-                                current != null ? (DecryptorDelegate?)current.Decrypt : null,
-                                currentIntKey);
+                                (DecryptorDelegate?)previous.Decrypt,
+                                previousIntKey);
                         }
-                        catch (System.Security.Authentication.AuthenticationException)
-                        {
-                            // Try previous key if available
-                            if (previous != null)
-                            {
-                                tMessage = BinaryPacket.Deserialize(
-                                    msg.Data.AsSpan(0, msg.Length),
-                                    _jsonOptions,
-                                    (DecryptorDelegate?)previous.Decrypt,
-                                    previousIntKey);
-                            }
-                            else throw;
-                        }
-                    }
-                    finally
-                    {
-                        if (currentIntKey != null) Array.Clear(currentIntKey, 0, currentIntKey.Length);
-                        if (previousIntKey != null) Array.Clear(previousIntKey, 0, previousIntKey.Length);
+                        else throw;
                     }
                 }
                 catch (Exception ex)

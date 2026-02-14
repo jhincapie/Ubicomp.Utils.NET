@@ -50,6 +50,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         }
 
         public static TransportMessage? Deserialize(ReadOnlySpan<byte> buffer, JsonSerializerOptions jsonOptions, DecryptorDelegate? decryptor, byte[]? integrityKey)
+            => Deserialize(buffer, jsonOptions, decryptor, integrityKey.AsSpan());
+
+        public static TransportMessage? Deserialize(ReadOnlySpan<byte> buffer, JsonSerializerOptions jsonOptions, DecryptorDelegate? decryptor, ReadOnlySpan<byte> integrityKey)
         {
             if (buffer.Length < 61)
                 return null;
@@ -106,7 +109,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             else
             {
                 // Integrity check for unencrypted messages
-                if (integrityKey != null && integrityKey.Length > 0 && tagLen > 0)
+                if (!integrityKey.IsEmpty && tagLen > 0)
                 {
                     if (offset + tagLen > buffer.Length)
                         return null;
@@ -148,6 +151,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         }
 
         public static void SerializeToWriter(IBufferWriter<byte> writer, TransportMessage message, byte[]? integrityKey, EncryptorDelegate? encryptor, JsonSerializerOptions? jsonOptions = null)
+            => SerializeToWriter(writer, message, integrityKey.AsSpan(), encryptor, jsonOptions);
+
+        public static void SerializeToWriter(IBufferWriter<byte> writer, TransportMessage message, ReadOnlySpan<byte> integrityKey, EncryptorDelegate? encryptor, JsonSerializerOptions? jsonOptions = null)
         {
             // Calculate sizes
             string type = message.MessageType;
@@ -164,7 +170,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             // Native GCM: Nonce=12, Tag=16
             // HMAC-SHA256: Nonce=0, Tag=32
             int nonceLen = isEncrypted ? 12 : 0;
-            int tagLen = isEncrypted ? 16 : (integrityKey != null && integrityKey.Length > 0 ? 32 : 0);
+            int tagLen = isEncrypted ? 16 : (!integrityKey.IsEmpty ? 32 : 0);
 
             // Header: 61 bytes fixed + variable strings
             int headerFixedSize = 61;
@@ -251,7 +257,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             else
             {
                 // Plaintext Payload
-                if (integrityKey != null && integrityKey.Length > 0)
+                if (!integrityKey.IsEmpty)
                 {
                     // If integrity key is present, we need payload bytes for HMAC
                     byte[] payloadBytes;
