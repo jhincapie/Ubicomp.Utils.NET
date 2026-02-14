@@ -49,6 +49,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         // Replay Protection
         private readonly ConcurrentDictionary<Guid, DateTime> _seenMessages = new ConcurrentDictionary<Guid, DateTime>();
         private DateTime _lastCleanupTime = DateTime.MinValue;
+        private int _currentReplayCount = 0;
 
         private readonly JsonSerializerOptions _jsonOptions;
 
@@ -102,6 +103,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// Defaults to 10000 messages.
         /// </summary>
         public int MaxQueueSize { get; set; } = 10000;
+
+        /// <summary>
+        /// Gets or sets the maximum number of message IDs to store in the replay protection cache.
+        /// Defaults to 100,000 entries to prevent memory exhaustion DoS attacks.
+        /// </summary>
+        public int MaxReplayCacheSize { get; set; } = 100000;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TransportComponent"/> class.
@@ -587,6 +594,22 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 return;
             }
 
+            // Periodic cleanup (fire and forget) or if full
+            if ((DateTime.UtcNow - _lastCleanupTime).TotalMinutes > 1 ||
+                (_currentReplayCount >= MaxReplayCacheSize && (DateTime.UtcNow - _lastCleanupTime).TotalSeconds > 5))
+            {
+                _lastCleanupTime = DateTime.UtcNow;
+                Task.Run(() => CleanupSeenMessages());
+            }
+
+            if (_currentReplayCount >= MaxReplayCacheSize)
+            {
+                Logger.LogWarning("Replay protection cache full ({0} entries). Dropping message {1} to prevent DoS.",
+                    _currentReplayCount,
+                    tMessage.MessageId);
+                return;
+            }
+
             // 2. Replay Protection Check - Atomically try to add. If it fails, it's a duplicate.
             // Using UtcNow for consistency across timezones.
             if (!_seenMessages.TryAdd(tMessage.MessageId, DateTime.UtcNow.AddMinutes(6)))
@@ -594,13 +617,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 Logger.LogWarning("Duplicate message detected (Replay Attack Prevention): {0}", tMessage.MessageId);
                 return;
             }
-
-            // Periodic cleanup (fire and forget)
-            if ((DateTime.UtcNow - _lastCleanupTime).TotalMinutes > 1)
-            {
-                _lastCleanupTime = DateTime.UtcNow;
-                Task.Run(() => CleanupSeenMessages());
-            }
+            Interlocked.Increment(ref _currentReplayCount);
 
             // 3. Payload Deserialization
             if (tMessage.MessageData is JsonElement element)
@@ -665,7 +682,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             {
                 if (kvp.Value < now)
                 {
-                    _seenMessages.TryRemove(kvp.Key, out _);
+                    if (_seenMessages.TryRemove(kvp.Key, out _))
+                    {
+                        Interlocked.Decrement(ref _currentReplayCount);
+                    }
                 }
             }
         }
