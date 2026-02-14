@@ -183,7 +183,10 @@ namespace Ubicomp.Utils.NET.Tests
             var seenMessages = (System.Collections.Concurrent.ConcurrentDictionary<Guid, DateTime>)seenMessagesField.GetValue(transport);
             seenMessages.TryAdd(msgId, DateTime.UtcNow.AddMinutes(1)); // Already seen
 
-            var payload = new { Data = "explode" };
+            var payload = new
+            {
+                Data = "explode"
+            };
             var tMsg = new TransportMessage(
                 new EventSource(Guid.NewGuid(), "Attacker"),
                 "test.bomb",
@@ -206,8 +209,10 @@ namespace Ubicomp.Utils.NET.Tests
             bool sawBoom = false;
             foreach (var log in logger.Logs)
             {
-                if (log.Contains("BOOM! Payload Deserialized!")) sawBoom = true;
-                if (log.Contains("Failed to deserialize message content")) sawBoom = true;
+                if (log.Contains("BOOM! Payload Deserialized!"))
+                    sawBoom = true;
+                if (log.Contains("Failed to deserialize message content"))
+                    sawBoom = true;
             }
 
             if (sawBoom)
@@ -229,7 +234,10 @@ namespace Ubicomp.Utils.NET.Tests
 
             var msgId = Guid.NewGuid();
 
-            var payload = new { Data = "explode" };
+            var payload = new
+            {
+                Data = "explode"
+            };
             var tMsg = new TransportMessage(
                 new EventSource(Guid.NewGuid(), "Attacker"),
                 "test.bomb",
@@ -252,8 +260,10 @@ namespace Ubicomp.Utils.NET.Tests
             bool sawBoom = false;
             foreach (var log in logger.Logs)
             {
-                if (log.Contains("BOOM! Payload Deserialized!")) sawBoom = true;
-                if (log.Contains("Failed to deserialize message content")) sawBoom = true;
+                if (log.Contains("BOOM! Payload Deserialized!"))
+                    sawBoom = true;
+                if (log.Contains("Failed to deserialize message content"))
+                    sawBoom = true;
             }
 
             if (sawBoom)

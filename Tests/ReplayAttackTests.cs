@@ -107,5 +107,67 @@ namespace Ubicomp.Utils.NET.Tests
             }
             Assert.True(foundWarning, "Expected warning about duplicate message not found.");
         }
+
+        [Fact]
+        public void TestReplayAttack_CacheSizeLimit()
+        {
+            // Arrange
+            var options = MulticastSocketOptions.LocalNetwork();
+            var transport = new TransportComponent(options);
+            var logger = new TestLogger();
+            transport.Logger = logger;
+            transport.EnforceOrdering = false; // Direct processing
+            transport.MaxReplayCacheSize = 10; // Small limit for testing
+
+            int handlerCallCount = 0;
+            transport.RegisterHandler<ReplayTestMessage>((msg, ctx) =>
+            {
+                handlerCallCount++;
+            });
+
+            var source = new EventSource(Guid.NewGuid(), "TestSender");
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true
+            };
+
+            var processMethod = typeof(TransportComponent).GetMethod("ProcessSingleMessage", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.NotNull(processMethod);
+
+            // Act - Send 15 unique messages (limit is 10)
+            for (int i = 0; i < 15; i++)
+            {
+                var payload = new ReplayTestMessage { Data = $"Message {i}" };
+                var tMsg = new TransportMessage(source, "test.replay", payload)
+                {
+                    MessageId = Guid.NewGuid(),
+                    TimeStamp = DateTime.UtcNow.ToString(TransportMessage.DATE_FORMAT_NOW)
+                };
+
+                var json = JsonSerializer.Serialize(tMsg, jsonOptions);
+                var bytes = Encoding.UTF8.GetBytes(json);
+                var socketMsg = new SocketMessage(bytes, i + 1);
+
+                processMethod.Invoke(transport, new object[] { socketMsg });
+            }
+
+            // Assert
+            // First 10 messages should be processed.
+            // Messages 11-15 should be dropped because the cache is full and they are unique.
+            Assert.Equal(10, handlerCallCount);
+
+            // Verify Log Warning
+            bool foundWarning = false;
+            foreach (var log in logger.Logs)
+            {
+                if (log.Contains("Replay protection cache full"))
+                {
+                    foundWarning = true;
+                    break;
+                }
+            }
+            Assert.True(foundWarning, "Expected warning about cache full not found.");
+        }
     }
 }
