@@ -22,7 +22,9 @@
 *   **Memory Management**:
     *   Uses `ArrayPool<byte>.Shared` to rent buffers for `ReceiveFromAsync`.
     *   Uses `ObjectPool<SocketMessage>` to reuse message envelopes.
-    *   **Zero-Copy**: Passes `Memory<byte>` slices to consumers.
+    *   **Buffer Strategy**:
+        *   **Small Packets (< 1024 bytes)**: Copied to exact-sized arrays; large rented buffer returned immediately.
+        *   **Large Packets**: Passed as zero-copy `Memory<byte>` slices from rented buffers. Consumers MUST dispose `SocketMessage` to return these to the pool.
 
 ### 3. `MulticastSocketOptions`
 *   **Configuration**: Stores IP, Port, TTL, Buffer Sizes.
@@ -35,7 +37,7 @@
 
 ### Do's
 *   **Do** use `GetMessageStream()` for consuming messages. It handles backpressure via the bounded channel.
-*   **Do** explicitly dispose `SocketMessage` (or use `using`) to return buffers to the shared pool.
+*   **Do** explicitly dispose `SocketMessage` (or use `using`) to return the message envelope (and underlying buffer for large packets) to the shared pool.
 *   **Do** use `MulticastSocketOptions` factory methods instead of the constructor.
 *   **Do** prefer `SendAsync(ReadOnlyMemory<byte>)` for high-performance sending.
 *   **Do** dispose the socket to release the port and stop the background loop.

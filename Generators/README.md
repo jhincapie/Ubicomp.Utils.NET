@@ -5,7 +5,7 @@ The **Generators** project contains Roslyn Source Generators to automate boilerp
 ## Features
 
 ### Auto-Discovery of Message Types
-The `MessageTypeGenerator` scans your code for classes decorated with `[MessageType("id")]`. It generates an extension method `RegisterDiscoveredMessages` on `TransportComponent`.
+The `MessageTypeGenerator` scans your code for classes decorated with `[MessageType("id")]`. It generates an extension method `RegisterDiscoveredMessages` on `TransportComponent`. This ensures that the framework can deserialize incoming messages of these types, even if no explicit handler is registered (e.g., when observing the raw message stream).
 
 **Input Code:**
 ```csharp

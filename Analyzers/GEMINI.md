@@ -8,6 +8,7 @@
     *   **ID**: `UBI001`
     *   **Severity**: Error
     *   **Logic**: Inspects invocations of `SendAsync<T>`. Checks if `T` has `[MessageType]`.
+    *   **Goal**: Prevent runtime errors where messages cannot be routed or deserialized due to missing metadata.
 
 ## Do's and Don'ts
 *   **Do** keep analyzers lightweight to avoid slowing down the IDE.

@@ -64,7 +64,7 @@ public class RoomTemperature : IEntity, INotifyPropertyChanged
 // 2. Define Monitor
 public class TempSensorMonitor : ContextMonitor
 {
-    public TempSensorMonitor() : base("TempSensor")
+    public TempSensorMonitor()
     {
         // Configure update strategy
         UpdateType = ContextAdapterUpdateType.Interval;
@@ -79,19 +79,20 @@ public class TempSensorMonitor : ContextMonitor
     protected override void CustomRun()
     {
         // This runs on a background thread every 1000ms
-        NotifyContextServices("TempSensor", new RoomTemperature { Value = 22.5 });
+        var reading = new RoomTemperature { Value = 22.5 };
+        NotifyContextServices(this, new NotifyContextMonitorListenersEventArgs(typeof(RoomTemperature), reading));
     }
 }
 
 // 3. Define Service
 public class HVACService : ContextService
 {
-    public HVACService() : base("HVACService") { }
+    public HVACService() { }
 
-    public override void UpdateMonitorReading(object sender, NotifyContextMonitorListenersEventArgs e)
+    protected override void CustomUpdateMonitorReading(object sender, NotifyContextMonitorListenersEventArgs e)
     {
         // IMPORTANT: This runs on the Monitor's background thread!
-        if (e.MonitorId == "TempSensor" && e.ContextData is RoomTemperature temp)
+        if (e.NewObject is RoomTemperature temp)
         {
             Console.WriteLine($"Current Temp: {temp.Value}");
         }
