@@ -42,7 +42,10 @@ namespace Ubicomp.Utils.NET.Tests.Components
 
         private class TestData
         {
-            public string Value { get; set; }
+            public string Value
+            {
+                get; set;
+            }
         }
 
 

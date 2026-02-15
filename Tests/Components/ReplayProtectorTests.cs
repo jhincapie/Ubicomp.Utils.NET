@@ -72,38 +72,39 @@ namespace Ubicomp.Utils.NET.Tests.Components
         [Fact]
         public void Cleanup_RemovesStaleWindows()
         {
-             // This is hard to test directly without mocking ReplayWindow or injecting time?
-             // ReplayProtector uses _replayProtection which is private.
-             // And ReplayWindow uses DateTime.UtcNow internally.
-             // I can rely on reflection or exposed properties if any.
-             // But ReplayWindow is internal.
+            // This is hard to test directly without mocking ReplayWindow or injecting time?
+            // ReplayProtector uses _replayProtection which is private.
+            // And ReplayWindow uses DateTime.UtcNow internally.
+            // I can rely on reflection or exposed properties if any.
+            // But ReplayWindow is internal.
 
-             // I'll skip deep verifying "Cleanup" side effects for now unless I make _replayProtection internal/protected?
-             // Or verify via behavior (e.g. CheckAckRateLimit resets)?
+            // I'll skip deep verifying "Cleanup" side effects for now unless I make _replayProtection internal/protected?
+            // Or verify via behavior (e.g. CheckAckRateLimit resets)?
 
-             // If window is removed, CheckAckRateLimit returns true (default).
-             // So:
-             // 1. Create window, exhaust rate limit -> returns false.
-             // 2. Wait for cleanup? (Takes 5 minutes + heartbeat interval). Too long.
-             // 3. I can use reflection to set LastActivity on the internal window?
+            // If window is removed, CheckAckRateLimit returns true (default).
+            // So:
+            // 1. Create window, exhaust rate limit -> returns false.
+            // 2. Wait for cleanup? (Takes 5 minutes + heartbeat interval). Too long.
+            // 3. I can use reflection to set LastActivity on the internal window?
 
-             // Actually, I can rely on implementation details or mock ILogger to see if it logs anything?
-             // ReplayProtector.Cleanup doesn't log on removal.
+            // Actually, I can rely on implementation details or mock ILogger to see if it logs anything?
+            // ReplayProtector.Cleanup doesn't log on removal.
 
-             // I will leave this test as a TODO or use reflection if critical.
-             // Given "Intensive set of tests", I should try.
+            // I will leave this test as a TODO or use reflection if critical.
+            // Given "Intensive set of tests", I should try.
 
-             var protector = new ReplayProtector(NullLogger.Instance);
-             var sourceId = Guid.NewGuid();
-             protector.IsValid(new TransportMessage(new EventSource(sourceId, "Test"), "t", "d") { SenderSequenceNumber = 1 }, out _);
+            var protector = new ReplayProtector(NullLogger.Instance);
+            var sourceId = Guid.NewGuid();
+            protector.IsValid(new TransportMessage(new EventSource(sourceId, "Test"), "t", "d") { SenderSequenceNumber = 1 }, out _);
 
-             // Exhaust rate limit
-             for(int i=0; i<15; i++) protector.CheckAckRateLimit(sourceId);
-             Assert.False(protector.CheckAckRateLimit(sourceId)); // Confirm exhausted
+            // Exhaust rate limit
+            for (int i = 0; i < 15; i++)
+                protector.CheckAckRateLimit(sourceId);
+            Assert.False(protector.CheckAckRateLimit(sourceId)); // Confirm exhausted
 
-             // Now I want to simulate time passing.
-             // Since I can't inject time provider into ReplayWindow (it uses DateTime.UtcNow), I can't easily test Cleanup without refactoring ReplayWindow.
-             // I will accept this limitation and test what I can.
+            // Now I want to simulate time passing.
+            // Since I can't inject time provider into ReplayWindow (it uses DateTime.UtcNow), I can't easily test Cleanup without refactoring ReplayWindow.
+            // I will accept this limitation and test what I can.
         }
     }
 }

@@ -1,9 +1,9 @@
 using System;
 using System.Buffers;
+using Microsoft.Extensions.Logging.Abstractions;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
 using Ubicomp.Utils.NET.MulticastTransportFramework.Components;
 using Xunit;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ubicomp.Utils.NET.Tests
 {

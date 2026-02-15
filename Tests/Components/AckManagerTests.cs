@@ -71,9 +71,9 @@ namespace Ubicomp.Utils.NET.Tests.Components
 
             // 5. Rate Limit Exceeded
             // We have 9 tokens left. Consume them.
-            for(int i=0; i<9; i++)
+            for (int i = 0; i < 9; i++)
             {
-                 Assert.True(manager.ShouldAutoSendAck(msg, protector));
+                Assert.True(manager.ShouldAutoSendAck(msg, protector));
             }
             // Now 0 tokens. Next should fail.
             Assert.False(manager.ShouldAutoSendAck(msg, protector));

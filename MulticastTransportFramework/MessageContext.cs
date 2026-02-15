@@ -12,10 +12,16 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private readonly long _ticks;
 
         /// <summary>Gets the unique identifier of the message.</summary>
-        public Guid MessageId { get; }
+        public Guid MessageId
+        {
+            get;
+        }
 
         /// <summary>Gets the source of the message.</summary>
-        public EventSource Source { get; }
+        public EventSource Source
+        {
+            get;
+        }
 
         /// <summary>Gets the timestamp when the message was sent.</summary>
         public string Timestamp
@@ -31,7 +37,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         }
 
         /// <summary>Gets a value indicating whether an acknowledgement was requested.</summary>
-        public bool RequestAck { get; }
+        public bool RequestAck
+        {
+            get;
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="MessageContext"/> class using raw ticks.

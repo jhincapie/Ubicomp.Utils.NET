@@ -12,7 +12,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
         private ILogger _logger;
         private string? _securityKey;
 
-        public bool EncryptionEnabled { get; set; }
+        public bool EncryptionEnabled
+        {
+            get; set;
+        }
 
         public ILogger Logger
         {
@@ -66,7 +69,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
 
         public void HandleRekey(string newKey)
         {
-             _keyManager.SetKey(newKey, retainPrevious: true);
+            _keyManager.SetKey(newKey, retainPrevious: true);
         }
 
         public void ClearPreviousKey() => _keyManager.ClearPreviousKey();
