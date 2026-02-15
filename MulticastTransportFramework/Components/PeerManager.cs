@@ -14,13 +14,22 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
         private readonly PeerTable _peerTable = new PeerTable();
         private ILogger _logger;
 
-        public ILogger Logger { get => _logger; set => _logger = value ?? NullLogger.Instance; }
+        public ILogger Logger
+        {
+            get => _logger; set => _logger = value ?? NullLogger.Instance;
+        }
 
         private CancellationTokenSource? _heartbeatCts;
         private Task? _heartbeatTask;
 
-        public TimeSpan? HeartbeatInterval { get; set; }
-        public string? InstanceMetadata { get; set; }
+        public TimeSpan? HeartbeatInterval
+        {
+            get; set;
+        }
+        public string? InstanceMetadata
+        {
+            get; set;
+        }
 
         public IEnumerable<RemotePeer> ActivePeers => _peerTable.GetActivePeers();
 
@@ -113,7 +122,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
 
         public void HandleHeartbeat(HeartbeatMessage msg, string localResourceId)
         {
-             if (msg.SourceId == localResourceId)
+            if (msg.SourceId == localResourceId)
                 return; // Ignore self
 
             _peerTable.UpdatePeer(msg.SourceId, msg.DeviceName, msg.Metadata);

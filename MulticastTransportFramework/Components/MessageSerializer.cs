@@ -6,8 +6,8 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Ubicomp.Utils.NET.Sockets;
 using Ubicomp.Utils.NET.MulticastTransportFramework;
+using Ubicomp.Utils.NET.Sockets;
 
 namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
 {
@@ -16,7 +16,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
         private readonly JsonSerializerOptions _jsonOptions;
         private ILogger _logger;
 
-        public ILogger Logger { get => _logger; set => _logger = value ?? NullLogger.Instance; }
+        public ILogger Logger
+        {
+            get => _logger; set => _logger = value ?? NullLogger.Instance;
+        }
 
         public MessageSerializer(ILogger logger)
         {
@@ -69,11 +72,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
 
                     try
                     {
-                         tMessage = BinaryPacket.Deserialize(
-                            msg.Data.AsSpan(0, msg.Length),
-                            _jsonOptions,
-                            current != null ? (DecryptorDelegate?)current.Decrypt : null,
-                            currentIntKey);
+                        tMessage = BinaryPacket.Deserialize(
+                           msg.Data.AsSpan(0, msg.Length),
+                           _jsonOptions,
+                           current != null ? (DecryptorDelegate?)current.Decrypt : null,
+                           currentIntKey);
                     }
                     catch (System.Security.Authentication.AuthenticationException)
                     {
@@ -86,13 +89,14 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
                                 (DecryptorDelegate?)previous.Decrypt,
                                 previousIntKey);
                         }
-                        else throw;
+                        else
+                            throw;
                     }
                 }
                 catch (Exception ex)
                 {
-                     _logger.LogError(ex, "Failed to deserialize binary packet.");
-                     throw; // Propagate for handling/logging upstack (OnMessageError)
+                    _logger.LogError(ex, "Failed to deserialize binary packet.");
+                    throw; // Propagate for handling/logging upstack (OnMessageError)
                 }
             }
             else
@@ -110,11 +114,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
         {
             if (tMessage.MessageData is JsonElement element)
             {
-                 tMessage.MessageData = JsonSerializer.Deserialize(element, targetType, _jsonOptions)!;
+                tMessage.MessageData = JsonSerializer.Deserialize(element, targetType, _jsonOptions)!;
             }
             else if (tMessage.MessageData is string jsonString)
             {
-                 tMessage.MessageData = JsonSerializer.Deserialize(jsonString, targetType, _jsonOptions)!;
+                tMessage.MessageData = JsonSerializer.Deserialize(jsonString, targetType, _jsonOptions)!;
             }
         }
 

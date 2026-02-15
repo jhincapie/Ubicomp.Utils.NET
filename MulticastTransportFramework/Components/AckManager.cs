@@ -12,7 +12,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
         private readonly ConcurrentDictionary<Guid, AckSession> _activeSessions = new ConcurrentDictionary<Guid, AckSession>();
         private ILogger _logger;
 
-        public ILogger Logger { get => _logger; set => _logger = value ?? NullLogger.Instance; }
+        public ILogger Logger
+        {
+            get => _logger; set => _logger = value ?? NullLogger.Instance;
+        }
 
         public TimeSpan DefaultAckTimeout { get; set; } = TimeSpan.FromSeconds(5);
         public bool AutoSendAcks { get; set; } = false;
@@ -51,9 +54,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
 
         public bool ShouldAutoSendAck(TransportMessage message, ReplayProtector replayProtector)
         {
-            if (!AutoSendAcks) return false;
-            if (!message.RequestAck) return false;
-            if (message.MessageType == TransportComponent.AckMessageType) return false;
+            if (!AutoSendAcks)
+                return false;
+            if (!message.RequestAck)
+                return false;
+            if (message.MessageType == TransportComponent.AckMessageType)
+                return false;
 
             if (replayProtector.CheckAckRateLimit(message.MessageSource.ResourceId))
             {

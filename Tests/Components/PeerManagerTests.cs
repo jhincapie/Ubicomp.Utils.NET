@@ -24,7 +24,8 @@ namespace Ubicomp.Utils.NET.Tests.Components
             manager.Start(async msg =>
             {
                 Interlocked.Increment(ref sentCount);
-                if (sentCount >= 2) tcs.TrySetResult(true);
+                if (sentCount >= 2)
+                    tcs.TrySetResult(true);
                 await Task.CompletedTask;
             }, localSource.ResourceId.ToString(), localSource.ResourceName);
 

@@ -118,8 +118,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     var payloadSpan = buffer.Slice(offset + tagLen);
 
                     // Compute HMAC
-                    byte[] computedHash = System.Security.Cryptography.HMACSHA256.HashData(integrityKey, payloadSpan);
-                    if (!computedHash.AsSpan().SequenceEqual(tagSpan))
+                    Span<byte> computedHash = stackalloc byte[32];
+                    int written = System.Security.Cryptography.HMACSHA256.HashData(integrityKey, payloadSpan, computedHash);
+                    if (!computedHash.Slice(0, written).SequenceEqual(tagSpan))
                     {
                         throw new System.Security.Authentication.AuthenticationException("Integrity check failed.");
                     }
@@ -129,7 +130,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 else
                 {
                     // No integrity check or no tag
-                    if (offset > buffer.Length) return null;
+                    if (offset > buffer.Length)
+                        return null;
                     var payloadSlice = buffer.Slice(offset);
                     messageData = JsonSerializer.Deserialize<System.Text.Json.JsonElement>(payloadSlice, jsonOptions);
                 }
@@ -207,7 +209,8 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             // Timestamp (8) - Ticks
             long ticks = message.Ticks;
-            if (ticks == 0) ticks = DateTime.UtcNow.Ticks;
+            if (ticks == 0)
+                ticks = DateTime.UtcNow.Ticks;
             BinaryPrimitives.WriteInt64LittleEndian(headerSpan.Slice(52), ticks);
 
             // TypeLen (1)
@@ -275,8 +278,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                         payloadBytes = JsonSerializer.SerializeToUtf8Bytes(message.MessageData, jsonOptions);
 
                     // Compute HMAC
-                    byte[] hash = System.Security.Cryptography.HMACSHA256.HashData(integrityKey, payloadBytes);
-                    writer.Write(hash); // 32 bytes
+                    var hashSpan = writer.GetSpan(32);
+                    int written = System.Security.Cryptography.HMACSHA256.HashData(integrityKey, payloadBytes, hashSpan);
+                    writer.Advance(written);
                     writer.Write(payloadBytes);
                 }
                 else

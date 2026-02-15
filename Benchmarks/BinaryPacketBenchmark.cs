@@ -13,10 +13,15 @@ namespace Benchmarks
         private TransportMessage _message;
         private JsonSerializerOptions _jsonOptions;
         private System.Buffers.ArrayBufferWriter<byte> _writer;
+        private byte[] _integrityKey;
+        private byte[] _serializedWithIntegrity;
 
         [GlobalSetup]
         public void Setup()
         {
+            _integrityKey = new byte[32];
+            new Random().NextBytes(_integrityKey);
+
             var payload = new BenchmarkPayload
             {
                 Id = 123,
@@ -41,6 +46,10 @@ namespace Benchmarks
             };
 
             _writer = new System.Buffers.ArrayBufferWriter<byte>();
+
+            // Pre-serialize for deserialization benchmark
+            BinaryPacket.SerializeToWriter(_writer, _message, _integrityKey, (Ubicomp.Utils.NET.MulticastTransportFramework.EncryptorDelegate?)null, _jsonOptions);
+            _serializedWithIntegrity = _writer.WrittenSpan.ToArray();
         }
 
         [Benchmark]
@@ -49,6 +58,20 @@ namespace Benchmarks
             _writer.Clear();
             _message.SenderSequenceNumber = 1;
             BinaryPacket.SerializeToWriter(_writer, _message, (byte[]?)null, (Ubicomp.Utils.NET.MulticastTransportFramework.EncryptorDelegate?)null, _jsonOptions);
+        }
+
+        [Benchmark]
+        public void SerializeWithIntegrity()
+        {
+            _writer.Clear();
+            _message.SenderSequenceNumber = 1;
+            BinaryPacket.SerializeToWriter(_writer, _message, _integrityKey, (Ubicomp.Utils.NET.MulticastTransportFramework.EncryptorDelegate?)null, _jsonOptions);
+        }
+
+        [Benchmark]
+        public void DeserializeWithIntegrity()
+        {
+            BinaryPacket.Deserialize(_serializedWithIntegrity, _jsonOptions, (Ubicomp.Utils.NET.MulticastTransportFramework.DecryptorDelegate?)null, _integrityKey);
         }
     }
 }

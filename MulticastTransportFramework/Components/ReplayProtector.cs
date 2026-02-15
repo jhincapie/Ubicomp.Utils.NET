@@ -11,7 +11,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework.Components
         private readonly ConcurrentDictionary<Guid, ReplayWindow> _replayProtection = new ConcurrentDictionary<Guid, ReplayWindow>();
         private ILogger _logger;
 
-        public ILogger Logger { get => _logger; set => _logger = value ?? NullLogger.Instance; }
+        public ILogger Logger
+        {
+            get => _logger; set => _logger = value ?? NullLogger.Instance;
+        }
 
         public TimeSpan ReplayWindowDuration { get; set; } = TimeSpan.FromSeconds(5);
 
