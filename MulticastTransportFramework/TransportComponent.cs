@@ -51,6 +51,12 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private DateTime _lastCleanupTime = DateTime.MinValue;
         private int _currentReplayCount = 0;
 
+        // Log Throttling
+        private DateTime _lastCacheFullLog = DateTime.MinValue;
+        private int _suppressedCacheFullLogs = 0;
+        private DateTime _lastDuplicateLog = DateTime.MinValue;
+        private int _suppressedDuplicateLogs = 0;
+
         private readonly JsonSerializerOptions _jsonOptions;
 
         // Lock-Free Actor Model Channels
@@ -604,9 +610,23 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
             if (_currentReplayCount >= MaxReplayCacheSize)
             {
-                Logger.LogWarning("Replay protection cache full ({0} entries). Dropping message {1} to prevent DoS.",
-                    _currentReplayCount,
-                    tMessage.MessageId);
+                var now = DateTime.UtcNow;
+                if ((now - _lastCacheFullLog).TotalSeconds >= 5)
+                {
+                    _lastCacheFullLog = now;
+                    if (_suppressedCacheFullLogs > 0)
+                        Logger.LogWarning("Replay protection cache full ({0} entries). Dropping message {1} to prevent DoS. (Suppressed {2} similar logs)",
+                            _currentReplayCount, tMessage.MessageId, _suppressedCacheFullLogs);
+                    else
+                        Logger.LogWarning("Replay protection cache full ({0} entries). Dropping message {1} to prevent DoS.",
+                            _currentReplayCount, tMessage.MessageId);
+
+                    _suppressedCacheFullLogs = 0;
+                }
+                else
+                {
+                    Interlocked.Increment(ref _suppressedCacheFullLogs);
+                }
                 return;
             }
 
@@ -614,7 +634,22 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             // Using UtcNow for consistency across timezones.
             if (!_seenMessages.TryAdd(tMessage.MessageId, DateTime.UtcNow.AddMinutes(6)))
             {
-                Logger.LogWarning("Duplicate message detected (Replay Attack Prevention): {0}", tMessage.MessageId);
+                var now = DateTime.UtcNow;
+                if ((now - _lastDuplicateLog).TotalSeconds >= 5)
+                {
+                    _lastDuplicateLog = now;
+                    if (_suppressedDuplicateLogs > 0)
+                        Logger.LogWarning("Duplicate message detected (Replay Attack Prevention): {0}. (Suppressed {1} similar logs)",
+                            tMessage.MessageId, _suppressedDuplicateLogs);
+                    else
+                        Logger.LogWarning("Duplicate message detected (Replay Attack Prevention): {0}", tMessage.MessageId);
+
+                    _suppressedDuplicateLogs = 0;
+                }
+                else
+                {
+                    Interlocked.Increment(ref _suppressedDuplicateLogs);
+                }
                 return;
             }
             Interlocked.Increment(ref _currentReplayCount);
