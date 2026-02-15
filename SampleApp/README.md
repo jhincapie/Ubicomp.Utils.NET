@@ -24,6 +24,7 @@ dotnet run --project SampleApp/Ubicomp.Utils.NET.SampleApp.csproj -- [options]
 | `--ttl <value>` | Time-To-Live | `1` |
 | `--interface <ip>` | Bind to a specific NIC | Auto |
 | `--key <secret>` | Shared secret for encryption/integrity | None (Cleartext) |
+| `--no-encryption` | Disable encryption (integrity only) if key is present | `false` |
 | `--local` | Allow loopback (receive own messages) | `false` |
 | `--ack` | Send a test message requesting ACKs | `false` |
 | `--no-wait` | Exit after sending (don't block for ACKs) | `false` |

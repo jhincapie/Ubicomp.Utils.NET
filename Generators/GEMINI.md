@@ -10,7 +10,7 @@
     *   **Output**: Generates `TransportExtensions.g.cs` in `Ubicomp.Utils.NET.Generators.AutoDiscovery` namespace.
 
 ## Usage
-Referenced as an `Analyzer` by the `MulticastTransportFramework` or consumer projects.
+The generated `RegisterDiscoveredMessages` method is automatically located and invoked by `TransportBuilder` via reflection. This populates the internal type map (`_knownTypes`), allowing the `TransportComponent` to deserialize packet payloads into the correct CLR types before dispatching them.
 
 ## Do's and Don'ts
 *   **Do** ensure the generated code is efficient and valid C#.

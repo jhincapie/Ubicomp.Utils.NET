@@ -13,7 +13,7 @@
     *   `CustomRun()` is executed repeatedly on this background thread if `UpdateType` is `Continuous` or `Interval`.
     *   `NotifyContextServices` events are raised on this background thread.
 *   **Services**: Receive updates on the Monitor's background thread.
-    *   **CRITICAL**: `UpdateMonitorReading` is **not** marshalled to the UI thread. You must use `Dispatcher` or `MainThread` if updating UI elements.
+    *   **CRITICAL**: `CustomUpdateMonitorReading` is **not** marshalled to the UI thread. You must use `Dispatcher` or `MainThread` if updating UI elements.
 
 ## Key Components
 
@@ -31,6 +31,7 @@
 *   **Lifecycle**: Managed by `ContextServiceContainer`.
 *   **Threading**: Does **not** automatically marshal to UI thread.
 *   **Persistence**: Template methods for saving state (`ExecutePersist`, `PreparePersist`, `PersistEntities`).
+*   **Updates**: Override `CustomUpdateMonitorReading` to handle incoming data.
 
 ### 3. IEntity
 *   **Role**: Data Model.
@@ -46,7 +47,7 @@
 *   **Do** handle UI thread marshalling manually in your Service or View layer.
 
 ### Don'ts
-*   **Don't** perform heavy blocking operations in `UpdateMonitorReading` (it blocks the monitor thread).
+*   **Don't** perform heavy blocking operations in `CustomUpdateMonitorReading` (it blocks the monitor thread).
 *   **Don't** put business logic in `IEntity` classes.
 *   **Don't** call `Start()` or `Stop()` manually if using containers.
 

@@ -6,6 +6,7 @@ The **Analyzers** project contains Roslyn Analyzers to enforce best practices an
 
 ### UBI001: Missing MessageType Attribute
 *   **Severity**: Error
+*   **Status**: Primary (Supersedes legacy `UbicompNET001`)
 *   **Description**: Ensures that any type passed to `TransportComponent.SendAsync<T>` is decorated with the `[MessageType]` attribute.
 *   **Why**: The transport layer requires a unique string ID for routing. Without the attribute, the message cannot be routed correctly unless manually registered (which is error-prone).
 
