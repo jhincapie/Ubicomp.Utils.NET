@@ -225,35 +225,49 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             // Payload & Crypto
             if (isEncrypted && encryptor != null)
             {
-                // Prepare Payload for Encryption
-                byte[] payloadBytes;
+                using var pooledWriter = new PooledBufferWriter();
+                ReadOnlySpan<byte> payloadSpan;
+
                 if (message.MessageData is IBinarySerializable binarySerializable)
                 {
-                    var tempWriter = new ArrayBufferWriter<byte>();
-                    binarySerializable.Write(tempWriter);
-                    payloadBytes = tempWriter.WrittenSpan.ToArray();
+                    binarySerializable.Write(pooledWriter);
+                    payloadSpan = pooledWriter.WrittenSpan;
                 }
                 else if (message.MessageData is byte[] b)
-                    payloadBytes = b;
+                {
+                    payloadSpan = b;
+                }
                 else if (message.MessageData is string s)
-                    payloadBytes = Encoding.UTF8.GetBytes(s);
+                {
+                    int byteCount = Encoding.UTF8.GetByteCount(s);
+                    var span = pooledWriter.GetSpan(byteCount);
+                    int stringWritten = Encoding.UTF8.GetBytes(s, span);
+                    pooledWriter.Advance(stringWritten);
+                    payloadSpan = pooledWriter.WrittenSpan;
+                }
                 else
-                    payloadBytes = JsonSerializer.SerializeToUtf8Bytes(message.MessageData, jsonOptions);
+                {
+                    using (var jsonWriter = new Utf8JsonWriter(pooledWriter))
+                    {
+                        JsonSerializer.Serialize(jsonWriter, message.MessageData, jsonOptions);
+                    }
+                    payloadSpan = pooledWriter.WrittenSpan;
+                }
 
                 // Native GCM Encryption
-                int totalCryptoSize = nonceLen + tagLen + payloadBytes.Length;
+                int totalCryptoSize = nonceLen + tagLen + payloadSpan.Length;
                 Span<byte> cryptoSpan = writer.GetSpan(totalCryptoSize);
 
                 // Split spans
                 Span<byte> nonceSpan = cryptoSpan.Slice(0, nonceLen);
                 Span<byte> tagSpan = cryptoSpan.Slice(nonceLen, tagLen);
-                Span<byte> cipherSpan = cryptoSpan.Slice(nonceLen + tagLen, payloadBytes.Length);
+                Span<byte> cipherSpan = cryptoSpan.Slice(nonceLen + tagLen, payloadSpan.Length);
 
                 // Generate Nonce
                 System.Security.Cryptography.RandomNumberGenerator.Fill(nonceSpan);
 
                 // Encrypt directly into output span
-                encryptor(payloadBytes, cipherSpan, nonceSpan, tagSpan);
+                encryptor(payloadSpan, cipherSpan, nonceSpan, tagSpan);
 
                 writer.Advance(totalCryptoSize);
             }
@@ -262,26 +276,40 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 // Plaintext Payload
                 if (!integrityKey.IsEmpty)
                 {
-                    // If integrity key is present, we need payload bytes for HMAC
-                    byte[] payloadBytes;
+                    using var pooledWriter = new PooledBufferWriter();
+                    ReadOnlySpan<byte> payloadSpan;
+
                     if (message.MessageData is IBinarySerializable binarySerializable)
                     {
-                        var tempWriter = new ArrayBufferWriter<byte>();
-                        binarySerializable.Write(tempWriter);
-                        payloadBytes = tempWriter.WrittenSpan.ToArray();
+                        binarySerializable.Write(pooledWriter);
+                        payloadSpan = pooledWriter.WrittenSpan;
                     }
                     else if (message.MessageData is byte[] b)
-                        payloadBytes = b;
+                    {
+                        payloadSpan = b;
+                    }
                     else if (message.MessageData is string s)
-                        payloadBytes = Encoding.UTF8.GetBytes(s);
+                    {
+                        int byteCount = Encoding.UTF8.GetByteCount(s);
+                        var span = pooledWriter.GetSpan(byteCount);
+                        int stringWritten = Encoding.UTF8.GetBytes(s, span);
+                        pooledWriter.Advance(stringWritten);
+                        payloadSpan = pooledWriter.WrittenSpan;
+                    }
                     else
-                        payloadBytes = JsonSerializer.SerializeToUtf8Bytes(message.MessageData, jsonOptions);
+                    {
+                        using (var jsonWriter = new Utf8JsonWriter(pooledWriter))
+                        {
+                            JsonSerializer.Serialize(jsonWriter, message.MessageData, jsonOptions);
+                        }
+                        payloadSpan = pooledWriter.WrittenSpan;
+                    }
 
                     // Compute HMAC
                     var hashSpan = writer.GetSpan(32);
-                    int written = System.Security.Cryptography.HMACSHA256.HashData(integrityKey, payloadBytes, hashSpan);
-                    writer.Advance(written);
-                    writer.Write(payloadBytes);
+                    int hmacWritten = System.Security.Cryptography.HMACSHA256.HashData(integrityKey, payloadSpan, hashSpan);
+                    writer.Advance(hmacWritten);
+                    writer.Write(payloadSpan);
                 }
                 else
                 {
@@ -339,6 +367,69 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             string messageType = Encoding.UTF8.GetString(buffer.Slice(61, typeLen));
             header = new PacketHeader(senderSequenceNumber, ticks, messageType, sourceId);
             return true;
+        }
+
+        private sealed class PooledBufferWriter : IBufferWriter<byte>, IDisposable
+        {
+            private byte[]? _buffer;
+            private int _index;
+
+            public PooledBufferWriter(int initialCapacity = 256)
+            {
+                _buffer = ArrayPool<byte>.Shared.Rent(initialCapacity);
+                _index = 0;
+            }
+
+            public ReadOnlySpan<byte> WrittenSpan => new ReadOnlySpan<byte>(_buffer, 0, _index);
+
+            public void Advance(int count)
+            {
+                var buffer = _buffer;
+                if (buffer == null) throw new ObjectDisposedException(nameof(PooledBufferWriter));
+                if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
+                if (_index > buffer.Length - count) throw new InvalidOperationException("Cannot advance past end of buffer");
+                _index += count;
+            }
+
+            public Memory<byte> GetMemory(int sizeHint = 0)
+            {
+                CheckAndResizeBuffer(sizeHint);
+                var buffer = _buffer!;
+                return new Memory<byte>(buffer, _index, buffer.Length - _index);
+            }
+
+            public Span<byte> GetSpan(int sizeHint = 0)
+            {
+                CheckAndResizeBuffer(sizeHint);
+                var buffer = _buffer!;
+                return new Span<byte>(buffer, _index, buffer.Length - _index);
+            }
+
+            private void CheckAndResizeBuffer(int sizeHint)
+            {
+                var buffer = _buffer;
+                if (buffer == null) throw new ObjectDisposedException(nameof(PooledBufferWriter));
+                if (sizeHint < 0) throw new ArgumentOutOfRangeException(nameof(sizeHint));
+                if (sizeHint == 0) sizeHint = 256;
+
+                if (sizeHint > buffer.Length - _index)
+                {
+                    int newSize = Math.Max(_index + sizeHint, buffer.Length * 2);
+                    byte[] newBuffer = ArrayPool<byte>.Shared.Rent(newSize);
+                    buffer.AsSpan(0, _index).CopyTo(newBuffer);
+                    ArrayPool<byte>.Shared.Return(buffer);
+                    _buffer = newBuffer;
+                }
+            }
+
+            public void Dispose()
+            {
+                if (_buffer != null)
+                {
+                    ArrayPool<byte>.Shared.Return(_buffer);
+                    _buffer = null;
+                }
+            }
         }
     }
 }
