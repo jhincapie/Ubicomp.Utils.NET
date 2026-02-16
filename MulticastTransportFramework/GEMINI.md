@@ -18,9 +18,12 @@
     *   Integration of sub-components (`AckManager`, `PeerManager`, etc.).
 
 ### 2. Internal Components
-*   **`ReplayProtector`**:
-    *   **Function**: Prevents replay attacks and handles message deduplication.
-    *   **Mechanism**: Sliding window of sequence IDs + Timestamp validity check (5 min window).
+*   **`ReplayProtector`** (Component):
+    *   **Function**: Manages replay protection state for all remote sources.
+    *   **Mechanism**: Uses a `ConcurrentDictionary<Guid, ReplayWindow>` to track state per source.
+*   **`ReplayWindow`** (Logic):
+    *   **Function**: Implements the sliding window logic for a single source.
+    *   **Mechanism**: Sliding window of sequence IDs (64-bit mask) + Timestamp validity check.
 *   **`AckManager`**:
     *   **Function**: Manages reliability.
     *   **Mechanism**: Creates `AckSession` for outgoing messages with `RequestAck=true`. Automatically replies with `sys.ack` for incoming requests.
@@ -84,6 +87,10 @@ The default wire format is a custom binary protocol designed for compactness.
 *   `TransportComponent.cs`: Main class.
 *   `TransportBuilder.cs`: Fluent configuration.
 *   `TransportMessage.cs`: Message envelope.
-*   `PeerTable.cs`: Thread-safe peer tracking implementation.
-*   `Components/`: Internal logic (`AckManager`, `PeerManager`, `ReplayProtector`, `SecurityHandler`, `MessageSerializer`).
+*   `ReplayWindow.cs`: Sliding window logic for a single source.
+*   `Components/ReplayProtector.cs`: Component managing replay windows for all sources.
+*   `Components/AckManager.cs`: ACK logic.
+*   `Components/PeerManager.cs`: Peer discovery logic.
+*   `Components/SecurityHandler.cs`: Encryption and security logic.
+*   `Components/MessageSerializer.cs`: Serialization logic.
 *   `BinaryPacket.cs`: Protocol definition.

@@ -4,9 +4,9 @@ A testbed application for the **ContextAwarenessFramework**.
 
 ## Purpose
 Validates the Monitor-Service-Entity (MSE) pattern implementation.
-*   **Monitors**: Simulates context sensors (e.g., Simulated Location, Random Value Generator).
-*   **Services**: Tests the aggregation and logic layer.
-*   **Entities**: Verifies `INotifyPropertyChanged` behavior and data binding flow.
+*   **Monitors**: Uses `TestMonitor` to simulate context sensing and generate random test data.
+*   **Services**: Uses `TestService` to demonstrate data aggregation and event handling.
+*   **Entities**: Uses `TestEntity` to verify `INotifyPropertyChanged` behavior and data binding flow.
 
 ## Usage
 ```bash

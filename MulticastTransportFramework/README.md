@@ -5,7 +5,7 @@
 ## Key Features
 
 *   **Reliable Delivery**: Built-in acknowledgement (ACK) system (`AckSession`) for critical message delivery.
-*   **Replay Protection**: `ReplayProtector` protects against replay attacks and deduplicates messages within a sliding window.
+*   **Replay Protection**: `ReplayProtector` manages sliding windows (`ReplayWindow`) to protect against replay attacks and deduplicate messages.
 *   **Security**: Zero-conf encryption (**AES-GCM**) and integrity signing (**HMAC-SHA256**) derived from a shared secret. Also neutralizes Log Injection attacks by sanitizing inputs.
 *   **Optimized Protocol**: Uses a custom `BinaryPacket` format for reduced overhead (~66% smaller than JSON), with fallback to JSON for legacy clients.
 *   **Auto-Discovery**: Leverages Roslyn Source Generators to automatically register `[MessageType]` classes.
@@ -82,7 +82,7 @@ if (success)
 
 ### Components
 *   **`TransportComponent`**: The central facade. Manages the lifecycle and delegates to internal components.
-*   **`ReplayProtector`**: Validates message sequence numbers to prevent replay attacks and handles deduplication.
+*   **`ReplayProtector`**: Manages multiple `ReplayWindow` instances (one per source) to prevent replay attacks and deduplicate messages.
 *   **`AckManager`**: Handles reliable delivery sessions (`AckSession`) and automatic ACK responses.
 *   **`PeerManager`**: Tracks active peers via `HeartbeatMessage` and exposes `ActivePeers` property.
 *   **`SecurityHandler`**: Manages encryption/decryption, key rotation (`RekeyMessage`), and log sanitization.
