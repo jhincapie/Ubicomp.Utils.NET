@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Buffers;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -558,6 +559,44 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         {
             try
             {
+                bool isReplayChecked = false;
+
+                // Fast Path: Check headers without full deserialization or string allocation
+                if (TryReadHeader(msg.Data.AsSpan(0, msg.Length), out var msgId, out var timeStamp))
+                {
+                    // 1. Validate TimeStamp (Fast Path)
+                    if (timeStamp != null && DateTime.TryParseExact(timeStamp, TransportMessage.DATE_FORMAT_NOW, CultureInfo.InvariantCulture, DateTimeStyles.None, out var msgTime))
+                    {
+                        if (Math.Abs((DateTime.UtcNow - msgTime).TotalMinutes) > 5)
+                        {
+                            Logger.LogWarning("Dropped message {0} due to timestamp out of bounds (FastPath): {1}", msg.SequenceId, SanitizeLog(timeStamp));
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        Logger.LogWarning("Dropped message {0} due to invalid timestamp format (FastPath)", msg.SequenceId);
+                        return;
+                    }
+
+                    // 2. Replay Protection (Fast Path)
+                    if (msgId != Guid.Empty)
+                    {
+                        if (!TryRegisterMessage(msgId))
+                        {
+                            return;
+                        }
+                        isReplayChecked = true;
+                    }
+                }
+                else
+                {
+                    // If we can't read the header, it might be malformed or missing fields.
+                    // Strictly speaking, we should drop it.
+                    Logger.LogWarning("Dropped malformed message {0} (FastPath failed to read header)", msg.SequenceId);
+                    return;
+                }
+
                 string sMessage = Encoding.UTF8.GetString(msg.Data, 0, msg.Length);
                 TransportMessage? tMessage;
 
@@ -566,7 +605,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
                 if (tMessage != null)
                 {
-                    ProcessTransportMessage(tMessage, msg.SequenceId);
+                    ProcessTransportMessage(tMessage, msg.SequenceId, isReplayChecked);
                 }
             }
             catch (Exception ex)
@@ -578,7 +617,52 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             }
         }
 
-        private void ProcessTransportMessage(TransportMessage tMessage, int sequenceId)
+        private static bool TryReadHeader(ReadOnlySpan<byte> json, out Guid messageId, out string? timeStamp)
+        {
+            messageId = Guid.Empty;
+            timeStamp = null;
+            var reader = new Utf8JsonReader(json, new JsonReaderOptions { CommentHandling = JsonCommentHandling.Disallow });
+
+            try
+            {
+                while (reader.Read())
+                {
+                    if (reader.TokenType == JsonTokenType.PropertyName)
+                    {
+                        if (reader.ValueTextEquals("MessageId") || reader.ValueTextEquals("messageId"))
+                        {
+                            reader.Read();
+                            if (reader.TokenType == JsonTokenType.String && Guid.TryParse(reader.GetString(), out var id))
+                            {
+                                messageId = id;
+                                if (timeStamp != null) return true;
+                            }
+                        }
+                        else if (reader.ValueTextEquals("TimeStamp") || reader.ValueTextEquals("timeStamp"))
+                        {
+                            reader.Read();
+                            if (reader.TokenType == JsonTokenType.String)
+                            {
+                                timeStamp = reader.GetString();
+                                if (messageId != Guid.Empty) return true;
+                            }
+                        }
+                        else
+                        {
+                            reader.Skip();
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Invalid JSON
+                return false;
+            }
+            return messageId != Guid.Empty && timeStamp != null;
+        }
+
+        private void ProcessTransportMessage(TransportMessage tMessage, int sequenceId, bool isReplayChecked = false)
         {
             Logger.LogTrace("Processing message {0}", sequenceId);
 
@@ -600,59 +684,13 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                 return;
             }
 
-            // Periodic cleanup (fire and forget) or if full
-            if ((DateTime.UtcNow - _lastCleanupTime).TotalMinutes > 1 ||
-                (_currentReplayCount >= MaxReplayCacheSize && (DateTime.UtcNow - _lastCleanupTime).TotalSeconds > 5))
+            if (!isReplayChecked)
             {
-                _lastCleanupTime = DateTime.UtcNow;
-                Task.Run(() => CleanupSeenMessages());
+                if (!TryRegisterMessage(tMessage.MessageId))
+                {
+                    return;
+                }
             }
-
-            if (_currentReplayCount >= MaxReplayCacheSize)
-            {
-                var now = DateTime.UtcNow;
-                if ((now - _lastCacheFullLog).TotalSeconds >= 5)
-                {
-                    _lastCacheFullLog = now;
-                    if (_suppressedCacheFullLogs > 0)
-                        Logger.LogWarning("Replay protection cache full ({0} entries). Dropping message {1} to prevent DoS. (Suppressed {2} similar logs)",
-                            _currentReplayCount, tMessage.MessageId, _suppressedCacheFullLogs);
-                    else
-                        Logger.LogWarning("Replay protection cache full ({0} entries). Dropping message {1} to prevent DoS.",
-                            _currentReplayCount, tMessage.MessageId);
-
-                    _suppressedCacheFullLogs = 0;
-                }
-                else
-                {
-                    Interlocked.Increment(ref _suppressedCacheFullLogs);
-                }
-                return;
-            }
-
-            // 2. Replay Protection Check - Atomically try to add. If it fails, it's a duplicate.
-            // Using UtcNow for consistency across timezones.
-            if (!_seenMessages.TryAdd(tMessage.MessageId, DateTime.UtcNow.AddMinutes(6)))
-            {
-                var now = DateTime.UtcNow;
-                if ((now - _lastDuplicateLog).TotalSeconds >= 5)
-                {
-                    _lastDuplicateLog = now;
-                    if (_suppressedDuplicateLogs > 0)
-                        Logger.LogWarning("Duplicate message detected (Replay Attack Prevention): {0}. (Suppressed {1} similar logs)",
-                            tMessage.MessageId, _suppressedDuplicateLogs);
-                    else
-                        Logger.LogWarning("Duplicate message detected (Replay Attack Prevention): {0}", tMessage.MessageId);
-
-                    _suppressedDuplicateLogs = 0;
-                }
-                else
-                {
-                    Interlocked.Increment(ref _suppressedDuplicateLogs);
-                }
-                return;
-            }
-            Interlocked.Increment(ref _currentReplayCount);
 
             // 3. Payload Deserialization
             if (tMessage.MessageData is JsonElement element)
@@ -708,6 +746,64 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     tMessage.MessageId);
                 _ = SendAckAsync(tMessage.MessageId);
             }
+        }
+
+        private bool TryRegisterMessage(Guid messageId)
+        {
+            // Periodic cleanup (fire and forget) or if full
+            if ((DateTime.UtcNow - _lastCleanupTime).TotalMinutes > 1 ||
+                (_currentReplayCount >= MaxReplayCacheSize && (DateTime.UtcNow - _lastCleanupTime).TotalSeconds > 5))
+            {
+                _lastCleanupTime = DateTime.UtcNow;
+                Task.Run(() => CleanupSeenMessages());
+            }
+
+            if (_currentReplayCount >= MaxReplayCacheSize)
+            {
+                var now = DateTime.UtcNow;
+                if ((now - _lastCacheFullLog).TotalSeconds >= 5)
+                {
+                    _lastCacheFullLog = now;
+                    if (_suppressedCacheFullLogs > 0)
+                        Logger.LogWarning("Replay protection cache full ({0} entries). Dropping message {1} to prevent DoS. (Suppressed {2} similar logs)",
+                            _currentReplayCount, messageId, _suppressedCacheFullLogs);
+                    else
+                        Logger.LogWarning("Replay protection cache full ({0} entries). Dropping message {1} to prevent DoS.",
+                            _currentReplayCount, messageId);
+
+                    _suppressedCacheFullLogs = 0;
+                }
+                else
+                {
+                    Interlocked.Increment(ref _suppressedCacheFullLogs);
+                }
+                return false;
+            }
+
+            // Atomically try to add.
+            // Using UtcNow for consistency across timezones.
+            if (!_seenMessages.TryAdd(messageId, DateTime.UtcNow.AddMinutes(6)))
+            {
+                var now = DateTime.UtcNow;
+                if ((now - _lastDuplicateLog).TotalSeconds >= 5)
+                {
+                    _lastDuplicateLog = now;
+                    if (_suppressedDuplicateLogs > 0)
+                        Logger.LogWarning("Duplicate message detected (Replay Attack Prevention): {0}. (Suppressed {1} similar logs)",
+                            messageId, _suppressedDuplicateLogs);
+                    else
+                        Logger.LogWarning("Duplicate message detected (Replay Attack Prevention): {0}", messageId);
+
+                    _suppressedDuplicateLogs = 0;
+                }
+                else
+                {
+                    Interlocked.Increment(ref _suppressedDuplicateLogs);
+                }
+                return false;
+            }
+            Interlocked.Increment(ref _currentReplayCount);
+            return true;
         }
 
         private void CleanupSeenMessages()
