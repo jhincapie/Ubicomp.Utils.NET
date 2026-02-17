@@ -47,6 +47,9 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
 
         private readonly ConcurrentDictionary<Guid, AckSession> _activeSessions = new ConcurrentDictionary<Guid, AckSession>();
 
+        // Security
+        private byte[]? _securityKey;
+
         // Replay Protection
         private readonly ConcurrentDictionary<Guid, DateTime> _seenMessages = new ConcurrentDictionary<Guid, DateTime>();
         private DateTime _lastCleanupTime = DateTime.MinValue;
@@ -162,6 +165,18 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             _genericHandlers[id] = handler;
             _typeToIdMap[typeof(T)] = id;
             _knownTypes[id] = typeof(T);
+        }
+
+        /// <summary>
+        /// Sets the security key for HMAC message signing and verification.
+        /// </summary>
+        /// <param name="key">The secret key as a string.</param>
+        public void SetSecurityKey(string key)
+        {
+            if (!string.IsNullOrEmpty(key))
+            {
+                _securityKey = Encoding.UTF8.GetBytes(key);
+            }
         }
 
         /// <summary>
@@ -495,6 +510,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     });
             }
 
+            if (_securityKey != null)
+            {
+                message.Hash = SecurityHandler.ComputeHash(message, _securityKey, _jsonOptions);
+            }
+
             string json = JsonSerializer.Serialize(message, _jsonOptions);
 
             if (_socket != null)
@@ -682,6 +702,16 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
                     tMessage.MessageId,
                     SanitizeLog(tMessage.TimeStamp));
                 return;
+            }
+
+            // Verify Security Signature if enabled
+            if (_securityKey != null)
+            {
+                if (string.IsNullOrEmpty(tMessage.Hash) || !SecurityHandler.VerifyHash(tMessage, _securityKey, _jsonOptions))
+                {
+                    Logger.LogWarning("Dropped message {0} due to invalid or missing signature.", tMessage.MessageId);
+                    return;
+                }
             }
 
             if (!isReplayChecked)
