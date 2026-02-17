@@ -14,6 +14,7 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         private MulticastSocketOptions? _options;
         private ILoggerFactory? _loggerFactory;
         private EventSource? _localSource;
+        private string? _securityKey;
         private bool _autoSendAcks = false;
         private bool? _enforceOrdering;
         private readonly List<Action<TransportComponent>> _registrations = new List<Action<TransportComponent>>();
@@ -51,6 +52,15 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         public TransportBuilder WithLocalSource(string resourceName, Guid? resourceId = null)
         {
             _localSource = new EventSource(resourceId ?? Guid.NewGuid(), resourceName);
+            return this;
+        }
+
+        /// <summary>
+        /// Configures the security key for message signing.
+        /// </summary>
+        public TransportBuilder WithSecurityKey(string key)
+        {
+            _securityKey = key;
             return this;
         }
 
@@ -104,6 +114,11 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
             if (_localSource != null)
             {
                 component.LocalSource = _localSource;
+            }
+
+            if (_securityKey != null)
+            {
+                component.SetSecurityKey(_securityKey);
             }
 
             component.AutoSendAcks = _autoSendAcks;

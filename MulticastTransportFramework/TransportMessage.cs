@@ -45,6 +45,10 @@ namespace Ubicomp.Utils.NET.MulticastTransportFramework
         /// <summary>Gets or sets the message timestamp.</summary>
         public string TimeStamp { get; set; } = string.Empty;
 
+        /// <summary>Gets or sets the integrity hash of the message.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Hash { get; set; }
+
         /// <summary>
         /// Initializes a new instance of the <see cref="TransportMessage"/>
         /// class.
