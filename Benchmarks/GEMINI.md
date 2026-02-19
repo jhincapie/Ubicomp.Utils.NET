@@ -6,6 +6,9 @@ Performance verification using `BenchmarkDotNet`.
 ## Key Benchmarks
 *   **Serialization**: `Newtonsoft.Json` vs `System.Text.Json`.
     *   *Result*: `System.Text.Json` is ~2x faster and is the default for the framework.
+*   **BinaryPacket**:
+    *   **Construction**: Measures header/payload writing efficiency.
+    *   **Integrity**: Measures overhead of HMAC-SHA256 operations (`SerializeWithIntegrity`, `DeserializeWithIntegrity`).
 
 ## Usage
 Run in `Release` mode to get accurate results.

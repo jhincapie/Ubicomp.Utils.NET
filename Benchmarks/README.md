@@ -15,6 +15,13 @@ Compares the performance of serializing a `TransportMessage` payload.
 ### 2. Binary Packet Construction
 Measures the overhead of writing the `BinaryPacket` structure (Header + Payload) to an `ArrayBufferWriter<byte>`.
 
+### 3. Binary Packet Integrity (HMAC-SHA256)
+Benchmarks the cost of adding cryptographic integrity checks to the `BinaryPacket`.
+*   **SerializeWithIntegrity**: Computes HMAC-SHA256 during serialization (zero-allocation via `stackalloc`).
+*   **DeserializeWithIntegrity**: Verifies HMAC-SHA256 during deserialization.
+
+**Goal**: Ensure that integrity checks introduce minimal overhead compared to raw serialization.
+
 ## Running Benchmarks
 Run the project in **Release** mode:
 
